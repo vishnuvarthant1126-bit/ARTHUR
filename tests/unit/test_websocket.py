@@ -1,9 +1,11 @@
 """Tests for the /ws streaming chat protocol."""
 
+from contextlib import contextmanager
+
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
-from app.llm.base import LLMUnavailableError
+from app.llm.base import LLMUnavailableError, Role
 
 
 def receive_until_done(ws) -> list[dict]:
@@ -15,8 +17,34 @@ def receive_until_done(ws) -> list[dict]:
             return events
 
 
+@contextmanager
+def session(ws_client, session_id: str | None = None):
+    """Connect, consume the initial `session` event, yield (websocket, that event)."""
+    url = f"/ws?session_id={session_id}" if session_id else "/ws"
+    with ws_client.websocket_connect(url) as ws:
+        event = ws.receive_json()
+        assert event["type"] == "session"
+        yield ws, event
+
+
+def history_of(ws_client, session_id: str) -> list[dict]:
+    with session(ws_client, session_id) as (_, event):
+        return event["history"]
+
+
+def test_connect_announces_new_session(ws_client):
+    with session(ws_client) as (_, event):
+        assert len(event["session_id"]) == 32
+        assert event["history"] == []
+
+
+def test_invalid_session_id_is_replaced(ws_client):
+    with session(ws_client, "bad id!") as (_, event):
+        assert event["session_id"] != "bad id!"
+
+
 def test_chat_streams_tokens_then_done(ws_client):
-    with ws_client.websocket_connect("/ws") as ws:
+    with session(ws_client) as (ws, _):
         ws.send_json({"type": "chat", "message": "Hello Arthur"})
         events = receive_until_done(ws)
 
@@ -31,13 +59,38 @@ def test_chat_streams_tokens_then_done(ws_client):
     assert done["request_id"] == events[0]["request_id"]
 
 
-def test_multiple_messages_on_one_connection(ws_client, fake_llm):
-    with ws_client.websocket_connect("/ws") as ws:
-        for text in ("first", "second"):
+def test_conversation_is_remembered_between_messages(ws_client, fake_llm):
+    with session(ws_client) as (ws, _):
+        for text in ("My name is Vishnu.", "What is my name?"):
             ws.send_json({"type": "chat", "message": text})
             assert receive_until_done(ws)[-1]["type"] == "done"
 
-    assert [call[-1].content for call in fake_llm.calls] == ["first", "second"]
+    second_call = fake_llm.calls[-1]
+    assert [m.role for m in second_call] == [Role.SYSTEM, Role.USER, Role.ASSISTANT, Role.USER]
+    assert second_call[1].content == "My name is Vishnu."
+
+
+def test_reconnect_with_session_id_restores_history(ws_client):
+    with session(ws_client) as (ws, event):
+        ws.send_json({"type": "chat", "message": "My name is Vishnu."})
+        receive_until_done(ws)
+
+    assert history_of(ws_client, event["session_id"]) == [
+        {"role": "user", "content": "My name is Vishnu."},
+        {"role": "assistant", "content": "Hello. How can I help?"},
+    ]
+
+
+def test_clear_forgets_conversation(ws_client, fake_llm):
+    with session(ws_client) as (ws, _):
+        ws.send_json({"type": "chat", "message": "My name is Vishnu."})
+        receive_until_done(ws)
+        ws.send_json({"type": "clear"})
+        assert ws.receive_json() == {"type": "cleared"}
+        ws.send_json({"type": "chat", "message": "What is my name?"})
+        receive_until_done(ws)
+
+    assert len(fake_llm.calls[-1]) == 2  # system + user: nothing remembered
 
 
 @pytest.mark.parametrize(
@@ -50,7 +103,7 @@ def test_multiple_messages_on_one_connection(ws_client, fake_llm):
     ],
 )
 def test_invalid_frames_return_error_and_keep_connection(ws_client, frame):
-    with ws_client.websocket_connect("/ws") as ws:
+    with session(ws_client) as (ws, _):
         ws.send_text(frame)
         error = ws.receive_json()
         assert error["type"] == "error"
@@ -60,10 +113,10 @@ def test_invalid_frames_return_error_and_keep_connection(ws_client, frame):
         assert ws.receive_json() == {"type": "pong"}
 
 
-def test_llm_failure_is_reported_as_error_event(ws_client, fake_llm):
+def test_llm_failure_is_reported_and_not_remembered(ws_client, fake_llm):
     fake_llm.error = LLMUnavailableError("Cannot reach Ollama")
 
-    with ws_client.websocket_connect("/ws") as ws:
+    with session(ws_client) as (ws, event):
         ws.send_json({"type": "chat", "message": "Hello"})
         events = receive_until_done(ws)
 
@@ -72,13 +125,14 @@ def test_llm_failure_is_reported_as_error_event(ws_client, fake_llm):
         "error_type": "llm_unavailable",
         "message": "Cannot reach Ollama",
     }
+    assert history_of(ws_client, event["session_id"]) == []
 
 
-def test_stop_cancels_answer_in_progress(ws_client, fake_llm):
+def test_stop_cancels_answer_and_keeps_partial_reply(ws_client, fake_llm):
     fake_llm.reply = " ".join(["word"] * 200)
     fake_llm.token_delay = 0.02  # 200 tokens would take ~4s
 
-    with ws_client.websocket_connect("/ws") as ws:
+    with session(ws_client) as (ws, event):
         ws.send_json({"type": "chat", "message": "Tell me a long story"})
         assert ws.receive_json()["type"] == "status"
         ws.receive_json()  # at least one token has started flowing
@@ -90,12 +144,16 @@ def test_stop_cancels_answer_in_progress(ws_client, fake_llm):
     assert done["stopped"] is True
     assert sum(e["type"] == "token" for e in events) < 199
 
+    saved_reply = history_of(ws_client, event["session_id"])[1]["content"]
+    assert saved_reply.startswith("word")
+    assert len(saved_reply) < len(fake_llm.reply)
+
 
 def test_second_chat_while_busy_is_rejected(ws_client, fake_llm):
     fake_llm.reply = " ".join(["word"] * 50)
     fake_llm.token_delay = 0.02
 
-    with ws_client.websocket_connect("/ws") as ws:
+    with session(ws_client) as (ws, _):
         ws.send_json({"type": "chat", "message": "first"})
         ws.send_json({"type": "chat", "message": "second"})
         events = receive_until_done(ws)
@@ -118,6 +176,7 @@ def test_foreign_origin_is_rejected(ws_client):
 def test_same_origin_is_accepted(ws_client):
     headers = {"origin": "http://testserver"}
     with ws_client.websocket_connect("/ws", headers=headers) as ws:
+        assert ws.receive_json()["type"] == "session"
         ws.send_json({"type": "ping"})
         assert ws.receive_json() == {"type": "pong"}
 

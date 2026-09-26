@@ -80,7 +80,7 @@ async def test_connection_refused_is_unavailable():
     def handler(request):
         raise httpx.ConnectError("refused", request=request)
 
-    with pytest.raises(LLMUnavailableError, match="Is Ollama running"):
+    with pytest.raises(LLMUnavailableError, match="Cannot reach Ollama"):
         await make_provider(handler).generate(MESSAGES)
 
 

@@ -12,6 +12,42 @@ async def test_chat_returns_llm_reply(client, fake_llm):
     body = response.json()
     assert body["response"] == "Hello. How can I help?"
     assert body["model"] == "fake-model"
+    assert len(body["session_id"]) == 32
+
+
+async def test_chat_remembers_conversation_with_session_id(client, fake_llm):
+    first = await client.post("/chat", json={"message": "My name is Vishnu."})
+    session_id = first.json()["session_id"]
+
+    await client.post("/chat", json={"message": "What is my name?", "session_id": session_id})
+
+    sent = fake_llm.calls[-1]
+    assert [m.role for m in sent] == [Role.SYSTEM, Role.USER, Role.ASSISTANT, Role.USER]
+    assert sent[1].content == "My name is Vishnu."
+    assert sent[-1].content == "What is my name?"
+
+
+async def test_chat_without_session_id_starts_fresh(client, fake_llm):
+    await client.post("/chat", json={"message": "My name is Vishnu."})
+    await client.post("/chat", json={"message": "What is my name?"})
+
+    assert len(fake_llm.calls[-1]) == 2  # system + user only
+
+
+async def test_delete_chat_forgets_conversation(client, fake_llm):
+    first = await client.post("/chat", json={"message": "My name is Vishnu."})
+    session_id = first.json()["session_id"]
+
+    deleted = await client.delete(f"/chat/{session_id}")
+    await client.post("/chat", json={"message": "What is my name?", "session_id": session_id})
+
+    assert deleted.status_code == 204
+    assert len(fake_llm.calls[-1]) == 2
+
+
+async def test_chat_rejects_malformed_session_id(client):
+    response = await client.post("/chat", json={"message": "hi", "session_id": "../../etc"})
+    assert response.status_code == 422
 
 
 async def test_chat_sends_system_prompt_then_user_message(client, fake_llm):

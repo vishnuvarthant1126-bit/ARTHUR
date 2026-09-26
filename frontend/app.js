@@ -13,7 +13,19 @@ const state = {
   busy: false,       // an answer is in progress
   reply: null,       // { bubble, meta, text } for the answer being streamed
   retries: 0,
+  sessionId: loadSessionId(),
 };
+
+// The session id links this browser to its conversation on the server.
+// localStorage can be unavailable (private mode), so every access is guarded.
+function loadSessionId() {
+  try { return localStorage.getItem("arthur.sessionId"); } catch { return null; }
+}
+
+function saveSessionId(id) {
+  state.sessionId = id;
+  try { localStorage.setItem("arthur.sessionId", id); } catch { /* memory-only is fine */ }
+}
 
 // ---------- status ----------
 function setStatus(kind, label) {
@@ -32,7 +44,8 @@ function refreshComposer() {
 function connect() {
   setStatus("connecting", "Connecting…");
   const scheme = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${scheme}://${location.host}/ws`);
+  const query = state.sessionId ? `?session_id=${encodeURIComponent(state.sessionId)}` : "";
+  const ws = new WebSocket(`${scheme}://${location.host}/ws${query}`);
   state.ws = ws;
 
   ws.onopen = () => {
@@ -69,6 +82,13 @@ async function loadHealth() {
 // ---------- server events ----------
 function handleEvent(event) {
   switch (event.type) {
+    case "session":
+      saveSessionId(event.session_id);
+      renderHistory(event.history);
+      break;
+    case "cleared":
+      clearScreen();
+      break;
     case "status":
       setStatus("thinking", "Thinking…");
       break;
@@ -161,8 +181,23 @@ function addError(message) {
   addMessage("error", `⚠ ${message}`);
 }
 
+// The server is the source of truth: after a reload (or reconnect) we redraw
+// exactly what ARTHUR remembers. After a server restart that is nothing.
+function renderHistory(history) {
+  clearScreen();
+  for (const message of history) {
+    const { bubble } = addMessage(message.role === "user" ? "user" : "arthur", message.content);
+    if (message.role !== "user") bubble.innerHTML = renderMarkdown(message.content);
+  }
+  els.empty.hidden = history.length > 0;
+}
+
 function clearConversation() {
-  stop();
+  if (state.connected) state.ws.send(JSON.stringify({ type: "clear" })); // server replies "cleared"
+  else clearScreen();
+}
+
+function clearScreen() {
   els.log.querySelectorAll(".msg").forEach((m) => m.remove());
   els.empty.hidden = false;
   els.input.focus();

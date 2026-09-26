@@ -11,8 +11,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config.settings import Settings
 from app.llm.base import LLMError, LLMProvider, LLMResponse, Message, T
-from app.main import create_app
+from app.main import build_orchestrator, create_app
 from app.observability.logging import configure_logging
 
 
@@ -58,7 +59,9 @@ def fake_llm() -> FakeLLM:
 def _app_with(llm: LLMProvider):
     configure_logging("WARNING")
     app = create_app()
-    app.state.llm = llm  # inject the fake instead of running the real lifespan
+    # Inject the fake instead of running the real lifespan.
+    app.state.llm = llm
+    app.state.orchestrator = build_orchestrator(llm, Settings(_env_file=None))
     return app
 
 

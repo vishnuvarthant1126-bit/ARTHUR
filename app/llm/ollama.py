@@ -7,22 +7,14 @@ messages - the same shape as our `Message` model.
 
 import json
 import time
-from collections.abc import AsyncIterator, Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
 from pydantic import ValidationError
 
-from app.llm.base import (
-    LLMProvider,
-    LLMResponse,
-    LLMResponseError,
-    LLMTimeoutError,
-    LLMUnavailableError,
-    Message,
-    T,
-)
+from app.llm._http import status_error, translate_http_errors
+from app.llm.base import LLMProvider, LLMResponse, LLMResponseError, Message, T
 
 
 class OllamaProvider(LLMProvider):
@@ -33,10 +25,13 @@ class OllamaProvider(LLMProvider):
         base_url: str,
         model: str,
         timeout_seconds: float = 120.0,
+        context_tokens: int | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self.model = model
         self._base_url = base_url
+        # Ollama's default context window is small; conversation memory needs more.
+        self._context_tokens = context_tokens
         # One shared client = connection pooling (reuses TCP connections).
         # connect timeout is short: if Ollama isn't running we want to know fast.
         self._client = client or httpx.AsyncClient(
@@ -63,7 +58,7 @@ class OllamaProvider(LLMProvider):
         self, messages: list[Message], *, temperature: float | None = None
     ) -> AsyncIterator[str]:
         payload = self._payload(messages, stream=True, temperature=temperature)
-        with self._translate_errors():
+        with self._errors():
             async with self._client.stream("POST", "/api/chat", json=payload) as response:
                 if response.status_code >= 400:
                     await response.aread()
@@ -116,36 +111,28 @@ class OllamaProvider(LLMProvider):
             # would leak <think> text into replies. Planning (Phase 8) can re-enable it.
             "think": False,
         }
+        options: dict[str, Any] = {}
         if temperature is not None:
-            payload["options"] = {"temperature": temperature}
+            options["temperature"] = temperature
+        if self._context_tokens:
+            options["num_ctx"] = self._context_tokens
+        if options:
+            payload["options"] = options
         return payload
 
     async def _post_chat(self, payload: dict[str, Any]) -> dict[str, Any]:
-        with self._translate_errors():
+        with self._errors():
             response = await self._client.post("/api/chat", json=payload)
         if response.status_code >= 400:
             raise self._status_error(response)
         return response.json()
 
-    @contextmanager
-    def _translate_errors(self) -> Iterator[None]:
-        """Turn low-level httpx errors into ARTHUR's provider-neutral LLM errors."""
-        try:
-            yield
-        except httpx.ConnectError as exc:
-            raise LLMUnavailableError(
-                f"Cannot reach Ollama at {self._base_url}. Is Ollama running?"
-            ) from exc
-        except httpx.TimeoutException as exc:
-            raise LLMTimeoutError(f"Ollama did not respond in time ({exc!r}).") from exc
+    def _errors(self):
+        return translate_http_errors("Ollama", self._base_url)
 
     def _status_error(self, response: httpx.Response) -> LLMResponseError:
-        try:
-            detail = response.json().get("error", response.text)
-        except ValueError:
-            detail = response.text
         if response.status_code == 404:
             return LLMResponseError(
                 f"Model '{self.model}' is not installed. Run: ollama pull {self.model}"
             )
-        return LLMResponseError(f"Ollama returned HTTP {response.status_code}: {detail[:300]}")
+        return status_error("Ollama", response)

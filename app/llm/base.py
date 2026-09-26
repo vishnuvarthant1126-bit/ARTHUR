@@ -37,15 +37,27 @@ class LLMResponse(BaseModel):
 
 
 class LLMError(Exception):
-    """Base class for every LLM failure."""
+    """Base class for every LLM failure.
+
+    `retryable` says whether trying again might succeed (a brief outage, rate
+    limit) or is pointless (bad API key, model not installed).
+    """
+
+    default_retryable = False
+
+    def __init__(self, message: str, *, retryable: bool | None = None) -> None:
+        super().__init__(message)
+        self.retryable = self.default_retryable if retryable is None else retryable
 
 
 class LLMUnavailableError(LLMError):
     """The provider could not be reached (not running, no network)."""
 
+    default_retryable = True
+
 
 class LLMTimeoutError(LLMError):
-    """The provider did not answer in time."""
+    """The provider did not answer in time. Not retried: it would double the wait."""
 
 
 class LLMResponseError(LLMError):
