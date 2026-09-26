@@ -4,8 +4,13 @@ ARTHUR is a local-first personal AI agent (FastAPI + Ollama) built phase by phas
 learning and portfolio project. The owner is a beginner/intermediate developer.
 
 ## How to work on this project
+- **Pace: one session per day, relaxed.** The owner wants slow, steady, low-stress progress.
+  Never rush or squeeze extra phases into a day. If a day's session runs long, stop at a clean
+  point and continue the next day. Missing a day is fine – just continue with the next session.
 - **One session = the phases listed for it in the plan below. Do not continue past them.**
-  At the end of a session: update "Progress" below, commit, and stop.
+- Start each session with a short recap of the previous one (from `docs/sessions/`), then the plan for today.
+- At the end of a session: write `docs/sessions/SESSION_NN.md`, update the table and
+  "Progress notes" below, commit, make a backup bundle in `C:\Users\User\Documents\ARTHUR-backups\`, and stop.
 - Explain every new concept in simple language before implementing it.
 - At the start of each phase show: CURRENT PHASE, OBJECTIVE, WHAT WE ARE BUILDING,
   FILES, DEPENDENCIES, EXPECTED RESULT. At the end: WHAT WE BUILT, HOW TO RUN,
@@ -46,20 +51,22 @@ ruff check . ; ruff format --check .
 - qwen3 runs with `think: false`.
 
 ## Session plan
-| Session | Phases | Status |
-|---|---|---|
-| 1 | 0–4: setup, chat API, web UI, LLM abstraction, conversation memory | ✅ Done (2026-09-26) |
-| 2 | 5–6: long-term memory (SQLite + ChromaDB + embeddings, memory policy), tool system + registry | ⏭ Next |
-| 3 | 7–8: agent loop (tool calling), planner/executor with step limits | |
-| 4 | 9–10: document RAG with citations, web search | |
-| 5 | 11–13: speech-to-text, text-to-speech, wake word | |
-| 6 | 14–15: restricted file tools, Playwright browser agent | |
-| 7 | 16–17: controlled computer use, vision | |
-| 8 | 18–19: scheduler/reminders, full security system | |
-| 9 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
-| 10 | 23–24: Docker Compose, performance | |
-| 11 | 25–27: futuristic UI, multimodal input, advanced agent features | |
-| 12 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
+One session per day. Dates are a guide, not a deadline – if a day is skipped, everything shifts.
+
+| Session | Planned day | Phases | Status |
+|---|---|---|---|
+| 1 | Sat 2026-09-26 | 0–4: setup, chat API, web UI, LLM abstraction, conversation memory | ✅ Done |
+| 2 | Sun 2026-09-27 | 5–6: long-term memory (SQLite + ChromaDB + embeddings, memory policy), tool system + registry | ⏭ Next |
+| 3 | Mon 2026-09-28 | 7–8: agent loop (tool calling), planner/executor with step limits | |
+| 4 | Tue 2026-09-29 | 9–10: document RAG with citations, web search | |
+| 5 | Wed 2026-09-30 | 11–13: speech-to-text, text-to-speech, wake word | |
+| 6 | Thu 2026-10-01 | 14–15: restricted file tools, Playwright browser agent | |
+| 7 | Fri 2026-10-02 | 16–17: controlled computer use, vision | |
+| 8 | Sat 2026-10-03 | 18–19: scheduler/reminders, full security system | |
+| 9 | Sun 2026-10-04 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
+| 10 | Mon 2026-10-05 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
+| 11 | Tue 2026-10-06 | 25–27: futuristic UI, multimodal input, advanced agent features | |
+| 12 | Wed 2026-10-07 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
 
 ## Docs
 - `docs/ARCHITECTURE.md` – full architecture, example flow, stack, hardware, design decisions.
