@@ -1,0 +1,20 @@
+[project]
+name = "arthur"
+version = "0.1.0"
+description = "ARTHUR - Personal Multimodal AI Agent"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+    "integration: talks to real local services (Ollama); skipped when unavailable",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC"]
