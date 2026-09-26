@@ -6,15 +6,19 @@ e.g. `ollama_model` <- `OLLAMA_MODEL`.
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# The folder containing app/, so relative paths work no matter where you start the server.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=PROJECT_ROOT / ".env",
         env_file_encoding="utf-8",
         extra="ignore",  # .env holds settings for later phases too
     )
@@ -47,6 +51,33 @@ class Settings(BaseSettings):
     memory_max_history_messages: int = 40
     memory_max_sessions: int = 100
     memory_session_ttl_minutes: int = 240
+
+    # --- Storage ---
+    database_path: Path = Path("data/arthur.db")
+    vector_store_path: Path = Path("data/memory/chroma")
+
+    # --- Long-term memory ---
+    embedding_provider: str = "ollama"
+    embedding_model: str = "nomic-embed-text"
+    memory_top_k: int = 5  # at most this many memories are added to each prompt
+    # Similarity from 0 (unrelated) to 1 (same meaning); below this a memory is ignored.
+    # Measured with scripts/calibrate_memory.py for nomic-embed-text:
+    # related questions 0.59-0.83, unrelated 0.46-0.51. Re-measure if you change models.
+    memory_min_score: float = 0.55
+
+    # --- Tools ---
+    # Levels 0..N run without asking; above it the user must confirm. Level 3 is always blocked.
+    tools_auto_approve_max_level: int = 1
+    tools_blocked: str = ""  # comma-separated tool names to disable, e.g. "weather"
+    tools_default_timeout_seconds: float = 10.0
+
+    def resolve(self, path: Path) -> Path:
+        """Relative paths in settings are relative to the project folder."""
+        return path if path.is_absolute() else PROJECT_ROOT / path
+
+    @property
+    def blocked_tools(self) -> set[str]:
+        return {name.strip() for name in self.tools_blocked.split(",") if name.strip()}
 
     @field_validator(
         "llm_fallback_provider", "openai_compat_base_url", "openai_compat_model", mode="before"

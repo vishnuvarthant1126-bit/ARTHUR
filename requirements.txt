@@ -8,3 +8,8 @@ pydantic>=2.9
 pydantic-settings>=2.6       # loads .env into typed settings
 # --- Logging ---
 structlog>=24.4              # structured (JSON) logs
+# --- Storage (Phase 5) ---
+sqlalchemy>=2.0              # database toolkit; SQLite for the MVP
+chromadb>=1.0                # vector database for semantic search
+# --- Tools (Phase 6) ---
+tzdata>=2024.1               # time-zone data (Windows has none built in)

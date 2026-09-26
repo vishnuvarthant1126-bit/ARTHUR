@@ -137,6 +137,28 @@ body[data-state="streaming"] .core span { animation-duration: .9s; background: v
 .send.stop svg { display: none; }
 .send.stop::before { content: ""; width: 12px; height: 12px; background: #fff; border-radius: 2px; }
 
+/* ---------- memory panel ---------- */
+.app { position: relative; }
+.memory-panel {
+  position: absolute; top: 64px; right: 16px; z-index: 10;
+  width: min(380px, calc(100% - 32px)); max-height: calc(100% - 150px); overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; box-shadow: 0 18px 50px rgba(0,0,0,.45);
+}
+.memory-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.memory-head h2 { margin: 0 0 2px; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+.memory-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.memory-list li {
+  display: flex; gap: 10px; align-items: flex-start; justify-content: space-between;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px;
+}
+.memory-list .fact { font-size: 13.5px; }
+.memory-list .tag { display: inline-block; margin-top: 4px; font-size: 10.5px; color: var(--accent); letter-spacing: .06em; text-transform: uppercase; }
+.memory-list button { flex: none; background: none; border: 0; color: var(--muted); padding: 2px 4px; }
+.memory-list button:hover { color: var(--err); }
+.memory-empty { margin-top: 12px; }
+#memory-toggle[aria-expanded="true"] { color: var(--text); border-color: var(--accent); }
+
 @media (max-width: 560px) {
   .brand h1 { letter-spacing: .18em; }
   #model { display: none; }

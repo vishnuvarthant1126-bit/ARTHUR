@@ -20,9 +20,22 @@
         <div id="status" class="status" data-state="connecting" role="status" aria-live="polite">
           <span class="dot"></span><span id="status-text">Connecting…</span>
         </div>
+        <button id="memory-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="memory-panel">Memory</button>
         <button id="clear" class="ghost" type="button" title="Clear conversation">Clear</button>
       </div>
     </header>
+
+    <aside id="memory-panel" class="memory-panel" hidden aria-label="Long-term memory">
+      <div class="memory-head">
+        <div>
+          <h2>Long-term memory</h2>
+          <p class="subtle">Saved only when you say “remember…”. Kept across conversations and restarts.</p>
+        </div>
+        <button id="memory-close" class="ghost" type="button" aria-label="Close memory panel">✕</button>
+      </div>
+      <ul id="memory-list" class="memory-list"></ul>
+      <p id="memory-empty" class="subtle memory-empty">Nothing yet. Try: “Remember that my main project is called ARTHUR.”</p>
+    </aside>
 
     <main id="log" class="log" aria-live="polite">
       <section id="empty" class="empty">

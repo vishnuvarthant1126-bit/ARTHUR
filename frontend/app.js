@@ -5,6 +5,8 @@ const $ = (id) => document.getElementById(id);
 const els = {
   log: $("log"), empty: $("empty"), form: $("composer"), input: $("input"),
   send: $("send"), clear: $("clear"), status: $("status"), statusText: $("status-text"), model: $("model"),
+  memoryToggle: $("memory-toggle"), memoryPanel: $("memory-panel"), memoryClose: $("memory-close"),
+  memoryList: $("memory-list"), memoryEmpty: $("memory-empty"),
 };
 
 const state = {
@@ -154,6 +156,7 @@ function startReply() {
 
 function finishReply(info) {
   const reply = state.reply;
+  if (!els.memoryPanel.hidden) loadMemories(); // a reply may have saved/forgotten something
   if (reply) {
     reply.bubble.classList.remove("cursor");
     if (!reply.text) reply.bubble.textContent = info.stopped ? "(stopped)" : "(no response)";
@@ -205,6 +208,58 @@ function clearScreen() {
 
 function scrollToBottom() {
   els.log.scrollTop = els.log.scrollHeight;
+}
+
+// ---------- memory panel ----------
+function toggleMemoryPanel(open = els.memoryPanel.hidden) {
+  els.memoryPanel.hidden = !open;
+  els.memoryToggle.setAttribute("aria-expanded", String(open));
+  if (open) loadMemories();
+}
+
+async function loadMemories() {
+  try {
+    const res = await fetch("/memories");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    renderMemories((await res.json()).memories);
+  } catch {
+    els.memoryList.replaceChildren();
+    els.memoryEmpty.hidden = false;
+    els.memoryEmpty.textContent = "Couldn't load memories.";
+  }
+}
+
+function renderMemories(memories) {
+  els.memoryList.replaceChildren(
+    ...memories.map((m) => {
+      const item = document.createElement("li");
+      const text = document.createElement("div");
+      const fact = document.createElement("div");
+      fact.className = "fact";
+      fact.textContent = m.content; // textContent: stored text can never inject HTML
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = m.category;
+      text.append(fact, tag);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "✕";
+      remove.title = "Forget this";
+      remove.setAttribute("aria-label", `Forget: ${m.content}`);
+      remove.addEventListener("click", () => deleteMemory(m));
+      item.append(text, remove);
+      return item;
+    })
+  );
+  els.memoryEmpty.hidden = memories.length > 0;
+  els.memoryEmpty.textContent = "Nothing yet. Try: “Remember that my main project is called ARTHUR.”";
+}
+
+async function deleteMemory(memory) {
+  // Deleting is a level-2 action: always confirm first.
+  if (!confirm(`Forget this?\n\n${memory.content}`)) return;
+  await fetch(`/memories/${encodeURIComponent(memory.id)}`, { method: "DELETE" });
+  loadMemories();
 }
 
 // ---------- tiny, safe Markdown renderer ----------
@@ -277,6 +332,11 @@ els.input.addEventListener("keydown", (e) => {
 
 els.input.addEventListener("input", autosize);
 els.clear.addEventListener("click", clearConversation);
+els.memoryToggle.addEventListener("click", () => toggleMemoryPanel());
+els.memoryClose.addEventListener("click", () => toggleMemoryPanel(false));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !els.memoryPanel.hidden) toggleMemoryPanel(false);
+});
 document.querySelectorAll(".chip").forEach((chip) =>
   chip.addEventListener("click", () => send(chip.textContent))
 );

@@ -5,8 +5,9 @@ learning and portfolio project. The owner is a beginner/intermediate developer.
 
 ## How to work on this project
 - **Pace: one session per day, relaxed.** The owner wants slow, steady, low-stress progress.
-  Never rush or squeeze extra phases into a day. If a day's session runs long, stop at a clean
-  point and continue the next day. Missing a day is fine – just continue with the next session.
+  Never rush or squeeze extra phases into a day on your own initiative. If a day's session runs
+  long, stop at a clean point and continue the next day. Missing a day is fine – just continue
+  with the next session. If the owner explicitly asks to do another session the same day, do it.
 - **One session = the phases listed for it in the plan below. Do not continue past them.**
 - Start each session with a short recap of the previous one (from `docs/sessions/`), then the plan for today.
 - At the end of a session: write `docs/sessions/SESSION_NN.md`, update the table and
@@ -38,17 +39,26 @@ ruff check . ; ruff format --check .
 ```
 
 ## Architecture (current)
-- `app/main.py` – app factory, lifespan builds LLM provider + Orchestrator.
+- `app/main.py` – app factory; lifespan builds DB, LLM, embeddings, Chroma, MemoryManager,
+  AuditLog, ToolRegistry, Orchestrator (all on `app.state`).
 - `app/llm/` – `LLMProvider` interface (`generate`, `stream`, `generate_structured`);
   `OllamaProvider`, `OpenAICompatProvider`; `RetryingProvider`/`FallbackProvider` wrappers;
   `factory.py` is the only place that knows concrete classes.
-- `app/agent/orchestrator.py` – builds system prompt + trimmed history + user message; saves exchanges.
-- `app/memory/short_term.py` – per-session conversation in RAM (token-budget trimming, TTL, LRU).
-- `app/api/` – `POST /chat`, `DELETE /chat/{id}`, `GET /health`, `WS /ws` (streaming, stop,
-  clear, session history; Origin check), JSON error format, request-ID middleware.
-- `frontend/` – plain HTML/CSS/JS, no external dependencies; safe Markdown rendering.
-- Tests use `FakeLLM` (tests/conftest.py); don't run the real lifespan in tests.
-- qwen3 runs with `think: false`.
+- `app/agent/orchestrator.py` – per message: pending yes/no → remember → forget → recall
+  memories into the system prompt → LLM. Direct replies (memory actions) are returned as str.
+- `app/memory/` – `short_term.py` (per-session RAM, PendingAction), `long_term.py` (SQLite repo),
+  `vector_store.py` (Chroma + in-memory), `manager.py` (save/retrieve/search/delete, keeps both
+  stores in step), `policy.py` (intent regexes, secret filter, extraction prompt).
+- `app/rag/embeddings.py` – `EmbeddingProvider`, Ollama `nomic-embed-text` with task prefixes.
+- `app/tools/` – `Tool` base (name, description, input_model, permission_level, timeout, run),
+  `ToolRegistry.execute` (lookup → permission → validate → confirm → timeout → audit),
+  tools: calculator (AST, no eval), current_time, weather (Open-Meteo), memory tools.
+- `app/security/` – `PermissionPolicy` (level ≥2 always confirms, 3 always denied), `AuditLog`.
+- `app/api/` – chat, memories, tools, audit, health, `WS /ws`; JSON errors; request IDs.
+- `frontend/` – plain HTML/CSS/JS, no external deps; safe Markdown; Memory panel.
+- Tests use `FakeLLM`/`FakeEmbeddings`/in-memory DB (tests/conftest.py); never the real lifespan.
+- qwen3 runs with `think: false`. `MEMORY_MIN_SCORE=0.55` was measured (scripts/calibrate_memory.py).
+- Port 8000 may be occupied by an unrelated Python 3.14 process on this machine; use 8001 if so.
 
 ## Session plan
 One session per day. Dates are a guide, not a deadline – if a day is skipped, everything shifts.
@@ -56,17 +66,17 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | Session | Planned day | Phases | Status |
 |---|---|---|---|
 | 1 | Sat 2026-09-26 | 0–4: setup, chat API, web UI, LLM abstraction, conversation memory | ✅ Done |
-| 2 | Sun 2026-09-27 | 5–6: long-term memory (SQLite + ChromaDB + embeddings, memory policy), tool system + registry | ⏭ Next |
-| 3 | Mon 2026-09-28 | 7–8: agent loop (tool calling), planner/executor with step limits | |
-| 4 | Tue 2026-09-29 | 9–10: document RAG with citations, web search | |
-| 5 | Wed 2026-09-30 | 11–13: speech-to-text, text-to-speech, wake word | |
-| 6 | Thu 2026-10-01 | 14–15: restricted file tools, Playwright browser agent | |
-| 7 | Fri 2026-10-02 | 16–17: controlled computer use, vision | |
-| 8 | Sat 2026-10-03 | 18–19: scheduler/reminders, full security system | |
-| 9 | Sun 2026-10-04 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
-| 10 | Mon 2026-10-05 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
-| 11 | Tue 2026-10-06 | 25–27: futuristic UI, multimodal input, advanced agent features | |
-| 12 | Wed 2026-10-07 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
+| 2 | Sat 2026-09-26 | 5–6: long-term memory (SQLite + ChromaDB + embeddings, memory policy), tool system + registry | ✅ Done (same day, at the owner's request) |
+| 3 | Sun 2026-09-27 | 7–8: agent loop (tool calling), planner/executor with step limits | ⏭ Next |
+| 4 | Mon 2026-09-28 | 9–10: document RAG with citations, web search | |
+| 5 | Tue 2026-09-29 | 11–13: speech-to-text, text-to-speech, wake word | |
+| 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | |
+| 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | |
+| 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | |
+| 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
+| 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
+| 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | |
+| 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
 
 ## Docs
 - `docs/ARCHITECTURE.md` – full architecture, example flow, stack, hardware, design decisions.
@@ -75,5 +85,10 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 ## Progress notes
 - Session 1: 76 tests passing. Verified in browser: streaming, stop, reconnect, memory
   ("What is my name?" → "Vishnu"), history restored on reload, clear forgets.
+- Session 2: 157 tests passing. Verified live: remember → clear → recalled; password refused;
+  forget asks yes/no; memory survives restart; calculator/time/weather/confirmation/audit via API.
 - Known limitations: conversation memory is RAM-only; token counts are estimates (chars/4);
-  OpenAI-compatible fallback only tested with mocks.
+  OpenAI-compatible fallback only tested with mocks; LLM does not call tools yet (Phase 7);
+  "remember" detection is regex-based.
+- Phase 7 notes: expose `ToolRegistry.llm_schemas()` to Ollama's `tools` param; on
+  `needs_confirmation` ask the user (reuse `PendingAction`), never auto-confirm; max steps/time.

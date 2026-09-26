@@ -3,8 +3,9 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 4 – streamed web chat with conversation memory, swappable LLM providers
-> with retries and fallback. Full documentation arrives as features land.
+> Status: Phase 6 – streamed web chat, conversation + long-term semantic memory,
+> swappable LLM providers, and a permission-checked, audited tool system.
+> Full documentation arrives as features land.
 
 ## Requirements
 - Python 3.12
@@ -34,6 +35,11 @@ uvicorn app.main:app --reload
 | `GET /health` | Service status and LLM reachability |
 | `POST /chat` | `{"message": "Hello Arthur", "session_id": "<optional>"}` → `{"response": "...", "session_id": "...", "model": "...", "latency_ms": 412.0}` |
 | `DELETE /chat/{session_id}` | Forget a conversation |
+| `GET /memories` · `POST /memories` · `DELETE /memories/{id}` | List, add, forget long-term memories |
+| `GET /memories/search?q=...` | Semantic memory search (returns similarity scores) |
+| `GET /tools` | Available tools with permission level and input schema |
+| `POST /tools/{name}/run` | `{"arguments": {...}, "confirmed": false}` → `ok` / `error` / `needs_confirmation` / `denied` |
+| `GET /audit` | Recent tool calls (audit log) |
 | `WS /ws?session_id=<optional>` | Streaming chat. Send `chat` / `stop` / `clear` / `ping`; receive `session` (with history), `status`, `token`…, `done`, `error`, `cleared`. Browser connections from other origins are rejected. |
 
 Errors always look like `{"error": {"type": "llm_unavailable", "message": "..."}, "request_id": "..."}`
@@ -55,6 +61,33 @@ Each browser session keeps its conversation in server RAM. Every turn, ARTHUR se
 system prompt + the newest messages that fit in `LLM_CONTEXT_TOKENS` (minus a reply reserve) +
 the new message. Older messages drop out first. Idle sessions expire after
 `MEMORY_SESSION_TTL_MINUTES`; restarting the server forgets all conversations.
+
+## Long-term memory
+```
+"Remember that ..." ─► secret filter ─► LLM extracts one clean fact ─► embedding (nomic-embed-text)
+                                                                          ├─► SQLite  (the record)
+                                                                          └─► ChromaDB (the vector)
+Every message ─► embed question ─► nearest memories with similarity ≥ MEMORY_MIN_SCORE
+             ─► added to the system prompt
+"Forget ..." ─► find best match ─► ask "yes/no?" ─► delete from both stores
+```
+Memory policy: only explicit "remember…" requests are stored; questions never are; passwords,
+PINs, keys and card/bank numbers are refused; forgetting needs confirmation; everything is visible
+in the **Memory** panel. `MEMORY_MIN_SCORE` (0.55) was measured with `scripts/calibrate_memory.py`.
+
+## Tools and permissions
+Each tool declares a name, description, Pydantic input schema, permission level and timeout.
+Every call goes through `ToolRegistry.execute`: lookup → permission check → argument validation →
+confirmation → run with timeout → error capture → audit log.
+
+| Level | Meaning | Behaviour | Examples |
+|---|---|---|---|
+| 0 | Read-only | Runs | `calculator`, `current_time`, `weather`, `search_memory` |
+| 1 | Low-risk, reversible | Runs | `save_memory` |
+| 2 | Needs confirmation | Returns a preview until confirmed | `delete_memory` |
+| 3 | Highly sensitive | Always denied | (money, passwords, accounts) |
+
+The calculator never uses `eval()`; it evaluates a whitelisted syntax tree with size limits.
 
 ## Test
 ```powershell

@@ -18,11 +18,21 @@ from app.utils.tokens import estimate_message_tokens
 
 
 @dataclass
+class PendingAction:
+    """An action waiting for the user's "yes" (e.g. forgetting a memory)."""
+
+    kind: str
+    target_id: str
+    description: str
+
+
+@dataclass
 class Conversation:
     session_id: str
     max_stored_messages: int = 200
     messages: list[Message] = field(default_factory=list)
     last_active: float = field(default_factory=time.monotonic)
+    pending: PendingAction | None = None
 
     def add_exchange(self, user_text: str, assistant_text: str) -> None:
         """Save one user message and ARTHUR's reply, as a pair."""
@@ -56,6 +66,7 @@ class Conversation:
 
     def clear(self) -> None:
         self.messages.clear()
+        self.pending = None
         self.touch()
 
     def touch(self) -> None:
