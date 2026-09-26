@@ -61,6 +61,10 @@ ruff check . ; ruff format --check .
 | 11 | 25–27: futuristic UI, multimodal input, advanced agent features | |
 | 12 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
 
+## Docs
+- `docs/ARCHITECTURE.md` – full architecture, example flow, stack, hardware, design decisions.
+- `docs/sessions/SESSION_NN.md` – per-session learning notes. Write one at the end of every session.
+
 ## Progress notes
 - Session 1: 76 tests passing. Verified in browser: streaming, stop, reconnect, memory
   ("What is my name?" → "Vishnu"), history restored on reload, clear forgets.
