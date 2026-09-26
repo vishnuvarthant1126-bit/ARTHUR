@@ -3,17 +3,18 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field, field_validator
 
-from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.prompts import build_chat_messages
 from app.api.dependencies import LLMDep
-from app.llm.base import Message, Role
 from app.observability.logging import get_logger
 
 router = APIRouter(tags=["chat"])
 log = get_logger(__name__)
 
+MAX_MESSAGE_CHARS = 8000
+
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=8000, examples=["Hello Arthur"])
+    message: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS, examples=["Hello Arthur"])
 
     @field_validator("message")
     @classmethod
@@ -32,11 +33,7 @@ class ChatResponse(BaseModel):
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest, llm: LLMDep) -> ChatResponse:
-    messages = [
-        Message(role=Role.SYSTEM, content=SYSTEM_PROMPT),
-        Message(role=Role.USER, content=body.message),
-    ]
-    result = await llm.generate(messages)
+    result = await llm.generate(build_chat_messages(body.message))
     log.info(
         "chat_completed",
         model=result.model,

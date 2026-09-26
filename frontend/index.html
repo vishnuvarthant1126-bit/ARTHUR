@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ARTHUR</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="core" aria-hidden="true"><span></span></div>
+        <div>
+          <h1>ARTHUR</h1>
+          <p id="model" class="subtle">Personal AI agent</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div id="status" class="status" data-state="connecting" role="status" aria-live="polite">
+          <span class="dot"></span><span id="status-text">Connecting…</span>
+        </div>
+        <button id="clear" class="ghost" type="button" title="Clear conversation">Clear</button>
+      </div>
+    </header>
+
+    <main id="log" class="log" aria-live="polite">
+      <section id="empty" class="empty">
+        <div class="core large" aria-hidden="true"><span></span></div>
+        <h2>How can I help?</h2>
+        <p class="subtle">Running locally on your machine. Nothing leaves your computer.</p>
+        <div class="chips">
+          <button class="chip" type="button">Explain what a vector database is</button>
+          <button class="chip" type="button">Write a Python function to reverse a string</button>
+          <button class="chip" type="button">Give me three tips for focused work</button>
+        </div>
+      </section>
+    </main>
+
+    <form id="composer" class="composer" autocomplete="off">
+      <textarea id="input" rows="1" maxlength="8000" placeholder="Message ARTHUR…  (Enter to send, Shift+Enter for a new line)" aria-label="Message"></textarea>
+      <button id="send" class="send" type="submit" aria-label="Send">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 11.5 21 3l-8.5 18-2.2-7.3L3 11.5Z" fill="currentColor"/></svg>
+      </button>
+    </form>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

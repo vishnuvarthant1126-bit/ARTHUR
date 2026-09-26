@@ -5,9 +5,12 @@ Run with:  uvicorn app.main:app --reload
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
+from app.api import websocket
 from app.api.errors import register_exception_handlers
 from app.api.middleware import RequestContextMiddleware
 from app.api.routes import chat, health
@@ -16,6 +19,8 @@ from app.llm.factory import create_llm_provider
 from app.observability.logging import configure_logging, get_logger
 
 log = get_logger("arthur")
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 
 @asynccontextmanager
@@ -41,6 +46,9 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(health.router)
     app.include_router(chat.router)
+    app.include_router(websocket.router)
+    # Mounted last: API routes above win; everything else is served from frontend/.
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
     return app
 
 

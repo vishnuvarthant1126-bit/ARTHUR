@@ -21,13 +21,18 @@ _LLM_ERRORS: dict[type[LLMError], tuple[int, str]] = {
 }
 
 
+def classify_llm_error(exc: LLMError) -> tuple[int, str]:
+    """Return (HTTP status, error type) for an LLM error. Shared with the WebSocket."""
+    return _LLM_ERRORS.get(type(exc), (502, "llm_error"))
+
+
 def _error_body(error_type: str, message: str) -> dict:
     request_id = structlog.contextvars.get_contextvars().get("request_id")
     return {"error": {"type": error_type, "message": message}, "request_id": request_id}
 
 
 async def _handle_llm_error(request: Request, exc: Exception) -> JSONResponse:
-    status, error_type = _LLM_ERRORS.get(type(exc), (502, "llm_error"))
+    status, error_type = classify_llm_error(exc)
     log.warning("llm_error", error_type=error_type, detail=str(exc))
     return JSONResponse(status_code=status, content=_error_body(error_type, str(exc)))
 
