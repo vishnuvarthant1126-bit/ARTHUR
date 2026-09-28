@@ -17,3 +17,5 @@ tzdata>=2024.1               # time-zone data (Windows has none built in)
 pypdf>=5.0                   # extract text from PDFs, page by page
 python-docx>=1.1             # extract text from Word .docx files
 python-multipart>=0.0.9      # lets FastAPI receive file uploads
+# --- Web search (Phase 10) ---
+ddgs>=9.0                    # DuckDuckGo search, free, no API key

@@ -211,8 +211,9 @@ function updateStep(event) {
   if (!item) return;
   item.dataset.status = event.status;
   const retry = event.attempt > 1 ? ` (retry ${event.attempt - 1})` : "";
+  const detail = (event.detail || "").replace(/\*\*|__/g, ""); // drop Markdown bold markers
   item.querySelector(".detail").textContent =
-    event.status === "running" ? retry : event.detail ? ` — ${event.detail}` : "";
+    event.status === "running" ? retry : detail ? ` — ${detail}` : "";
   if (event.status === "running") setStatus("executing", `Step ${event.id}/${state.reply.stepCount}…`);
   scrollToBottom();
 }
@@ -428,10 +429,18 @@ function escapeHtml(s) {
 }
 
 function renderInline(s) {
+  // Links are set aside first so the * rules below can't break a URL. Only http(s) links
+  // are allowed (never "javascript:"), and they open in a new tab without access to this page.
+  const links = [];
+  s = s.replace(/\[([^\]]{1,200})\]\((https?:\/\/[^\s)]{1,500})\)/g, (_, text, url) => {
+    links.push(`<a href="${url}" target="_blank" rel="noopener noreferrer nofollow">${text}</a>`);
+    return `\u0000${links.length - 1}\u0000`;
+  });
   return s
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>");
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
+    .replace(/\u0000(\d+)\u0000/g, (_, i) => links[Number(i)]);
 }
 
 function renderBlocks(text) {
@@ -441,12 +450,17 @@ function renderBlocks(text) {
 
   for (const line of text.split("\n")) {
     const bullet = line.match(/^\s*[-*]\s+(.*)$/);
-    const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    const numbered = line.match(/^\s*(\d+)[.)]\s+(.*)$/);
     const heading = line.match(/^#{1,6}\s+(.*)$/);
     if (bullet || numbered) {
       const kind = bullet ? "ul" : "ol";
-      if (list !== kind) { closeList(); out.push(`<${kind}>`); list = kind; }
-      out.push(`<li>${renderInline((bullet || numbered)[1])}</li>`);
+      if (list !== kind) {
+        closeList();
+        // Keep the model's numbering ("2.") even if a bullet list interrupted the numbered one.
+        out.push(numbered ? `<ol start="${Number(numbered[1])}">` : "<ul>");
+        list = kind;
+      }
+      out.push(`<li>${renderInline(bullet ? bullet[1] : numbered[2])}</li>`);
     } else if (heading) {
       closeList();
       out.push(`<p><strong>${renderInline(heading[1])}</strong></p>`);

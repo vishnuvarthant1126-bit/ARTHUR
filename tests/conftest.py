@@ -38,6 +38,8 @@ from app.observability.logging import configure_logging
 from app.rag.documents import DocumentService
 from app.rag.embeddings import EmbeddingProvider
 from app.rag.retrieval import DocumentRetriever
+from app.search.base import SearchProvider, SearchResult
+from app.search.service import WebSearchService
 from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
 from app.tools.defaults import create_tool_registry
@@ -179,6 +181,33 @@ def make_documents(db: Database, storage_dir: Path) -> tuple[DocumentService, Do
     return service, DocumentRetriever(vectors, embeddings)
 
 
+class FakeSearchProvider(SearchProvider):
+    """Pretend search engine: returns `results`, or raises the next error in `errors`."""
+
+    name = "fake-search"
+
+    def __init__(self, results: list[SearchResult] | None = None, errors=None) -> None:
+        self.results = (
+            results
+            if results is not None
+            else [
+                SearchResult(
+                    title="Python Release Python 3.14.7",
+                    url="https://www.python.org/downloads/latest/",
+                    snippet="The latest version of Python is 3.14.7.",
+                )
+            ]
+        )
+        self.errors = list(errors or [])
+        self.queries: list[str] = []
+
+    async def search(self, query: str, max_results: int) -> list[SearchResult]:
+        self.queries.append(query)
+        if self.errors:
+            raise self.errors.pop(0)
+        return self.results[:max_results]
+
+
 def offline_http_client() -> httpx.AsyncClient:
     """HTTP client whose every request fails - tests must never touch the internet."""
 
@@ -221,6 +250,7 @@ def _app_with(llm: LLMProvider):
         memory=memory_manager,
         documents=documents,
         retriever=retriever,
+        search=WebSearchService(FakeSearchProvider(), retry_delay=0),
         memory_min_score=TEST_SETTINGS.memory_min_score,
         document_min_score=0.2,
     )

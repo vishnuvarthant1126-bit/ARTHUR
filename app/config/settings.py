@@ -75,6 +75,13 @@ class Settings(BaseSettings):
     # relevant passages 0.69-0.86, unrelated questions <= 0.49. Re-measure if models change.
     rag_min_score: float = 0.58
 
+    # --- Web search ---
+    search_provider: str = "duckduckgo"  # duckduckgo | searxng
+    searxng_url: str | None = None
+    search_rate_limit_per_minute: int = 10
+    search_cache_minutes: int = 10
+    web_fetch_max_kb: int = 2048
+
     # --- Agent loop: hard limits so a confused model can never loop forever ---
     agent_max_steps: int = 8
     agent_max_seconds: float = 120.0
@@ -97,7 +104,11 @@ class Settings(BaseSettings):
         return {name.strip() for name in self.tools_blocked.split(",") if name.strip()}
 
     @field_validator(
-        "llm_fallback_provider", "openai_compat_base_url", "openai_compat_model", mode="before"
+        "llm_fallback_provider",
+        "openai_compat_base_url",
+        "openai_compat_model",
+        "searxng_url",
+        mode="before",
     )
     @classmethod
     def empty_is_none(cls, value: object) -> object:

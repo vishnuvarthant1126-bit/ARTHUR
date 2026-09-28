@@ -62,6 +62,8 @@ AGENT_TOOLS = frozenset(
         "delete_memory",
         "document_search",
         "list_documents",
+        "web_search",
+        "read_webpage",
     }
 )
 

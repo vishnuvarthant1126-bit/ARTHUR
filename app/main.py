@@ -30,6 +30,8 @@ from app.observability.logging import configure_logging, get_logger
 from app.rag.documents import DocumentService
 from app.rag.embeddings import create_embedding_provider
 from app.rag.retrieval import DocumentRetriever
+from app.search.providers import create_search_provider
+from app.search.service import WebSearchService
 from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
 from app.tools.defaults import create_tool_registry
@@ -105,6 +107,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     retriever = DocumentRetriever(document_vectors, embeddings)
     audit = AuditLog(db)
     http_client = httpx.AsyncClient(headers={"User-Agent": "ARTHUR/0.1 (personal assistant)"})
+    search = WebSearchService(
+        create_search_provider(
+            settings.search_provider, searxng_url=settings.searxng_url, client=http_client
+        ),
+        max_per_minute=settings.search_rate_limit_per_minute,
+        cache_seconds=settings.search_cache_minutes * 60,
+    )
 
     app.state.llm = llm
     app.state.memory = memory_manager
@@ -121,6 +130,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         memory=memory_manager,
         documents=documents,
         retriever=retriever,
+        search=search,
+        web_fetch_max_bytes=settings.web_fetch_max_kb * 1024,
         default_timeout_seconds=settings.tools_default_timeout_seconds,
         memory_min_score=settings.memory_min_score,
         document_min_score=settings.rag_min_score,
