@@ -44,3 +44,6 @@ class CurrentTimeTool(Tool[TimeInput]):
             "weekday": now.strftime("%A"),
             "utc_offset": now.strftime("%z"),
         }
+
+    def summarize(self, output: dict) -> str:
+        return f"{output['weekday']} {output['date']} {output['time']} ({output['timezone']})"

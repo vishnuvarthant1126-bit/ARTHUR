@@ -15,7 +15,7 @@ import httpx
 from pydantic import ValidationError
 
 from app.llm._http import status_error, translate_http_errors
-from app.llm.base import LLMProvider, LLMResponse, LLMResponseError, Message, T
+from app.llm.base import LLMProvider, LLMResponse, LLMResponseError, Message, Role, T, ToolCall
 
 LABEL = "OpenAI-compatible API"
 
@@ -43,10 +43,17 @@ class OpenAICompatProvider(LLMProvider):
         )
 
     async def generate(
-        self, messages: list[Message], *, temperature: float | None = None
+        self,
+        messages: list[Message],
+        *,
+        temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
         start = time.perf_counter()
-        data = await self._post(self._payload(messages, stream=False, temperature=temperature))
+        payload = self._payload(messages, stream=False, temperature=temperature)
+        if tools:
+            payload["tools"] = tools
+        data = await self._post(payload)
         usage = data.get("usage") or {}
         return LLMResponse(
             content=self._content(data).strip(),
@@ -54,6 +61,7 @@ class OpenAICompatProvider(LLMProvider):
             latency_ms=round((time.perf_counter() - start) * 1000, 1),
             prompt_tokens=usage.get("prompt_tokens"),
             completion_tokens=usage.get("completion_tokens"),
+            tool_calls=_parse_tool_calls(data),
         )
 
     async def stream(
@@ -110,7 +118,7 @@ class OpenAICompatProvider(LLMProvider):
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.model,
-            "messages": [m.model_dump(mode="json") for m in messages],
+            "messages": [_to_openai(m) for m in messages],
             "stream": stream,
         }
         if temperature is not None:
@@ -127,8 +135,8 @@ class OpenAICompatProvider(LLMProvider):
     @staticmethod
     def _content(data: dict[str, Any]) -> str:
         try:
-            return data["choices"][0]["message"]["content"] or ""
-        except (KeyError, IndexError, TypeError) as exc:
+            return data["choices"][0]["message"].get("content") or ""
+        except (KeyError, IndexError, TypeError, AttributeError) as exc:
             raise LLMResponseError(f"Unexpected response shape from {LABEL}.") from exc
 
     def _errors(self):
@@ -146,3 +154,43 @@ class OpenAICompatProvider(LLMProvider):
                 "Check OPENAI_COMPAT_BASE_URL and OPENAI_COMPAT_MODEL."
             )
         return status_error(LABEL, response)
+
+
+def _to_openai(message: Message) -> dict[str, Any]:
+    data: dict[str, Any] = {"role": message.role.value, "content": message.content}
+    if message.tool_calls:
+        data["content"] = message.content or None
+        data["tool_calls"] = [
+            {
+                "id": call.id,
+                "type": "function",
+                # OpenAI sends and expects arguments as a JSON *string*.
+                "function": {"name": call.name, "arguments": json.dumps(call.arguments)},
+            }
+            for call in message.tool_calls
+        ]
+    if message.role == Role.TOOL:
+        data["tool_call_id"] = message.tool_call_id
+    return data
+
+
+def _parse_tool_calls(data: dict[str, Any]) -> list[ToolCall]:
+    try:
+        raw = data["choices"][0]["message"].get("tool_calls") or []
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return []
+    calls = []
+    for item in raw:
+        function = item.get("function", {})
+        try:
+            arguments = json.loads(function.get("arguments") or "{}")
+        except ValueError:
+            arguments = {}  # invalid JSON -> the registry reports the missing arguments
+        calls.append(
+            ToolCall(
+                id=item.get("id", ""),
+                name=function.get("name", ""),
+                arguments=arguments if isinstance(arguments, dict) else {},
+            )
+        )
+    return calls

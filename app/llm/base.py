@@ -8,21 +8,34 @@ changes.
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from enum import StrEnum
-from typing import TypeVar
+from typing import Any, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Role(StrEnum):
     SYSTEM = "system"  # instructions that shape ARTHUR's behaviour
     USER = "user"  # what the human said
     ASSISTANT = "assistant"  # what ARTHUR replied
-    TOOL = "tool"  # tool results (Phase 7)
+    TOOL = "tool"  # the result of a tool ARTHUR used
+
+
+class ToolCall(BaseModel):
+    """The model asking ARTHUR to run a tool. It is only a request - nothing has run yet."""
+
+    id: str
+    name: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
 
 
 class Message(BaseModel):
     role: Role
-    content: str
+    content: str = ""
+    # assistant messages: the tools the model asked for
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+    # tool messages: which call this result answers, and the tool's name
+    tool_call_id: str | None = None
+    name: str | None = None
 
 
 class LLMResponse(BaseModel):
@@ -31,6 +44,21 @@ class LLMResponse(BaseModel):
     latency_ms: float
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+
+
+# --- Streaming events: a reply is a series of text pieces, possibly ending in tool calls ---
+
+
+class TextDelta(BaseModel):
+    text: str
+
+
+class ToolCallsRequested(BaseModel):
+    calls: list[ToolCall]
+
+
+StreamEvent = TextDelta | ToolCallsRequested
 
 
 # --- Errors: provider-specific failures are translated into these ---
@@ -73,15 +101,41 @@ class LLMProvider(ABC):
 
     @abstractmethod
     async def generate(
-        self, messages: list[Message], *, temperature: float | None = None
+        self,
+        messages: list[Message],
+        *,
+        temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
-        """Return the complete reply in one piece."""
+        """Return the complete reply in one piece. With `tools`, the reply may be tool calls."""
 
     @abstractmethod
     def stream(
         self, messages: list[Message], *, temperature: float | None = None
     ) -> AsyncIterator[str]:
         """Yield the reply piece by piece (tokens) as it is generated."""
+
+    async def stream_chat(
+        self,
+        messages: list[Message],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float | None = None,
+    ) -> AsyncIterator[StreamEvent]:
+        """Stream a reply that may end in tool calls.
+
+        Default: without tools, plain streaming; with tools, one non-streamed call.
+        Providers that can stream tool calls (Ollama) override this.
+        """
+        if not tools:
+            async for token in self.stream(messages, temperature=temperature):
+                yield TextDelta(text=token)
+            return
+        response = await self.generate(messages, temperature=temperature, tools=tools)
+        if response.content:
+            yield TextDelta(text=response.content)
+        if response.tool_calls:
+            yield ToolCallsRequested(calls=response.tool_calls)
 
     @abstractmethod
     async def generate_structured(self, messages: list[Message], schema: type[T]) -> T:

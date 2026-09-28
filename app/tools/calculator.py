@@ -120,3 +120,6 @@ class CalculatorTool(Tool[CalculatorInput]):
 
     async def run(self, args: CalculatorInput, context: ToolContext) -> dict:
         return {"expression": args.expression, "result": evaluate(args.expression)}
+
+    def summarize(self, output: dict) -> str:
+        return f"{output['expression']} = {output['result']}"

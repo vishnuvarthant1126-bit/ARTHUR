@@ -11,6 +11,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.agent.executor import AgentLimits
 from app.agent.orchestrator import Orchestrator
 from app.api import websocket
 from app.api.errors import register_exception_handlers
@@ -29,6 +30,7 @@ from app.rag.embeddings import create_embedding_provider
 from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
 from app.tools.defaults import create_tool_registry
+from app.tools.registry import ToolRegistry
 
 log = get_logger("arthur")
 
@@ -36,7 +38,10 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 
 def build_orchestrator(
-    llm: LLMProvider, settings: Settings, memory: MemoryManager | None = None
+    llm: LLMProvider,
+    settings: Settings,
+    memory: MemoryManager | None = None,
+    tools: ToolRegistry | None = None,
 ) -> Orchestrator:
     conversations = ConversationStore(
         max_sessions=settings.memory_max_sessions,
@@ -46,6 +51,10 @@ def build_orchestrator(
         llm,
         conversations,
         memory=memory,
+        tools=tools,
+        agent_limits=AgentLimits(
+            max_steps=settings.agent_max_steps, max_seconds=settings.agent_max_seconds
+        ),
         context_tokens=settings.llm_context_tokens,
         reply_reserve_tokens=settings.llm_reply_reserve_tokens,
         max_history_messages=settings.memory_max_history_messages,
@@ -89,7 +98,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         default_timeout_seconds=settings.tools_default_timeout_seconds,
         memory_min_score=settings.memory_min_score,
     )
-    app.state.orchestrator = build_orchestrator(llm, settings, memory_manager)
+    app.state.orchestrator = build_orchestrator(llm, settings, memory_manager, app.state.tools)
 
     log.info(
         "arthur_started",

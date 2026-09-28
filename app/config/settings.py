@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     # related questions 0.59-0.83, unrelated 0.46-0.51. Re-measure if you change models.
     memory_min_score: float = 0.55
 
+    # --- Agent loop: hard limits so a confused model can never loop forever ---
+    agent_max_steps: int = 8
+    agent_max_seconds: float = 120.0
+
     # --- Tools ---
     # Levels 0..N run without asking; above it the user must confirm. Level 3 is always blocked.
     tools_auto_approve_max_level: int = 1

@@ -18,6 +18,12 @@ Protocol (every frame is one JSON object with a "type"):
   server -> browser
     {"type": "session", "session_id": "...", "history": [{"role": "user", "content": "..."}]}
     {"type": "status",  "state": "thinking", "request_id": "..."}
+    {"type": "status",  "state": "executing", "tool": "calculator"}
+    {"type": "tool",    "phase": "start", "call_id": "...", "name": "calculator",
+                        "arguments": {"expression": "482 * 29"}}
+    {"type": "tool",    "phase": "end", "call_id": "...", "name": "calculator", "status": "ok",
+                        "summary": "482 * 29 = 13978", "duration_ms": 0.4}
+    {"type": "confirmation", "name": "delete_memory", "arguments": {...}, "preview": "..."}
     {"type": "token",   "content": "Hel"}  repeated
     {"type": "done",    "latency_ms": 812.4, "stopped": false, "model": "...", "request_id": "..."}
     {"type": "error",   "error_type": "llm_unavailable", "message": "..."}
@@ -37,6 +43,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from app.agent.orchestrator import Orchestrator
+from app.agent.state import ConfirmationEvent, TextEvent, ToolEndEvent, ToolStartEvent
 from app.api.dependencies import new_session_id, valid_session_id
 from app.api.errors import classify_llm_error
 from app.api.routes.chat import MessageIn
@@ -100,7 +107,10 @@ class ChatSession:
         self.reply_task: asyncio.Task | None = None
 
     async def run(self) -> None:
-        history = [m.model_dump(mode="json") for m in self.orchestrator.history(self.session_id)]
+        history = [
+            m.model_dump(mode="json", include={"role", "content"})
+            for m in self.orchestrator.history(self.session_id)
+        ]
         await self._send({"type": "session", "session_id": self.session_id, "history": history})
         try:
             while True:
@@ -155,18 +165,31 @@ class ChatSession:
         start = time.perf_counter()
         first_token_ms: float | None = None
         token_count = 0
+        tool_count = 0
         stopped = False
         try:
             # aclosing() guarantees the stream's cleanup (saving the answer) runs
-            # immediately, even when we're cancelled between two tokens.
+            # immediately, even when we're cancelled between two events.
             async with contextlib.aclosing(
-                self.orchestrator.stream(self.session_id, user_message)
-            ) as tokens:
-                async for token in tokens:
-                    if first_token_ms is None:
-                        first_token_ms = round((time.perf_counter() - start) * 1000, 1)
-                    token_count += 1
-                    await self._send({"type": "token", "content": token})
+                self.orchestrator.events(self.session_id, user_message, request_id)
+            ) as events:
+                async for event in events:
+                    if isinstance(event, TextEvent):
+                        if first_token_ms is None:
+                            first_token_ms = round((time.perf_counter() - start) * 1000, 1)
+                        token_count += 1
+                        await self._send({"type": "token", "content": event.text})
+                    elif isinstance(event, ToolStartEvent):
+                        tool_count += 1
+                        await self._send(
+                            {"type": "status", "state": "executing", "tool": event.name}
+                        )
+                        await self._send({"type": "tool", "phase": "start", **_fields(event)})
+                    elif isinstance(event, ToolEndEvent):
+                        await self._send({"type": "tool", "phase": "end", **_fields(event)})
+                        await self._send({"type": "status", "state": "thinking"})
+                    elif isinstance(event, ConfirmationEvent):
+                        await self._send({"type": "confirmation", **_fields(event)})
         except asyncio.CancelledError:
             stopped = True  # user pressed stop (or the tab closed)
         except LLMError as exc:
@@ -186,6 +209,7 @@ class ChatSession:
             latency_ms=latency_ms,
             first_token_ms=first_token_ms,  # "time to first token": how fast it *feels*
             tokens=token_count,
+            tool_calls=tool_count,
             stopped=stopped,
         )
         await self._send(
@@ -205,6 +229,11 @@ class ChatSession:
 
     async def _send_error(self, error_type: str, message: str) -> None:
         await self._send({"type": "error", "error_type": error_type, "message": message})
+
+
+def _fields(event: BaseModel) -> dict:
+    """Event data without its internal `type`, so it can't overwrite the wire message type."""
+    return event.model_dump(mode="json", exclude={"type"})
 
 
 @router.websocket("/ws")

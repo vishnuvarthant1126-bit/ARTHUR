@@ -19,11 +19,12 @@ from app.utils.tokens import estimate_message_tokens
 
 @dataclass
 class PendingAction:
-    """An action waiting for the user's "yes" (e.g. forgetting a memory)."""
+    """An action waiting for the user's "yes" (forgetting a memory, a level-2 tool call)."""
 
-    kind: str
-    target_id: str
-    description: str
+    kind: str  # "delete_memory" | "tool_call"
+    target_id: str  # memory id, or tool name
+    description: str  # what will happen, shown to the user
+    payload: dict = field(default_factory=dict)  # e.g. the tool call's arguments
 
 
 @dataclass

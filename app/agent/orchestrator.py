@@ -2,30 +2,52 @@
 
 For each user message it decides what to do:
 
-    1. A confirmation is pending ("forget X?")  -> handle yes / no
-    2. "Remember that ..."                       -> extract fact, save, confirm
-    3. "Forget ..."                              -> find memory, ask to confirm
-    4. Anything else                             -> recall relevant memories, ask the LLM
+    1. A confirmation is pending ("forget X?", "run tool Y?")  -> handle yes / no
+    2. "Remember that ..."                                      -> extract fact, save, confirm
+    3. "Forget ..."                                             -> find memory, ask to confirm
+    4. Anything else  -> recall relevant memories, then the agent loop:
+                         the LLM answers directly or uses tools until it can answer
 
 and assembles what the model sees:
 
     [system prompt + relevant long-term memories] + [recent conversation] + [new message]
 
-Later phases add tool use and planning here, while the API layer stays unchanged.
+Everything is reported as a stream of AgentEvents (text, tool start/end,
+confirmation) so the UI can show what ARTHUR is doing.
 """
 
 import time
 from collections.abc import AsyncIterator
 
+from pydantic import BaseModel, Field
+
+from app.agent.executor import AgentLimits, ToolLoop
 from app.agent.prompts import SYSTEM_PROMPT, memory_section
-from app.llm.base import LLMError, LLMProvider, LLMResponse, Message, Role
+from app.agent.state import AgentEvent, ConfirmationEvent, TextEvent, ToolEndEvent
+from app.agent.verification import CORRECTION, claims_action
+from app.llm.base import LLMError, LLMProvider, Message, Role
 from app.memory import policy
 from app.memory.manager import MemoryManager, MemorySearchResult
 from app.memory.short_term import Conversation, ConversationStore, PendingAction
 from app.observability.logging import get_logger
+from app.tools.base import PermissionLevel, ToolContext
+from app.tools.registry import ToolRegistry
 from app.utils.tokens import estimate_message_tokens
 
 log = get_logger(__name__)
+
+# Tools the agent may choose by itself. save_memory is deliberately missing:
+# the memory policy says only an explicit "remember ..." from the user saves.
+AGENT_TOOLS = frozenset({"calculator", "current_time", "weather", "search_memory", "delete_memory"})
+
+
+class AgentReply(BaseModel):
+    """The complete result of one turn (used by POST /chat)."""
+
+    content: str
+    model: str
+    latency_ms: float
+    tools_used: list[ToolEndEvent] = Field(default_factory=list)
 
 
 class Orchestrator:
@@ -35,6 +57,9 @@ class Orchestrator:
         conversations: ConversationStore,
         *,
         memory: MemoryManager | None = None,
+        tools: ToolRegistry | None = None,
+        agent_tools: frozenset[str] = AGENT_TOOLS,
+        agent_limits: AgentLimits | None = None,
         context_tokens: int = 8192,
         reply_reserve_tokens: int = 1024,
         max_history_messages: int = 40,
@@ -44,6 +69,12 @@ class Orchestrator:
         self.llm = llm
         self.conversations = conversations
         self.memory = memory
+        self.tools = tools
+        self.loop = (
+            ToolLoop(llm, tools, tool_names=set(agent_tools), limits=agent_limits)
+            if tools
+            else None
+        )
         self.context_tokens = context_tokens
         self.reply_reserve_tokens = reply_reserve_tokens
         self.max_history_messages = max_history_messages
@@ -52,36 +83,42 @@ class Orchestrator:
 
     # ---------- public API ----------
 
-    async def respond(self, session_id: str, user_text: str) -> LLMResponse:
-        conversation = self.conversations.get(session_id)
-        start = time.perf_counter()
-        prepared = await self._prepare(conversation, user_text)
-        if isinstance(prepared, str):  # ARTHUR answered directly (memory action)
-            conversation.add_exchange(user_text, prepared)
-            latency = round((time.perf_counter() - start) * 1000, 1)
-            return LLMResponse(content=prepared, model=self.llm.model, latency_ms=latency)
-        result = await self.llm.generate(prepared)
-        conversation.add_exchange(user_text, result.content)
-        return result
-
-    async def stream(self, session_id: str, user_text: str) -> AsyncIterator[str]:
+    async def events(
+        self, session_id: str, user_text: str, request_id: str | None = None
+    ) -> AsyncIterator[AgentEvent]:
+        """Handle one user message, reporting progress as events."""
         conversation = self.conversations.get(session_id)
         parts: list[str] = []
         try:
-            prepared = await self._prepare(conversation, user_text)
-            if isinstance(prepared, str):
-                parts.append(prepared)
-                yield prepared
-                return
-            async for token in self.llm.stream(prepared):
-                parts.append(token)
-                yield token
+            async for event in self._turn(conversation, user_text, request_id):
+                if isinstance(event, TextEvent):
+                    parts.append(event.text)
+                yield event
         finally:
             # Also runs when the user presses stop: keep what ARTHUR already said,
             # so the next turn ("continue") has the context. Nothing is saved if
             # the model failed before producing any text.
             if parts:
                 conversation.add_exchange(user_text, "".join(parts).strip())
+
+    async def respond(
+        self, session_id: str, user_text: str, request_id: str | None = None
+    ) -> AgentReply:
+        """Handle one user message and return the complete reply."""
+        start = time.perf_counter()
+        parts: list[str] = []
+        tools_used: list[ToolEndEvent] = []
+        async for event in self.events(session_id, user_text, request_id):
+            if isinstance(event, TextEvent):
+                parts.append(event.text)
+            elif isinstance(event, ToolEndEvent):
+                tools_used.append(event)
+        return AgentReply(
+            content="".join(parts).strip(),
+            model=self.llm.model,
+            latency_ms=round((time.perf_counter() - start) * 1000, 1),
+            tools_used=tools_used,
+        )
 
     def build_messages(
         self,
@@ -114,6 +151,46 @@ class Orchestrator:
         self.conversations.clear(session_id)
 
     # ---------- decision making ----------
+
+    async def _turn(
+        self, conversation: Conversation, user_text: str, request_id: str | None
+    ) -> AsyncIterator[AgentEvent]:
+        prepared = await self._prepare(conversation, user_text)
+        if isinstance(prepared, str):  # ARTHUR answers directly (memory action, yes/no)
+            yield TextEvent(text=prepared)
+            return
+
+        if self.loop is None:  # no tools configured: plain chat
+            async for token in self.llm.stream(prepared):
+                yield TextEvent(text=token)
+            return
+
+        context = ToolContext(request_id=request_id, session_id=conversation.session_id)
+        answer: list[str] = []
+        acted = False  # did a state-changing tool (level >= 1) actually succeed?
+        async for event in self.loop.run(prepared, context):
+            yield event
+            if isinstance(event, TextEvent):
+                answer.append(event.text)
+            elif isinstance(event, ToolEndEvent) and event.status == "ok":
+                tool = self.tools.get(event.name)
+                acted = acted or bool(tool and tool.permission_level >= PermissionLevel.LOW_RISK)
+            elif isinstance(event, ConfirmationEvent):
+                acted = True  # the system is asking the user; nothing is being claimed
+                conversation.pending = PendingAction(
+                    kind="tool_call",
+                    target_id=event.name,
+                    description=event.preview,
+                    payload={"arguments": event.arguments},
+                )
+                yield TextEvent(
+                    text=f"I need your permission first: **{event.preview}**\n\n"
+                    "Reply **yes** to go ahead or **no** to cancel."
+                )
+
+        if not acted and claims_action("".join(answer)):
+            log.warning("hallucinated_action_claim")
+            yield TextEvent(text=CORRECTION)
 
     async def _prepare(self, conversation: Conversation, user_text: str) -> str | list[Message]:
         """Return either a direct reply (str) or the messages to send to the LLM."""
@@ -201,9 +278,21 @@ class Orchestrator:
     async def _resolve_pending(self, conversation: Conversation, user_text: str) -> str | None:
         """Handle a reply to a confirmation question. None = not a yes/no; carry on normally."""
         pending, conversation.pending = conversation.pending, None
-        if policy.is_yes(user_text) and pending.kind == "delete_memory" and self.memory:
-            await self.memory.delete_memory(pending.target_id)
-            return f"Done. I've forgotten: *{pending.description}*"
+        if policy.is_yes(user_text):
+            if pending.kind == "delete_memory" and self.memory:
+                await self.memory.delete_memory(pending.target_id)
+                return f"Done. I've forgotten: *{pending.description}*"
+            if pending.kind == "tool_call" and self.tools:
+                result = await self.tools.execute(
+                    pending.target_id,
+                    pending.payload.get("arguments", {}),
+                    ToolContext(session_id=conversation.session_id, confirmed=True),
+                )
+                if result.ok:
+                    return f"Done: {pending.description}."
+                return f"That didn't work: {result.error}"
         if policy.is_no(user_text):
-            return "Okay, I'll keep it."
+            return (
+                "Okay, I won't do that." if pending.kind == "tool_call" else "Okay, I'll keep it."
+            )
         return None  # user moved on; the pending action is cancelled

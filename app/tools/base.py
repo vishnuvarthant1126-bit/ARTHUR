@@ -14,7 +14,9 @@ Every tool declares:
     run()             the actual work
 """
 
+import json
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any, ClassVar, Literal
@@ -64,9 +66,16 @@ class Tool[InputT: BaseModel](ABC):
     async def run(self, args: InputT, context: ToolContext) -> Any:
         """Do the work and return JSON-serialisable output. Raise ToolError on expected failures."""
 
-    def preview(self, args: InputT) -> str:
-        """Human-readable description of this call, shown before asking for confirmation."""
+    def preview(self, args: InputT) -> str | Awaitable[str]:
+        """Human-readable description of this call, shown before asking for confirmation.
+
+        May be `async` when the description needs a lookup (e.g. a memory's text).
+        """
         return f"{self.name}({args.model_dump_json()})"
+
+    def summarize(self, output: Any) -> str:
+        """One short line describing a successful result, shown in the UI."""
+        return json.dumps(output, ensure_ascii=False, default=str)
 
     def llm_schema(self) -> dict[str, Any]:
         """Description in the standard function-calling format understood by Ollama/OpenAI."""

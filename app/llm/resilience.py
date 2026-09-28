@@ -10,13 +10,14 @@ difference - it just gets a more reliable provider.
 import asyncio
 import random
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
-from app.llm.base import LLMError, LLMProvider, LLMResponse, Message, T
+from app.llm.base import LLMError, LLMProvider, LLMResponse, Message, StreamEvent, T
 from app.observability.logging import get_logger
 
 log = get_logger(__name__)
 R = TypeVar("R")
+S = TypeVar("S")  # an item in a stream: a text token or a StreamEvent
 
 
 class RetryingProvider(LLMProvider):
@@ -34,24 +35,42 @@ class RetryingProvider(LLMProvider):
         self.base_delay = base_delay
 
     async def generate(
-        self, messages: list[Message], *, temperature: float | None = None
+        self,
+        messages: list[Message],
+        *,
+        temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
         return await self._with_retries(
-            lambda: self.inner.generate(messages, temperature=temperature)
+            lambda: self.inner.generate(messages, temperature=temperature, tools=tools)
         )
 
     async def generate_structured(self, messages: list[Message], schema: type[T]) -> T:
         return await self._with_retries(lambda: self.inner.generate_structured(messages, schema))
 
-    async def stream(
+    def stream(
         self, messages: list[Message], *, temperature: float | None = None
     ) -> AsyncIterator[str]:
+        return self._retry_stream(lambda: self.inner.stream(messages, temperature=temperature))
+
+    def stream_chat(
+        self,
+        messages: list[Message],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float | None = None,
+    ) -> AsyncIterator[StreamEvent]:
+        return self._retry_stream(
+            lambda: self.inner.stream_chat(messages, tools=tools, temperature=temperature)
+        )
+
+    async def _retry_stream(self, open_stream: Callable[[], AsyncIterator[S]]) -> AsyncIterator[S]:
         for attempt in range(self.max_retries + 1):
             started = False
             try:
-                async for token in self.inner.stream(messages, temperature=temperature):
+                async for item in open_stream():
                     started = True
-                    yield token
+                    yield item
                 return
             except LLMError as exc:
                 # Once words reached the user we can't silently restart the answer.
@@ -101,22 +120,44 @@ class FallbackProvider(LLMProvider):
         self.model = providers[0].model
 
     async def generate(
-        self, messages: list[Message], *, temperature: float | None = None
+        self,
+        messages: list[Message],
+        *,
+        temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
-        return await self._first_success(lambda p: p.generate(messages, temperature=temperature))
+        return await self._first_success(
+            lambda p: p.generate(messages, temperature=temperature, tools=tools)
+        )
 
     async def generate_structured(self, messages: list[Message], schema: type[T]) -> T:
         return await self._first_success(lambda p: p.generate_structured(messages, schema))
 
-    async def stream(
+    def stream(
         self, messages: list[Message], *, temperature: float | None = None
     ) -> AsyncIterator[str]:
+        return self._fallback_stream(lambda p: p.stream(messages, temperature=temperature))
+
+    def stream_chat(
+        self,
+        messages: list[Message],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float | None = None,
+    ) -> AsyncIterator[StreamEvent]:
+        return self._fallback_stream(
+            lambda p: p.stream_chat(messages, tools=tools, temperature=temperature)
+        )
+
+    async def _fallback_stream(
+        self, open_stream: Callable[[LLMProvider], AsyncIterator[S]]
+    ) -> AsyncIterator[S]:
         for index, provider in enumerate(self.providers):
             started = False
             try:
-                async for token in provider.stream(messages, temperature=temperature):
+                async for item in open_stream(provider):
                     started = True
-                    yield token
+                    yield item
                 return
             except LLMError as exc:
                 if started or index == len(self.providers) - 1:

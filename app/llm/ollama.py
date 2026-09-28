@@ -2,19 +2,32 @@
 
 Ollama runs models locally and exposes an HTTP API on port 11434.
 We use its `/api/chat` endpoint, which takes a list of role/content
-messages - the same shape as our `Message` model.
+messages - the same shape as our `Message` model - plus an optional list
+of tools the model may ask for.
 """
 
 import json
 import time
 from collections.abc import AsyncIterator
 from typing import Any
+from uuid import uuid4
 
 import httpx
 from pydantic import ValidationError
 
 from app.llm._http import status_error, translate_http_errors
-from app.llm.base import LLMProvider, LLMResponse, LLMResponseError, Message, T
+from app.llm.base import (
+    LLMProvider,
+    LLMResponse,
+    LLMResponseError,
+    Message,
+    Role,
+    StreamEvent,
+    T,
+    TextDelta,
+    ToolCall,
+    ToolCallsRequested,
+)
 
 
 class OllamaProvider(LLMProvider):
@@ -41,23 +54,41 @@ class OllamaProvider(LLMProvider):
     # ---------- public API ----------
 
     async def generate(
-        self, messages: list[Message], *, temperature: float | None = None
+        self,
+        messages: list[Message],
+        *,
+        temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
-        payload = self._payload(messages, stream=False, temperature=temperature)
+        payload = self._payload(messages, stream=False, temperature=temperature, tools=tools)
         start = time.perf_counter()
         data = await self._post_chat(payload)
+        message = data.get("message", {})
         return LLMResponse(
-            content=data.get("message", {}).get("content", "").strip(),
+            content=message.get("content", "").strip(),
             model=data.get("model", self.model),
             latency_ms=round((time.perf_counter() - start) * 1000, 1),
             prompt_tokens=data.get("prompt_eval_count"),
             completion_tokens=data.get("eval_count"),
+            tool_calls=_parse_tool_calls(message.get("tool_calls")),
         )
 
     async def stream(
         self, messages: list[Message], *, temperature: float | None = None
     ) -> AsyncIterator[str]:
-        payload = self._payload(messages, stream=True, temperature=temperature)
+        async for event in self.stream_chat(messages, temperature=temperature):
+            if isinstance(event, TextDelta):
+                yield event.text
+
+    async def stream_chat(
+        self,
+        messages: list[Message],
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        temperature: float | None = None,
+    ) -> AsyncIterator[StreamEvent]:
+        payload = self._payload(messages, stream=True, temperature=temperature, tools=tools)
+        calls: list[ToolCall] = []
         with self._errors():
             async with self._client.stream("POST", "/api/chat", json=payload) as response:
                 if response.status_code >= 400:
@@ -70,10 +101,14 @@ class OllamaProvider(LLMProvider):
                     chunk = json.loads(line)
                     if error := chunk.get("error"):
                         raise LLMResponseError(error)
-                    if token := chunk.get("message", {}).get("content"):
-                        yield token
+                    message = chunk.get("message", {})
+                    if token := message.get("content"):
+                        yield TextDelta(text=token)
+                    calls.extend(_parse_tool_calls(message.get("tool_calls")))
                     if chunk.get("done"):
                         break
+        if calls:
+            yield ToolCallsRequested(calls=calls)
 
     async def generate_structured(self, messages: list[Message], schema: type[T]) -> T:
         # Ollama's `format` accepts a JSON Schema and constrains the output to it.
@@ -101,16 +136,23 @@ class OllamaProvider(LLMProvider):
     # ---------- internals ----------
 
     def _payload(
-        self, messages: list[Message], *, stream: bool, temperature: float | None
+        self,
+        messages: list[Message],
+        *,
+        stream: bool,
+        temperature: float | None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.model,
-            "messages": [m.model_dump(mode="json") for m in messages],
+            "messages": [_to_ollama(m) for m in messages],
             "stream": stream,
             # qwen3 is a "thinking" model; hidden reasoning adds latency and
-            # would leak <think> text into replies. Planning (Phase 8) can re-enable it.
+            # would leak <think> text into replies.
             "think": False,
         }
+        if tools:
+            payload["tools"] = tools
         options: dict[str, Any] = {}
         if temperature is not None:
             options["temperature"] = temperature
@@ -136,3 +178,34 @@ class OllamaProvider(LLMProvider):
                 f"Model '{self.model}' is not installed. Run: ollama pull {self.model}"
             )
         return status_error("Ollama", response)
+
+
+def _to_ollama(message: Message) -> dict[str, Any]:
+    data: dict[str, Any] = {"role": message.role.value, "content": message.content}
+    if message.tool_calls:
+        data["tool_calls"] = [
+            {"function": {"name": c.name, "arguments": c.arguments}} for c in message.tool_calls
+        ]
+    if message.role == Role.TOOL and message.name:
+        data["tool_name"] = message.name
+    return data
+
+
+def _parse_tool_calls(raw: list[dict] | None) -> list[ToolCall]:
+    calls = []
+    for item in raw or []:
+        function = item.get("function", {})
+        arguments = function.get("arguments") or {}
+        if isinstance(arguments, str):  # some models return a JSON string
+            try:
+                arguments = json.loads(arguments)
+            except ValueError:
+                arguments = {}
+        calls.append(
+            ToolCall(
+                id=item.get("id") or f"call_{uuid4().hex[:8]}",
+                name=function.get("name", ""),
+                arguments=arguments if isinstance(arguments, dict) else {},
+            )
+        )
+    return calls

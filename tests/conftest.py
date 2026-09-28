@@ -17,7 +17,17 @@ from pydantic import ValidationError
 
 from app.config.settings import Settings
 from app.database.database import Database
-from app.llm.base import LLMError, LLMProvider, LLMResponse, LLMResponseError, Message, T
+from app.llm.base import (
+    LLMError,
+    LLMProvider,
+    LLMResponse,
+    LLMResponseError,
+    Message,
+    T,
+    TextDelta,
+    ToolCall,
+    ToolCallsRequested,
+)
 from app.main import build_orchestrator, create_app
 from app.memory.long_term import MemoryRepository
 from app.memory.manager import MemoryManager
@@ -29,7 +39,19 @@ from app.security.permissions import PermissionPolicy
 from app.tools.defaults import create_tool_registry
 
 
+def tool_call(name: str, **arguments) -> ToolCall:
+    """Shorthand for tests: a model request to run a tool."""
+    return ToolCall(id=f"call_{name}", name=name, arguments=arguments)
+
+
 class FakeLLM(LLMProvider):
+    """A pretend model.
+
+    `script` makes it behave like an agent: each chat turn uses the next entry -
+    a list of ToolCalls ("I want these tools") or a string (a final answer).
+    When the script runs out it answers with `reply`.
+    """
+
     name = "fake"
     model = "fake-model"
 
@@ -39,24 +61,50 @@ class FakeLLM(LLMProvider):
         error: LLMError | None = None,
         token_delay: float = 0.0,
         structured_reply: str | None = None,
+        script: list[str | list[ToolCall]] | None = None,
     ):
         self.reply = reply
         self.error = error
         self.token_delay = token_delay  # seconds between streamed tokens
         self.structured_reply = structured_reply  # JSON returned by generate_structured
+        self.script = list(script or [])
         self.calls: list[list[Message]] = []
+        self.tools_offered: list[list[dict] | None] = []
 
-    async def generate(self, messages, *, temperature=None) -> LLMResponse:
-        self.calls.append(messages)
+    def _next_turn(self) -> str | list[ToolCall]:
+        return self.script.pop(0) if self.script else self.reply
+
+    async def generate(self, messages, *, temperature=None, tools=None) -> LLMResponse:
+        self.calls.append(list(messages))
+        self.tools_offered.append(tools)
         if self.error:
             raise self.error
-        return LLMResponse(content=self.reply, model=self.model, latency_ms=1.0)
+        turn = self._next_turn()
+        if isinstance(turn, list):
+            return LLMResponse(content="", model=self.model, latency_ms=1.0, tool_calls=turn)
+        return LLMResponse(content=turn, model=self.model, latency_ms=1.0)
 
     async def stream(self, messages, *, temperature=None) -> AsyncIterator[str]:
-        self.calls.append(messages)
+        self.calls.append(list(messages))
         if self.error:
             raise self.error
-        words = self.reply.split(" ")
+        async for word in self._words(self.reply):
+            yield word
+
+    async def stream_chat(self, messages, *, tools=None, temperature=None):
+        self.calls.append(list(messages))
+        self.tools_offered.append(tools)
+        if self.error:
+            raise self.error
+        turn = self._next_turn()
+        if isinstance(turn, list):
+            yield ToolCallsRequested(calls=turn)
+            return
+        async for word in self._words(turn):
+            yield TextDelta(text=word)
+
+    async def _words(self, text: str) -> AsyncIterator[str]:
+        words = text.split(" ")
         for i, word in enumerate(words):
             await asyncio.sleep(self.token_delay)
             yield word if i == len(words) - 1 else word + " "
@@ -143,7 +191,7 @@ def _app_with(llm: LLMProvider):
         memory=memory_manager,
         memory_min_score=TEST_SETTINGS.memory_min_score,
     )
-    app.state.orchestrator = build_orchestrator(llm, TEST_SETTINGS, memory_manager)
+    app.state.orchestrator = build_orchestrator(llm, TEST_SETTINGS, memory_manager, app.state.tools)
     return app
 
 

@@ -23,7 +23,7 @@ class FlakyLLM(FakeLLM):
         self.failure_error = error
         self.attempts = 0
 
-    async def generate(self, messages, *, temperature=None):
+    async def generate(self, messages, *, temperature=None, tools=None):
         self.attempts += 1
         if self.attempts <= self.failures:
             raise self.failure_error

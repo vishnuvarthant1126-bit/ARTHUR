@@ -92,7 +92,11 @@ function handleEvent(event) {
       clearScreen();
       break;
     case "status":
-      setStatus("thinking", "Thinking…");
+      if (event.state === "executing") setStatus("executing", `Using ${event.tool}…`);
+      else setStatus("thinking", "Thinking…");
+      break;
+    case "tool":
+      if (state.reply) showTool(event);
       break;
     case "token":
       if (!state.reply) return;
@@ -146,10 +150,13 @@ function addMessage(role, text) {
 function startReply() {
   const { body, bubble } = addMessage("arthur", "");
   bubble.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+  const tools = document.createElement("div");
+  tools.className = "tools";
+  body.insertBefore(tools, bubble); // tool activity shows above the answer
   const meta = document.createElement("div");
   meta.className = "meta";
   body.append(meta);
-  state.reply = { bubble, meta, text: "" };
+  state.reply = { bubble, meta, tools, chips: {}, text: "" };
   state.busy = true;
   refreshComposer();
 }
@@ -164,6 +171,35 @@ function finishReply(info) {
     reply.meta.textContent = `${info.model} · ${seconds}s${info.stopped ? " · stopped" : ""}`;
   }
   endReply();
+}
+
+// One chip per tool call: "⚙ calculator  482 * 29" → "✓ calculator  result: 13978"
+function showTool(event) {
+  const reply = state.reply;
+  let chip = reply.chips[event.call_id];
+  if (!chip) {
+    chip = document.createElement("div");
+    chip.className = "tool-chip running";
+    const icon = document.createElement("span");
+    icon.className = "icon";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = event.name;
+    const detail = document.createElement("span");
+    detail.className = "detail";
+    chip.append(icon, name, detail);
+    reply.tools.append(chip);
+    reply.chips[event.call_id] = chip;
+  }
+  const detail = chip.querySelector(".detail");
+  if (event.phase === "start") {
+    detail.textContent = Object.values(event.arguments || {}).join(", ");
+  } else {
+    chip.className = `tool-chip ${event.status === "ok" ? "ok" : event.status === "needs_confirmation" ? "waiting" : "failed"}`;
+    detail.textContent = event.summary; // textContent: tool output can never inject HTML
+    chip.title = `${event.name} · ${event.status} · ${event.duration_ms} ms`;
+  }
+  scrollToBottom();
 }
 
 function failReply(message) {
@@ -303,10 +339,19 @@ function renderBlocks(text) {
   return out.join("");
 }
 
+// Small models sometimes write maths as LaTeX ($482 \times 29$) even when asked not to.
+// Show it as plain text instead: strip the $ markers and turn common commands into symbols.
+function plainMath(text) {
+  const symbols = { times: "×", div: "÷", cdot: "·", pm: "±", le: "≤", ge: "≥", approx: "≈", neq: "≠" };
+  return text
+    .replace(/\$\$?([^$\n]{1,200})\$\$?/g, "$1")
+    .replace(/\\(times|div|cdot|pm|le|ge|approx|neq)\b/g, (_, cmd) => symbols[cmd]);
+}
+
 function renderMarkdown(text) {
-  // Split on ``` fences: odd parts are code blocks.
+  // Split on ``` fences: odd parts are code blocks (left exactly as written).
   return escapeHtml(text).split("```").map((part, i) =>
-    i % 2 ? `<pre><code>${part.replace(/^[\w+-]*\n/, "")}</code></pre>` : renderBlocks(part)
+    i % 2 ? `<pre><code>${part.replace(/^[\w+-]*\n/, "")}</code></pre>` : renderBlocks(plainMath(part))
   ).join("");
 }
 

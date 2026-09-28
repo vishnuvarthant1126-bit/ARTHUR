@@ -71,6 +71,12 @@ class WeatherTool(Tool[WeatherInput]):
             "source": "Open-Meteo (open-meteo.com)",
         }
 
+    def summarize(self, output: dict) -> str:
+        parts = [output.get("conditions"), f"{output.get('temperature_c')} °C"]
+        if output.get("today_rain_chance_percent") is not None:
+            parts.append(f"{output['today_rain_chance_percent']}% rain chance today")
+        return f"{output.get('location')}: " + ", ".join(p for p in parts if p)
+
     async def _geocode(self, location: str) -> dict:
         data = await self._get(GEOCODING_URL, {"name": location, "count": 1, "format": "json"})
         results = data.get("results") or []

@@ -11,6 +11,7 @@ request (name + JSON arguments)
 """
 
 import asyncio
+import inspect
 import time
 from typing import Any
 
@@ -49,10 +50,15 @@ class ToolRegistry:
     def all(self) -> list[Tool]:
         return list(self._tools.values())
 
-    def llm_schemas(self) -> list[dict[str, Any]]:
-        """Schemas of the tools the LLM may request (blocked tools are hidden)."""
+    def llm_schemas(self, names: set[str] | None = None) -> list[dict[str, Any]]:
+        """Schemas of the tools the LLM may request (blocked tools are hidden).
+
+        `names` limits the menu further, e.g. to keep save_memory away from the agent.
+        """
         return [
-            t.llm_schema() for t in self._tools.values() if t.name not in self.policy.blocked_tools
+            t.llm_schema()
+            for t in self._tools.values()
+            if t.name not in self.policy.blocked_tools and (names is None or t.name in names)
         ]
 
     # ---------- execution ----------
@@ -92,9 +98,12 @@ class ToolRegistry:
             )  # fmt: skip
 
         if decision.decision == Decision.NEEDS_CONFIRMATION:
+            preview = tool.preview(args)
+            if inspect.isawaitable(preview):
+                preview = await preview
             return await self._finish(
                 name, arguments, level, "needs_confirmation", start, context,
-                status="needs_confirmation", preview=tool.preview(args),
+                status="needs_confirmation", preview=preview,
             )  # fmt: skip
 
         timeout = tool.timeout_seconds or self.default_timeout_seconds

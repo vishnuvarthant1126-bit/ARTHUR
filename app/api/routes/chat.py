@@ -4,6 +4,7 @@ Pass the returned `session_id` back on the next request and ARTHUR
 remembers the conversation. Omit it to start a new one.
 """
 
+import structlog
 from fastapi import APIRouter, Response, status
 from pydantic import BaseModel, Field, field_validator
 
@@ -32,29 +33,39 @@ class ChatRequest(MessageIn):
     session_id: str | None = Field(default=None, pattern=SESSION_ID_PATTERN)
 
 
+class ToolUse(BaseModel):
+    name: str
+    status: str
+    summary: str
+
+
 class ChatResponse(BaseModel):
     response: str
     session_id: str
     model: str
     latency_ms: float
+    tools_used: list[ToolUse] = []
 
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest, orchestrator: OrchestratorDep) -> ChatResponse:
     session_id = body.session_id or new_session_id()
-    result = await orchestrator.respond(session_id, body.message)
+    request_id = structlog.contextvars.get_contextvars().get("request_id")
+    result = await orchestrator.respond(session_id, body.message, request_id)
     log.info(
         "chat_completed",
         model=result.model,
-        llm_latency_ms=result.latency_ms,
-        prompt_tokens=result.prompt_tokens,
-        completion_tokens=result.completion_tokens,
+        latency_ms=result.latency_ms,
+        tools=[t.name for t in result.tools_used],
     )
     return ChatResponse(
         response=result.content,
         session_id=session_id,
         model=result.model,
         latency_ms=result.latency_ms,
+        tools_used=[
+            ToolUse(name=t.name, status=t.status, summary=t.summary) for t in result.tools_used
+        ],
     )
 
 

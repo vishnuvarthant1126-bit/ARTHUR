@@ -34,6 +34,9 @@ class SearchMemoryTool(Tool[SearchMemoryInput]):
         )
         return [{"id": r.memory.id, "content": r.memory.content, "score": r.score} for r in results]
 
+    def summarize(self, output: list[dict]) -> str:
+        return f"{len(output)} memor{'y' if len(output) == 1 else 'ies'} found"
+
 
 class SaveMemoryInput(BaseModel):
     content: str = Field(
@@ -70,15 +73,21 @@ class DeleteMemoryInput(BaseModel):
 
 class DeleteMemoryTool(Tool[DeleteMemoryInput]):
     name = "delete_memory"
-    description = "Delete one long-term memory by id. Requires the user's confirmation."
+    description = (
+        "Delete one long-term memory by id (get the id from search_memory). "
+        "Call it directly: the system asks the user for confirmation automatically."
+    )
     input_model = DeleteMemoryInput
     permission_level = PermissionLevel.CONFIRM
 
     def __init__(self, memory: MemoryManager) -> None:
         self.memory = memory
 
-    def preview(self, args: DeleteMemoryInput) -> str:
-        return f"Delete memory {args.memory_id}"
+    async def preview(self, args: DeleteMemoryInput) -> str:
+        memory = await self.memory.retrieve_memory(args.memory_id)
+        if memory is None:
+            return f"Delete memory {args.memory_id} (not found)"
+        return f'Forget the memory "{memory.content}"'
 
     async def run(self, args: DeleteMemoryInput, context: ToolContext) -> dict:
         if not await self.memory.delete_memory(args.memory_id):
