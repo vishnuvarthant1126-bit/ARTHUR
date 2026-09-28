@@ -62,6 +62,11 @@ ruff check . ; ruff format --check .
   "documents" with metadata. Orchestrator auto-retrieves passages (≥ `RAG_MIN_SCORE`=0.58,
   measured by scripts/calibrate_rag.py) into the system prompt; tools document_search/list_documents.
 - `app/api/middleware.py` – rejects non-GET requests whose Origin isn't ARTHUR (CSRF).
+- `app/search/` – `SearchProvider` (DuckDuckGo via ddgs / SearXNG), `WebSearchService` (cache,
+  rate limit, retry, dedupe), `webpage.py` (`fetch_page` + `check_public_url` SSRF guard,
+  `html_to_text`). Tools `web_search`, `read_webpage` (level 0, in AGENT_TOOLS). Tests use
+  `FakeSearchProvider` and public IP literals (93.184.215.14) so no network/DNS is needed.
+- Frontend renders `[text](https://...)` as safe links; `<ol start=N>` keeps numbering.
 - Sample doc: `scripts/make_sample_handbook.py` → data/samples/student_handbook.pdf (has an
   injection line on p. 4 on purpose). It is uploaded on this machine.
 - Never name a method `list` in a class that uses `list[...]` annotations (hit twice).
@@ -87,15 +92,15 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 1 | Sat 2026-09-26 | 0–4: setup, chat API, web UI, LLM abstraction, conversation memory | ✅ Done |
 | 2 | Sat 2026-09-26 | 5–6: long-term memory (SQLite + ChromaDB + embeddings, memory policy), tool system + registry | ✅ Done (same day, at the owner's request) |
 | 3 | Mon 2026-09-28 | 7–8: agent loop (tool calling), planner/executor with step limits | ✅ Done |
-| 4 | Mon 2026-09-28 / Tue 2026-09-29 | 9–10: document RAG with citations, web search | 🟡 Phase 9 ✅ (extra session, owner's request) · Phase 10 ⏭ Next |
-| 5 | Wed 2026-09-30 | 11–13: speech-to-text, text-to-speech, wake word | |
-| 6 | Thu 2026-10-01 | 14–15: restricted file tools, Playwright browser agent | |
-| 7 | Fri 2026-10-02 | 16–17: controlled computer use, vision | |
-| 8 | Sat 2026-10-03 | 18–19: scheduler/reminders, full security system | |
-| 9 | Sun 2026-10-04 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
-| 10 | Mon 2026-10-05 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
-| 11 | Tue 2026-10-06 | 25–27: futuristic UI, multimodal input, advanced agent features | |
-| 12 | Wed 2026-10-07 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
+| 4 | Mon 2026-09-28 | 9–10: document RAG with citations, web search | ✅ Done (same day as session 3, owner's request) |
+| 5 | Tue 2026-09-29 | 11–13: speech-to-text, text-to-speech, wake word | ⏭ Next |
+| 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | |
+| 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | |
+| 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | |
+| 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
+| 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
+| 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | |
+| 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
 
 ## Docs
 - `docs/ARCHITECTURE.md` – full architecture, example flow, stack, hardware, design decisions.
@@ -116,6 +121,10 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 - Session 4 part 1 (Phase 9, same day as session 3 at owner's request): 241 tests. Verified live
   with the sample handbook: cited answers, injection ignored, "not in documents" only after a
   real search (fixed: it used to claim that without searching → automatic retrieval).
-- Phase 10 notes: `web_search` tool (ddgs, no key) returning title/url/snippet; rules for when
-  to search in the prompt; add to AGENT_TOOLS and planner menu; results are untrusted data
-  (prompt injection); timeouts, retries, rate limiting; cite URLs.
+- Session 4 part 2 (Phase 10, same day): 274 tests. Verified live: search only when needed,
+  cited links, Singapore AI conferences flagship flow (plan → 2 searches → summary, 21 s),
+  read_webpage works and blocks 127.0.0.1/192.168.x/file://. Snippets can be stale (3.14.6 vs
+  3.14.7) – model flagged disagreement. Known gap: DNS rebinding (fix in Phase 19).
+- Phase 11–13 notes (voice): faster-whisper STT (`/voice/transcribe`, CPU int8 fallback since
+  the GPU holds qwen3), Piper TTS, openWakeWord or push-to-talk; browser records audio via
+  MediaRecorder (webm/opus) → needs ffmpeg (installed). Check wheels for Python 3.12 first.

@@ -3,8 +3,8 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 9 – answers from your documents with page citations; an agent that chooses
-> tools itself and plans multi-step tasks, with
+> Status: Phase 10 – searches the web with sources and answers from your documents with page
+> citations; an agent that chooses tools itself and plans multi-step tasks, with
 > conversation + long-term semantic memory, swappable LLM providers, and a permission-checked,
 > audited tool system. Full documentation arrives as features land.
 
@@ -100,6 +100,12 @@ every question ─► embed ─► passages with similarity ≥ RAG_MIN_SCORE (0
 Endpoints: `POST /documents` (multipart), `GET /documents`, `GET /documents/search?q=`,
 `DELETE /documents/{id}`. Tools: `document_search`, `list_documents` (level 0).
 Document text is treated as data; uploads from other websites are rejected (CSRF check).
+
+## Web search
+`web_search` (DuckDuckGo via `ddgs`, no key; or self-hosted SearXNG) with a 10-minute cache,
+10 searches/minute limit and one retry. `read_webpage` reads one public page with SSRF
+protection: http(s) only, every hop resolved and checked against private/local/reserved
+addresses, 2 MB and text/HTML only. Results are untrusted data; answers cite Markdown links.
 
 ## Agent loop and planner
 ```

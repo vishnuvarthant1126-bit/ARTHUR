@@ -1,7 +1,8 @@
-# Session 4 – Phase 9 (2026-09-28, extra session the same day) · Phase 10 still to do
+# Session 4 – Phases 9 and 10 (2026-09-28, done the same day as session 3 at the owner's request)
 
-Result: ARTHUR answers questions from your own documents with page citations, and keeps
-document facts apart from its general knowledge. 241 tests passing. Commit `7486ef4`.
+Result: ARTHUR answers from your own documents with page citations, and searches the web
+(only when it should) with clickable sources. 274 tests passing.
+Commits `7486ef4` (RAG), `f27dbf2` (web search). This completes the "Agent" stage (phases 5–10).
 
 ---
 
@@ -71,6 +72,51 @@ Open http://127.0.0.1:8000 → **Docs** → Upload → ask "What are the require
 - Citations are produced by the model from the passage labels; it usually cites correctly,
   but a small model can occasionally misplace one.
 
-## Next: Phase 10 – Web search (rest of Session 4)
-`web_search` tool with rules for when to search, structured results, source attribution,
-timeouts/retries/rate limits.
+---
+
+## Phase 10 – Web search
+
+**Concepts**
+- **Search API** – a program's way to use a search engine: query in, list of
+  title / link / snippet out. Behind an interface (`SearchProvider`): DuckDuckGo via `ddgs`
+  (free, no key) or a self-hosted SearXNG (`SEARCH_PROVIDER=searxng`, `SEARXNG_URL=...`).
+- **Async HTTP, timeouts, retries** – searches run without freezing the server, give up after
+  ~10 s, and retry once after a brief failure.
+- **Rate limit + cache** – at most 10 real searches per minute (engines block heavy users);
+  the same query within 10 minutes is answered from the cache.
+- **Source attribution** – results carry the URL and site; ARTHUR cites them as Markdown
+  links, which the chat shows as safe clickable links (http/https only, new tab).
+- **When to search** – current/recent info (news, prices, schedules, versions) or unknown
+  facts: yes. Maths, small talk, stable knowledge, your memory/documents: no.
+
+**Safety**
+- Web results are **untrusted data** (prompt injection), just like documents.
+- **SSRF protection** in `read_webpage`: before connecting – and for every redirect – the host
+  is resolved and anything that isn't a public internet address is refused: localhost,
+  127.0.0.1 (your own Ollama!), 10.x / 192.168.x (your router), 169.254.169.254 (cloud
+  metadata), IPv6 local, `.local` names, `file://`, URLs with passwords. Also: 2 MB max,
+  HTML/text only, 3 redirects max, scripts/navigation stripped.
+
+Files: `app/search/{base,providers,service,webpage}.py`, `app/tools/web_search.py`.
+
+## Verified live
+| Request | What happened |
+|---|---|
+| Latest stable Python version? | web_search → answer with links; noted that sources disagree |
+| 17 × 23 / Hi Arthur / capital of France | calculator / nothing / nothing – no needless searches |
+| "Search for the best AI conferences in Singapore, compare them and prepare a summary" | 3-step plan → 2 searches → summary with links (21 s) |
+| read_webpage python.org/downloads | 57 ms, page says 3.14.7 |
+| read_webpage 127.0.0.1:11434 / 192.168.1.1 / file:// | all blocked |
+
+**Honest finding:** the Python answer said 3.14.6 although python.org says 3.14.7 – search
+*snippets* can be stale. ARTHUR flagged the disagreement; `read_webpage` on the official page
+gives the truth. Small models don't always choose to read the page on their own.
+
+## Known limitations (Phase 10)
+- DuckDuckGo can rate-limit heavy use; SearXNG in Docker (Session 10) removes that.
+- DNS rebinding (a host that resolves to a public IP at check time and a private one at connect
+  time) isn't fully prevented yet – planned for the Phase 19 security hardening.
+- Planned web tasks take ~20 s; the planner sometimes adds an unnecessary "summarize" step.
+
+## Next: Session 5 – Phases 11–13
+Voice: speech-to-text (faster-whisper), text-to-speech (Piper), and "Hey Arthur".
