@@ -65,6 +65,16 @@ class Settings(BaseSettings):
     # related questions 0.59-0.83, unrelated 0.46-0.51. Re-measure if you change models.
     memory_min_score: float = 0.55
 
+    # --- Documents / RAG ---
+    documents_path: Path = Path("data/documents")
+    documents_max_mb: int = 20
+    rag_chunk_size: int = 1000  # characters per chunk
+    rag_chunk_overlap: int = 150  # characters repeated between neighbouring chunks
+    rag_top_k: int = 5
+    # Measured with scripts/calibrate_rag.py (nomic-embed-text, sample handbook):
+    # relevant passages 0.69-0.86, unrelated questions <= 0.49. Re-measure if models change.
+    rag_min_score: float = 0.58
+
     # --- Agent loop: hard limits so a confused model can never loop forever ---
     agent_max_steps: int = 8
     agent_max_seconds: float = 120.0

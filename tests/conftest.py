@@ -8,7 +8,9 @@ canned answers instantly - so API tests are fast, free and deterministic.
 import asyncio
 import hashlib
 import re
+import tempfile
 from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
 
 import httpx
 import pytest
@@ -33,7 +35,9 @@ from app.memory.long_term import MemoryRepository
 from app.memory.manager import MemoryManager
 from app.memory.vector_store import InMemoryVectorStore
 from app.observability.logging import configure_logging
+from app.rag.documents import DocumentService
 from app.rag.embeddings import EmbeddingProvider
+from app.rag.retrieval import DocumentRetriever
 from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
 from app.tools.defaults import create_tool_registry
@@ -155,6 +159,26 @@ def make_memory() -> tuple[MemoryManager, Database]:
     return MemoryManager(MemoryRepository(db), InMemoryVectorStore(), FakeEmbeddings()), db
 
 
+def make_pdf(*pages: str) -> bytes:
+    """A small real PDF with one text page per argument."""
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    for text in pages:
+        pdf.add_page()
+        pdf.set_font("Helvetica", size=11)
+        pdf.multi_cell(0, 6, text)
+    return bytes(pdf.output())
+
+
+def make_documents(db: Database, storage_dir: Path) -> tuple[DocumentService, DocumentRetriever]:
+    vectors, embeddings = InMemoryVectorStore(), FakeEmbeddings()
+    service = DocumentService(
+        db, vectors, embeddings, storage_dir, chunk_size=300, chunk_overlap=50
+    )
+    return service, DocumentRetriever(vectors, embeddings)
+
+
 def offline_http_client() -> httpx.AsyncClient:
     """HTTP client whose every request fails - tests must never touch the internet."""
 
@@ -182,19 +206,27 @@ def _app_with(llm: LLMProvider):
     configure_logging("WARNING")
     app = create_app()
     memory_manager, db = make_memory()
+    documents, retriever = make_documents(db, Path(tempfile.mkdtemp(prefix="arthur-test-")))
     audit = AuditLog(db)
     # Inject fakes instead of running the real lifespan.
     app.state.llm = llm
     app.state.memory = memory_manager
+    app.state.documents = documents
+    app.state.retriever = retriever
     app.state.audit = audit
     app.state.tools = create_tool_registry(
         policy=PermissionPolicy(),
         audit=audit,
         http_client=offline_http_client(),
         memory=memory_manager,
+        documents=documents,
+        retriever=retriever,
         memory_min_score=TEST_SETTINGS.memory_min_score,
+        document_min_score=0.2,
     )
-    app.state.orchestrator = build_orchestrator(llm, TEST_SETTINGS, memory_manager, app.state.tools)
+    app.state.orchestrator = build_orchestrator(
+        llm, TEST_SETTINGS, memory_manager, app.state.tools, retriever
+    )
     return app
 
 

@@ -30,6 +30,21 @@ class MemoryRecord(Base):
     )
 
 
+class DocumentRecord(Base):
+    """One uploaded document. Its chunks live in the vector store under doc_id."""
+
+    __tablename__ = "documents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    file_type: Mapped[str] = mapped_column(String(16))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64), unique=True)  # detects re-uploads
+    pages: Mapped[int] = mapped_column(Integer)
+    chunks: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class AuditRecord(Base):
     """One tool execution attempt - allowed, denied or failed. Append-only."""
 

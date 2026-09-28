@@ -16,6 +16,7 @@ Everything is reported as a stream of AgentEvents (text, tool start/end,
 confirmation) so the UI can show what ARTHUR is doing.
 """
 
+import asyncio
 import time
 from collections.abc import AsyncIterator
 
@@ -23,7 +24,12 @@ from pydantic import BaseModel, Field
 
 from app.agent.executor import AgentLimits, PlanExecutor, PlanLimits, ToolLoop
 from app.agent.planner import Plan, Planner, looks_complex
-from app.agent.prompts import SYNTHESIS_PROMPT, SYSTEM_PROMPT, memory_section
+from app.agent.prompts import (
+    SYNTHESIS_PROMPT,
+    SYSTEM_PROMPT,
+    document_section,
+    memory_section,
+)
 from app.agent.state import (
     AgentEvent,
     ConfirmationEvent,
@@ -38,6 +44,7 @@ from app.memory import policy
 from app.memory.manager import MemoryManager, MemorySearchResult
 from app.memory.short_term import Conversation, ConversationStore, PendingAction
 from app.observability.logging import get_logger
+from app.rag.retrieval import DocumentHit, DocumentRetriever
 from app.tools.base import PermissionLevel, ToolContext
 from app.tools.registry import ToolRegistry
 from app.utils.tokens import estimate_message_tokens
@@ -46,7 +53,17 @@ log = get_logger(__name__)
 
 # Tools the agent may choose by itself. save_memory is deliberately missing:
 # the memory policy says only an explicit "remember ..." from the user saves.
-AGENT_TOOLS = frozenset({"calculator", "current_time", "weather", "search_memory", "delete_memory"})
+AGENT_TOOLS = frozenset(
+    {
+        "calculator",
+        "current_time",
+        "weather",
+        "search_memory",
+        "delete_memory",
+        "document_search",
+        "list_documents",
+    }
+)
 
 
 class AgentReply(BaseModel):
@@ -75,11 +92,17 @@ class Orchestrator:
         max_history_messages: int = 40,
         memory_top_k: int = 5,
         memory_min_score: float = 0.55,
+        retriever: DocumentRetriever | None = None,
+        rag_top_k: int = 5,
+        rag_min_score: float = 0.58,
     ) -> None:
         self.llm = llm
         self.conversations = conversations
         self.memory = memory
         self.tools = tools
+        self.retriever = retriever
+        self.rag_top_k = rag_top_k
+        self.rag_min_score = rag_min_score
         self.loop = (
             ToolLoop(llm, tools, tool_names=set(agent_tools), limits=agent_limits)
             if tools
@@ -144,8 +167,11 @@ class Orchestrator:
         conversation: Conversation,
         user_text: str,
         memories: list[MemorySearchResult] | None = None,
+        passages: list[DocumentHit] | None = None,
     ) -> list[Message]:
         system_text = SYSTEM_PROMPT + memory_section([m.memory.content for m in memories or []])
+        if passages is not None:  # None = the user has no documents at all
+            system_text += document_section([(p.citation, p.text) for p in passages])
         system = Message(role=Role.SYSTEM, content=system_text)
         user = Message(role=Role.USER, content=user_text)
         # Budget for history = window - room for the reply - the fixed parts.
@@ -251,18 +277,33 @@ class Orchestrator:
             if reply is not None:
                 return reply
 
-        if self.memory is None:
-            return self.build_messages(conversation, user_text)
+        if self.memory is not None:
+            match policy.detect_intent(user_text):
+                case policy.MemoryIntent.REMEMBER:
+                    return await self._remember(user_text)
+                case policy.MemoryIntent.FORGET:
+                    return await self._forget(conversation, user_text)
 
-        match policy.detect_intent(user_text):
-            case policy.MemoryIntent.REMEMBER:
-                return await self._remember(user_text)
-            case policy.MemoryIntent.FORGET:
-                return await self._forget(conversation, user_text)
+        memories, passages = await asyncio.gather(
+            self._recall(user_text), self._recall_documents(user_text)
+        )
+        return self.build_messages(conversation, user_text, memories, passages)
 
-        return self.build_messages(conversation, user_text, await self._recall(user_text))
+    async def _recall_documents(self, user_text: str) -> list[DocumentHit] | None:
+        """Automatic RAG: relevant passages from the user's documents (None = no documents)."""
+        if self.retriever is None or self.retriever.vectors.count() == 0:
+            return None
+        try:
+            return await self.retriever.search(
+                user_text, k=self.rag_top_k, min_score=self.rag_min_score
+            )
+        except LLMError as exc:
+            log.warning("document_recall_failed", error=str(exc))
+            return None
 
     async def _recall(self, user_text: str) -> list[MemorySearchResult]:
+        if self.memory is None:
+            return []
         try:
             return await self.memory.search_memory(
                 user_text, k=self.memory_top_k, min_score=self.memory_min_score

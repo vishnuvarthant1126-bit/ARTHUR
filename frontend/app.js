@@ -7,6 +7,8 @@ const els = {
   send: $("send"), clear: $("clear"), status: $("status"), statusText: $("status-text"), model: $("model"),
   memoryToggle: $("memory-toggle"), memoryPanel: $("memory-panel"), memoryClose: $("memory-close"),
   memoryList: $("memory-list"), memoryEmpty: $("memory-empty"),
+  docsToggle: $("docs-toggle"), docsPanel: $("docs-panel"), docsClose: $("docs-close"),
+  docsInput: $("docs-input"), docsStatus: $("docs-status"), docsList: $("docs-list"), docsEmpty: $("docs-empty"),
 };
 
 const state = {
@@ -290,9 +292,87 @@ function scrollToBottom() {
 
 // ---------- memory panel ----------
 function toggleMemoryPanel(open = els.memoryPanel.hidden) {
+  if (open) toggleDocsPanel(false); // one panel at a time
   els.memoryPanel.hidden = !open;
   els.memoryToggle.setAttribute("aria-expanded", String(open));
   if (open) loadMemories();
+}
+
+// ---------- documents panel ----------
+function toggleDocsPanel(open = els.docsPanel.hidden) {
+  if (open) toggleMemoryPanel(false);
+  els.docsPanel.hidden = !open;
+  els.docsToggle.setAttribute("aria-expanded", String(open));
+  if (open) loadDocuments();
+}
+
+function docsStatus(text, isError = false) {
+  els.docsStatus.textContent = text;
+  els.docsStatus.classList.toggle("error", isError);
+}
+
+async function loadDocuments() {
+  try {
+    const res = await fetch("/documents");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { documents } = await res.json();
+    els.docsList.replaceChildren(
+      ...documents.map((d) => {
+        const item = document.createElement("li");
+        const text = document.createElement("div");
+        const name = document.createElement("div");
+        name.className = "fact";
+        name.textContent = d.filename;
+        const tag = document.createElement("span");
+        tag.className = "tag";
+        const pages = d.file_type === "pdf" ? `${d.pages} page${d.pages === 1 ? "" : "s"} · ` : "";
+        tag.textContent = `${d.file_type} · ${pages}${d.chunks} chunks`;
+        text.append(name, tag);
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.textContent = "✕";
+        remove.title = "Delete document";
+        remove.setAttribute("aria-label", `Delete ${d.filename}`);
+        remove.addEventListener("click", () => deleteDocument(d));
+        item.append(text, remove);
+        return item;
+      })
+    );
+    els.docsEmpty.hidden = documents.length > 0;
+  } catch {
+    docsStatus("Couldn't load documents.", true);
+  }
+}
+
+async function uploadDocuments(files) {
+  for (const file of files) {
+    docsStatus(`Reading and indexing ${file.name}…`);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch("/documents", { method: "POST", body: form });
+      const body = await res.json();
+      if (!res.ok) {
+        docsStatus(`${file.name}: ${body.detail || body.error?.message || res.status}`, true);
+        return;
+      }
+      const d = body.document;
+      docsStatus(body.created ? `Added ${d.filename} (${d.chunks} chunks).` : `${d.filename} was already added.`);
+    } catch {
+      docsStatus(`Upload of ${file.name} failed.`, true);
+      return;
+    }
+  }
+  els.docsInput.value = "";
+  loadDocuments();
+}
+
+async function deleteDocument(doc) {
+  // Deleting is a level-2 action: always confirm first.
+  if (!confirm(`Delete this document?\n\n${doc.filename}`)) return;
+  await fetch(`/documents/${encodeURIComponent(doc.id)}`, { method: "DELETE" });
+  docsStatus(`Deleted ${doc.filename}.`);
+  loadDocuments();
 }
 
 async function loadMemories() {
@@ -421,8 +501,13 @@ els.input.addEventListener("input", autosize);
 els.clear.addEventListener("click", clearConversation);
 els.memoryToggle.addEventListener("click", () => toggleMemoryPanel());
 els.memoryClose.addEventListener("click", () => toggleMemoryPanel(false));
+els.docsToggle.addEventListener("click", () => toggleDocsPanel());
+els.docsClose.addEventListener("click", () => toggleDocsPanel(false));
+els.docsInput.addEventListener("change", () => uploadDocuments([...els.docsInput.files]));
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !els.memoryPanel.hidden) toggleMemoryPanel(false);
+  if (e.key !== "Escape") return;
+  toggleMemoryPanel(false);
+  toggleDocsPanel(false);
 });
 document.querySelectorAll(".chip").forEach((chip) =>
   chip.addEventListener("click", () => send(chip.textContent))
