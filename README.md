@@ -3,7 +3,8 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 8 – an agent that chooses tools itself and plans multi-step tasks, with
+> Status: Phase 9 – answers from your documents with page citations; an agent that chooses
+> tools itself and plans multi-step tasks, with
 > conversation + long-term semantic memory, swappable LLM providers, and a permission-checked,
 > audited tool system. Full documentation arrives as features land.
 
@@ -88,6 +89,17 @@ confirmation → run with timeout → error capture → audit log.
 | 3 | Highly sensitive | Always denied | (money, passwords, accounts) |
 
 The calculator never uses `eval()`; it evaluates a whitelisted syntax tree with size limits.
+
+## Documents (RAG)
+```
+upload (PDF/DOCX/TXT/MD/CSV, ≤ 20 MB) ─► extract per page ─► clean ─► chunk (1000 chars, 150 overlap)
+       ─► embed ─► ChromaDB "documents" (+ file name, page)   +   SQLite record   +   file on disk
+every question ─► embed ─► passages with similarity ≥ RAG_MIN_SCORE (0.58) ─► added to the prompt
+               ─► answer with citations like [handbook.pdf, p. 2]
+```
+Endpoints: `POST /documents` (multipart), `GET /documents`, `GET /documents/search?q=`,
+`DELETE /documents/{id}`. Tools: `document_search`, `list_documents` (level 0).
+Document text is treated as data; uploads from other websites are rejected (CSRF check).
 
 ## Agent loop and planner
 ```

@@ -56,6 +56,15 @@ ruff check . ; ruff format --check .
   `vector_store.py` (Chroma + in-memory), `manager.py` (save/retrieve/search/delete, keeps both
   stores in step), `policy.py` (intent regexes, secret filter, extraction prompt).
 - `app/rag/embeddings.py` – `EmbeddingProvider`, Ollama `nomic-embed-text` with task prefixes.
+- `app/rag/` – `ingestion.py` (PDF/DOCX/TXT/MD/CSV → `Page`s, `DocumentError`), `chunking.py`
+  (page-aware, overlap), `documents.py` (`DocumentService`: ingest/list_all/delete, SHA-256 dedupe,
+  rollback), `retrieval.py` (`DocumentRetriever`, `DocumentHit.citation`). Chroma collection
+  "documents" with metadata. Orchestrator auto-retrieves passages (≥ `RAG_MIN_SCORE`=0.58,
+  measured by scripts/calibrate_rag.py) into the system prompt; tools document_search/list_documents.
+- `app/api/middleware.py` – rejects non-GET requests whose Origin isn't ARTHUR (CSRF).
+- Sample doc: `scripts/make_sample_handbook.py` → data/samples/student_handbook.pdf (has an
+  injection line on p. 4 on purpose). It is uploaded on this machine.
+- Never name a method `list` in a class that uses `list[...]` annotations (hit twice).
 - `app/tools/` – `Tool` base (name, description, input_model, permission_level, timeout, run),
   `ToolRegistry.execute` (lookup → permission → validate → confirm → timeout → audit),
   tools: calculator (AST, no eval), current_time, weather (Open-Meteo), memory tools.
@@ -78,7 +87,7 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 1 | Sat 2026-09-26 | 0–4: setup, chat API, web UI, LLM abstraction, conversation memory | ✅ Done |
 | 2 | Sat 2026-09-26 | 5–6: long-term memory (SQLite + ChromaDB + embeddings, memory policy), tool system + registry | ✅ Done (same day, at the owner's request) |
 | 3 | Mon 2026-09-28 | 7–8: agent loop (tool calling), planner/executor with step limits | ✅ Done |
-| 4 | Tue 2026-09-29 | 9–10: document RAG with citations, web search | ⏭ Next |
+| 4 | Mon 2026-09-28 / Tue 2026-09-29 | 9–10: document RAG with citations, web search | 🟡 Phase 9 ✅ (extra session, owner's request) · Phase 10 ⏭ Next |
 | 5 | Wed 2026-09-30 | 11–13: speech-to-text, text-to-speech, wake word | |
 | 6 | Thu 2026-10-01 | 14–15: restricted file tools, Playwright browser agent | |
 | 7 | Fri 2026-10-02 | 16–17: controlled computer use, vision | |
@@ -104,7 +113,9 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 - Known limitations: conversation memory is RAM-only; token counts are estimates (chars/4);
   OpenAI-compatible fallback only tested with mocks; "remember" detection is regex-based;
   qwen3:8b sometimes skips the calculator inside plan steps; planned answers ~10–15 s.
-- Phase 9–10 notes: RAG should become a `document_search` tool (level 0) + ingestion API;
-  web search a `web_search` tool (ddgs, no key) with source URLs; add both to AGENT_TOOLS
-  and to the planner's tool menu; tool results must stay "data, not instructions" (web pages
-  can contain prompt injections).
+- Session 4 part 1 (Phase 9, same day as session 3 at owner's request): 241 tests. Verified live
+  with the sample handbook: cited answers, injection ignored, "not in documents" only after a
+  real search (fixed: it used to claim that without searching → automatic retrieval).
+- Phase 10 notes: `web_search` tool (ddgs, no key) returning title/url/snippet; rules for when
+  to search in the prompt; add to AGENT_TOOLS and planner menu; results are untrusted data
+  (prompt injection); timeouts, retries, rate limiting; cite URLs.
