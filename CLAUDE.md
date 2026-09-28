@@ -45,7 +45,13 @@ ruff check . ; ruff format --check .
   `OllamaProvider`, `OpenAICompatProvider`; `RetryingProvider`/`FallbackProvider` wrappers;
   `factory.py` is the only place that knows concrete classes.
 - `app/agent/orchestrator.py` – per message: pending yes/no → remember → forget → recall
-  memories into the system prompt → LLM. Direct replies (memory actions) are returned as str.
+  memories → planner (if `looks_complex`) or ToolLoop; everything through `_supervise`
+  (confirmations → PendingAction, honesty check). Emits `AgentEvent`s (`state.py`).
+- `app/agent/executor.py` – `ToolLoop` (LLM ⇄ registry, step/time limits, repeat guard,
+  `stop_reason`) and `PlanExecutor` (per-step ToolLoop, retry once, TaskState).
+  `planner.py` – `looks_complex` + structured `Plan`. `verification.py` – action-claim check.
+- Agent tools = `AGENT_TOOLS` (no save_memory). LLM layer: `generate(tools=)`, `stream_chat`
+  → `TextDelta | ToolCallsRequested`; `Message` has `tool_calls`, `tool_call_id`, `name`.
 - `app/memory/` – `short_term.py` (per-session RAM, PendingAction), `long_term.py` (SQLite repo),
   `vector_store.py` (Chroma + in-memory), `manager.py` (save/retrieve/search/delete, keeps both
   stores in step), `policy.py` (intent regexes, secret filter, extraction prompt).
@@ -57,6 +63,10 @@ ruff check . ; ruff format --check .
 - `app/api/` – chat, memories, tools, audit, health, `WS /ws`; JSON errors; request IDs.
 - `frontend/` – plain HTML/CSS/JS, no external deps; safe Markdown; Memory panel.
 - Tests use `FakeLLM`/`FakeEmbeddings`/in-memory DB (tests/conftest.py); never the real lifespan.
+  `FakeLLM(script=[...])`: each chat turn pops a str (answer), list of `tool_call(...)`, or an
+  Exception to raise; `structured_reply` feeds `generate_structured` (plans, memory drafts).
+- Commit messages: PowerShell here-strings silently failed once (quotes/% in text) – prefer
+  `git commit -F -` with a bash heredoc, and check `git log` afterwards.
 - qwen3 runs with `think: false`. `MEMORY_MIN_SCORE=0.55` was measured (scripts/calibrate_memory.py).
 - Port 8000 may be occupied by an unrelated Python 3.14 process on this machine; use 8001 if so.
 
@@ -67,16 +77,16 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 |---|---|---|---|
 | 1 | Sat 2026-09-26 | 0–4: setup, chat API, web UI, LLM abstraction, conversation memory | ✅ Done |
 | 2 | Sat 2026-09-26 | 5–6: long-term memory (SQLite + ChromaDB + embeddings, memory policy), tool system + registry | ✅ Done (same day, at the owner's request) |
-| 3 | Sun 2026-09-27 | 7–8: agent loop (tool calling), planner/executor with step limits | ⏭ Next |
-| 4 | Mon 2026-09-28 | 9–10: document RAG with citations, web search | |
-| 5 | Tue 2026-09-29 | 11–13: speech-to-text, text-to-speech, wake word | |
-| 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | |
-| 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | |
-| 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | |
-| 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
-| 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
-| 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | |
-| 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
+| 3 | Mon 2026-09-28 | 7–8: agent loop (tool calling), planner/executor with step limits | ✅ Done |
+| 4 | Tue 2026-09-29 | 9–10: document RAG with citations, web search | ⏭ Next |
+| 5 | Wed 2026-09-30 | 11–13: speech-to-text, text-to-speech, wake word | |
+| 6 | Thu 2026-10-01 | 14–15: restricted file tools, Playwright browser agent | |
+| 7 | Fri 2026-10-02 | 16–17: controlled computer use, vision | |
+| 8 | Sat 2026-10-03 | 18–19: scheduler/reminders, full security system | |
+| 9 | Sun 2026-10-04 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
+| 10 | Mon 2026-10-05 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
+| 11 | Tue 2026-10-06 | 25–27: futuristic UI, multimodal input, advanced agent features | |
+| 12 | Wed 2026-10-07 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
 
 ## Docs
 - `docs/ARCHITECTURE.md` – full architecture, example flow, stack, hardware, design decisions.
@@ -87,8 +97,14 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   ("What is my name?" → "Vishnu"), history restored on reload, clear forgets.
 - Session 2: 157 tests passing. Verified live: remember → clear → recalled; password refused;
   forget asks yes/no; memory survives restart; calculator/time/weather/confirmation/audit via API.
+- Session 3: 209 tests passing. Verified live: tool choice (calculator/weather/time, none for
+  small talk), model-driven delete stopped by confirmation, 3-step plans with correct answers,
+  stop mid-plan in 0.2 s. Found & fixed: hallucinated "I deleted it" (honesty check),
+  LaTeX output, WS type overwrite, id-only confirmation text, "15% of" in calculator.
 - Known limitations: conversation memory is RAM-only; token counts are estimates (chars/4);
-  OpenAI-compatible fallback only tested with mocks; LLM does not call tools yet (Phase 7);
-  "remember" detection is regex-based.
-- Phase 7 notes: expose `ToolRegistry.llm_schemas()` to Ollama's `tools` param; on
-  `needs_confirmation` ask the user (reuse `PendingAction`), never auto-confirm; max steps/time.
+  OpenAI-compatible fallback only tested with mocks; "remember" detection is regex-based;
+  qwen3:8b sometimes skips the calculator inside plan steps; planned answers ~10–15 s.
+- Phase 9–10 notes: RAG should become a `document_search` tool (level 0) + ingestion API;
+  web search a `web_search` tool (ddgs, no key) with source URLs; add both to AGENT_TOOLS
+  and to the planner's tool menu; tool results must stay "data, not instructions" (web pages
+  can contain prompt injections).

@@ -3,9 +3,9 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 6 – streamed web chat, conversation + long-term semantic memory,
-> swappable LLM providers, and a permission-checked, audited tool system.
-> Full documentation arrives as features land.
+> Status: Phase 8 – an agent that chooses tools itself and plans multi-step tasks, with
+> conversation + long-term semantic memory, swappable LLM providers, and a permission-checked,
+> audited tool system. Full documentation arrives as features land.
 
 ## Requirements
 - Python 3.12
@@ -88,6 +88,19 @@ confirmation → run with timeout → error capture → audit log.
 | 3 | Highly sensitive | Always denied | (money, passwords, accounts) |
 
 The calculator never uses `eval()`; it evaluates a whitelisted syntax tree with size limits.
+
+## Agent loop and planner
+```
+message ─► memory intents ("remember…", "forget…")? ─► handled directly
+        └► looks multi-part? ── yes ─► Planner (structured Plan, 2–6 steps)
+                │                        └► PlanExecutor: per step a bounded ToolLoop,
+                │                           1 retry, failures recorded, confirmation pauses
+                │                        └► final answer written only from step results
+                └─ no ─► ToolLoop: LLM ⇄ tools until it answers (≤ 8 rounds, ≤ 120 s)
+every reply ─► honesty check: claims an action no tool performed? → visible correction
+```
+Level-2 tools stop the loop and ask the user; the model can never confirm on its own.
+`save_memory` is not offered to the agent (only an explicit "remember…" saves).
 
 ## Test
 ```powershell
