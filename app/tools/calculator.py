@@ -40,8 +40,10 @@ _CONSTANTS = {"pi": math.pi, "e": math.e, "tau": math.tau}
 
 
 def normalize(expression: str) -> str:
-    """Accept everyday notation: 482 × 29, 10 ÷ 4, 2^8, 482 x 29."""
+    """Accept everyday notation: 482 × 29, 10 ÷ 4, 2^8, 482 x 29, 15% of 2480, 1,000."""
     text = expression.replace("×", "*").replace("÷", "/").replace("^", "**")
+    text = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text)  # thousands separators: 2,480 -> 2480
+    text = re.sub(r"(\d+(?:\.\d+)?)\s*%\s*of\b", r"(\1/100)*", text, flags=re.I)
     return re.sub(r"(?<=[\d)])\s*[xX]\s*(?=[\d(])", "*", text)
 
 
@@ -104,7 +106,7 @@ class CalculatorInput(BaseModel):
     expression: str = Field(
         min_length=1,
         max_length=MAX_EXPRESSION_CHARS,
-        description="Math expression, e.g. '482 * 29' or 'sqrt(2) * 10'",
+        description="Math expression, e.g. '482 * 29', 'sqrt(2) * 10' or '15% of 2480'",
     )
 
 

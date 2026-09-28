@@ -21,9 +21,17 @@ from collections.abc import AsyncIterator
 
 from pydantic import BaseModel, Field
 
-from app.agent.executor import AgentLimits, ToolLoop
-from app.agent.prompts import SYSTEM_PROMPT, memory_section
-from app.agent.state import AgentEvent, ConfirmationEvent, TextEvent, ToolEndEvent
+from app.agent.executor import AgentLimits, PlanExecutor, PlanLimits, ToolLoop
+from app.agent.planner import Plan, Planner, looks_complex
+from app.agent.prompts import SYNTHESIS_PROMPT, SYSTEM_PROMPT, memory_section
+from app.agent.state import (
+    AgentEvent,
+    ConfirmationEvent,
+    StepState,
+    TaskState,
+    TextEvent,
+    ToolEndEvent,
+)
 from app.agent.verification import CORRECTION, claims_action
 from app.llm.base import LLMError, LLMProvider, Message, Role
 from app.memory import policy
@@ -60,6 +68,8 @@ class Orchestrator:
         tools: ToolRegistry | None = None,
         agent_tools: frozenset[str] = AGENT_TOOLS,
         agent_limits: AgentLimits | None = None,
+        planning: bool = True,
+        plan_limits: PlanLimits | None = None,
         context_tokens: int = 8192,
         reply_reserve_tokens: int = 1024,
         max_history_messages: int = 40,
@@ -75,6 +85,15 @@ class Orchestrator:
             if tools
             else None
         )
+        self.planner: Planner | None = None
+        if tools and planning:
+            self.planner = Planner(
+                llm,
+                {t.name: t.description for t in tools.all() if t.name in agent_tools},
+            )
+            self.plan_executor = PlanExecutor(
+                llm, tools, tool_names=set(agent_tools), limits=plan_limits
+            )
         self.context_tokens = context_tokens
         self.reply_reserve_tokens = reply_reserve_tokens
         self.max_history_messages = max_history_messages
@@ -166,9 +185,42 @@ class Orchestrator:
             return
 
         context = ToolContext(request_id=request_id, session_id=conversation.session_id)
+        work = self.loop.run(prepared, context)
+        if self.planner and looks_complex(user_text):
+            plan = await self.planner.make_plan(user_text)
+            if plan:
+                work = self._run_plan(plan, prepared, user_text, context)
+        async for event in self._supervise(work, conversation):
+            yield event
+
+    async def _run_plan(
+        self, plan: Plan, prepared: list[Message], user_text: str, context: ToolContext
+    ) -> AsyncIterator[AgentEvent]:
+        """Execute the plan, then write one answer from the step results."""
+        state = TaskState(
+            goal=plan.goal, steps=[StepState(id=s.id, task=s.task) for s in plan.steps]
+        )
+        async for event in self.plan_executor.run(state, context):
+            yield event
+            if isinstance(event, ConfirmationEvent):
+                return  # the user decides first; no summary yet
+
+        # prepared = [system (+memories), history..., user]; swap the last message
+        # for the original request plus what the steps found.
+        synthesis = Message(
+            role=Role.USER,
+            content=SYNTHESIS_PROMPT.format(request=user_text, report=state.report()),
+        )
+        async for token in self.llm.stream([*prepared[:-1], synthesis]):
+            yield TextEvent(text=token)
+
+    async def _supervise(
+        self, work: AsyncIterator[AgentEvent], conversation: Conversation
+    ) -> AsyncIterator[AgentEvent]:
+        """Pass events through, handling confirmations and checking honesty."""
         answer: list[str] = []
         acted = False  # did a state-changing tool (level >= 1) actually succeed?
-        async for event in self.loop.run(prepared, context):
+        async for event in work:
             yield event
             if isinstance(event, TextEvent):
                 answer.append(event.text)

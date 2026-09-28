@@ -98,6 +98,12 @@ function handleEvent(event) {
     case "tool":
       if (state.reply) showTool(event);
       break;
+    case "plan":
+      if (state.reply) showPlan(event);
+      break;
+    case "step":
+      if (state.reply) updateStep(event);
+      break;
     case "token":
       if (!state.reply) return;
       if (!state.reply.text) setStatus("streaming", "Responding…");
@@ -150,13 +156,17 @@ function addMessage(role, text) {
 function startReply() {
   const { body, bubble } = addMessage("arthur", "");
   bubble.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+  const plan = document.createElement("ol");
+  plan.className = "plan";
+  plan.hidden = true;
   const tools = document.createElement("div");
   tools.className = "tools";
-  body.insertBefore(tools, bubble); // tool activity shows above the answer
+  body.insertBefore(plan, bubble); // plan and tool activity show above the answer
+  body.insertBefore(tools, bubble);
   const meta = document.createElement("div");
   meta.className = "meta";
   body.append(meta);
-  state.reply = { bubble, meta, tools, chips: {}, text: "" };
+  state.reply = { bubble, meta, tools, chips: {}, plan, steps: {}, text: "" };
   state.busy = true;
   refreshComposer();
 }
@@ -171,6 +181,38 @@ function finishReply(info) {
     reply.meta.textContent = `${info.model} · ${seconds}s${info.stopped ? " · stopped" : ""}`;
   }
   endReply();
+}
+
+// A multi-step plan: one line per step, ticked off as the steps finish.
+function showPlan(event) {
+  const reply = state.reply;
+  reply.plan.replaceChildren();
+  for (const step of event.steps) {
+    const item = document.createElement("li");
+    item.dataset.status = "pending";
+    const task = document.createElement("span");
+    task.className = "task";
+    task.textContent = step.task; // textContent: model text can never inject HTML
+    const detail = document.createElement("span");
+    detail.className = "detail";
+    item.append(task, detail);
+    reply.plan.append(item);
+    reply.steps[step.id] = item;
+  }
+  reply.plan.hidden = false;
+  reply.stepCount = event.steps.length;
+  scrollToBottom();
+}
+
+function updateStep(event) {
+  const item = state.reply.steps[event.id];
+  if (!item) return;
+  item.dataset.status = event.status;
+  const retry = event.attempt > 1 ? ` (retry ${event.attempt - 1})` : "";
+  item.querySelector(".detail").textContent =
+    event.status === "running" ? retry : event.detail ? ` — ${event.detail}` : "";
+  if (event.status === "running") setStatus("executing", `Step ${event.id}/${state.reply.stepCount}…`);
+  scrollToBottom();
 }
 
 // One chip per tool call: "⚙ calculator  482 * 29" → "✓ calculator  result: 13978"

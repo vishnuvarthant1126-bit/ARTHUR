@@ -32,6 +32,11 @@ from app.tools.weather import WeatherInput, WeatherTool
         ("sqrt(16) + abs(-2)", 6.0),
         ("round(pi, 2)", 3.14),
         ("-5 + +2", -3),
+        ("15% of 2480", 372.0),
+        ("12.5 % of 80", 10.0),
+        ("10 % 3", 1),  # still the modulo operator
+        ("2,480 * 2", 4960),
+        ("round(1,2)", 1),  # a comma between arguments is not a thousands separator
     ],
 )
 def test_calculator_evaluates(expression, expected):

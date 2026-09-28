@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # --- Agent loop: hard limits so a confused model can never loop forever ---
     agent_max_steps: int = 8
     agent_max_seconds: float = 120.0
+    # Planner (Phase 8): multi-part requests are split into steps first.
+    agent_planning: bool = True
+    agent_plan_max_seconds: float = 240.0
 
     # --- Tools ---
     # Levels 0..N run without asking; above it the user must confirm. Level 3 is always blocked.

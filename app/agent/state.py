@@ -5,9 +5,10 @@ into messages for the browser, so you can watch ARTHUR think, use tools
 and answer - instead of waiting in the dark.
 """
 
+from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TextEvent(BaseModel):
@@ -46,4 +47,63 @@ class ConfirmationEvent(BaseModel):
     preview: str
 
 
-AgentEvent = TextEvent | ToolStartEvent | ToolEndEvent | ConfirmationEvent
+class PlanEvent(BaseModel):
+    """ARTHUR made a plan for a complex request."""
+
+    type: Literal["plan"] = "plan"
+    goal: str
+    steps: list[dict[str, Any]]  # [{"id": 1, "task": "..."}]
+
+
+class StepEvent(BaseModel):
+    """A plan step changed status."""
+
+    type: Literal["step"] = "step"
+    id: int
+    status: str  # running | done | failed | skipped
+    attempt: int = 1
+    detail: str = ""  # result preview or error
+
+
+AgentEvent = TextEvent | ToolStartEvent | ToolEndEvent | ConfirmationEvent | PlanEvent | StepEvent
+
+
+# ---------- task state (Phase 8) ----------
+
+
+class StepStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class StepState(BaseModel):
+    id: int
+    task: str
+    status: StepStatus = StepStatus.PENDING
+    attempts: int = 0
+    result: str | None = None
+    error: str | None = None
+
+
+class TaskState(BaseModel):
+    """Everything known about a multi-step task while it runs."""
+
+    goal: str
+    steps: list[StepState] = Field(default_factory=list)
+
+    def completed_results(self) -> list[StepState]:
+        return [s for s in self.steps if s.status == StepStatus.DONE]
+
+    def report(self) -> str:
+        """The step outcomes, written for the final-answer prompt."""
+        lines = []
+        for s in self.steps:
+            if s.status == StepStatus.DONE:
+                lines.append(f"Step {s.id} ({s.task}): {s.result}")
+            else:
+                reason = s.error or s.status.value
+                lines.append(f"Step {s.id} ({s.task}): NOT COMPLETED - {reason}")
+        return "\n".join(lines)

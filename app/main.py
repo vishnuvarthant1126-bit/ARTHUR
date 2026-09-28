@@ -11,7 +11,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.agent.executor import AgentLimits
+from app.agent.executor import AgentLimits, PlanLimits
 from app.agent.orchestrator import Orchestrator
 from app.api import websocket
 from app.api.errors import register_exception_handlers
@@ -55,6 +55,8 @@ def build_orchestrator(
         agent_limits=AgentLimits(
             max_steps=settings.agent_max_steps, max_seconds=settings.agent_max_seconds
         ),
+        planning=settings.agent_planning,
+        plan_limits=PlanLimits(max_seconds=settings.agent_plan_max_seconds),
         context_tokens=settings.llm_context_tokens,
         reply_reserve_tokens=settings.llm_reply_reserve_tokens,
         max_history_messages=settings.memory_max_history_messages,

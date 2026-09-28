@@ -37,6 +37,16 @@ Honesty:
 """
 
 
+SYNTHESIS_PROMPT = """{request}
+
+(To answer this, I already worked through these steps with my tools:
+{report}
+
+Now write the final answer to the request above. Use ONLY these results for facts and numbers.
+If a step is marked NOT COMPLETED, say plainly which part is missing - never fill the gap
+with guesses. Don't describe the step-by-step process unless it helps. Be concise.)"""
+
+
 def memory_section(facts: list[str]) -> str:
     """Relevant long-term memories, appended to the system prompt (empty if none)."""
     if not facts:

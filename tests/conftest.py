@@ -61,7 +61,7 @@ class FakeLLM(LLMProvider):
         error: LLMError | None = None,
         token_delay: float = 0.0,
         structured_reply: str | None = None,
-        script: list[str | list[ToolCall]] | None = None,
+        script: list[str | list[ToolCall] | Exception] | None = None,
     ):
         self.reply = reply
         self.error = error
@@ -72,7 +72,10 @@ class FakeLLM(LLMProvider):
         self.tools_offered: list[list[dict] | None] = []
 
     def _next_turn(self) -> str | list[ToolCall]:
-        return self.script.pop(0) if self.script else self.reply
+        turn = self.script.pop(0) if self.script else self.reply
+        if isinstance(turn, Exception):  # scripted failure, e.g. LLMUnavailableError
+            raise turn
+        return turn
 
     async def generate(self, messages, *, temperature=None, tools=None) -> LLMResponse:
         self.calls.append(list(messages))

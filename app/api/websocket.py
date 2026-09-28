@@ -24,6 +24,9 @@ Protocol (every frame is one JSON object with a "type"):
     {"type": "tool",    "phase": "end", "call_id": "...", "name": "calculator", "status": "ok",
                         "summary": "482 * 29 = 13978", "duration_ms": 0.4}
     {"type": "confirmation", "name": "delete_memory", "arguments": {...}, "preview": "..."}
+    {"type": "plan",    "goal": "...", "steps": [{"id": 1, "task": "..."}, ...]}
+    {"type": "step",    "id": 1, "status": "running|done|failed|skipped", "attempt": 1,
+                        "detail": "result preview or error"}
     {"type": "token",   "content": "Hel"}  repeated
     {"type": "done",    "latency_ms": 812.4, "stopped": false, "model": "...", "request_id": "..."}
     {"type": "error",   "error_type": "llm_unavailable", "message": "..."}
@@ -43,7 +46,14 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from app.agent.orchestrator import Orchestrator
-from app.agent.state import ConfirmationEvent, TextEvent, ToolEndEvent, ToolStartEvent
+from app.agent.state import (
+    ConfirmationEvent,
+    PlanEvent,
+    StepEvent,
+    TextEvent,
+    ToolEndEvent,
+    ToolStartEvent,
+)
 from app.api.dependencies import new_session_id, valid_session_id
 from app.api.errors import classify_llm_error
 from app.api.routes.chat import MessageIn
@@ -190,6 +200,10 @@ class ChatSession:
                         await self._send({"type": "status", "state": "thinking"})
                     elif isinstance(event, ConfirmationEvent):
                         await self._send({"type": "confirmation", **_fields(event)})
+                    elif isinstance(event, PlanEvent):
+                        await self._send({"type": "plan", **_fields(event)})
+                    elif isinstance(event, StepEvent):
+                        await self._send({"type": "step", **_fields(event)})
         except asyncio.CancelledError:
             stopped = True  # user pressed stop (or the tab closed)
         except LLMError as exc:
