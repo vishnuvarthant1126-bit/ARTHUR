@@ -53,6 +53,7 @@ class WhisperSTT(SpeechToText):
         compute_type: str = "int8",
         *,
         language: str | None = "en",
+        hotwords: str | None = None,
         max_seconds: float = 60.0,
         min_confidence: float = 0.35,
         download_root: str | None = None,
@@ -62,6 +63,8 @@ class WhisperSTT(SpeechToText):
         self.compute_type = compute_type
         # A fixed language skips Whisper's language detection (~1 s faster). None = auto.
         self.language = language
+        # Words the model should expect (e.g. "Arthur"), so a noisy "Arthur" isn't heard as "offer".
+        self.hotwords = hotwords
         self.max_seconds = max_seconds
         self.min_confidence = min_confidence
         self.download_root = download_root
@@ -116,6 +119,7 @@ class WhisperSTT(SpeechToText):
         segments, info = self._get_model().transcribe(
             samples,
             language=language or self.language,
+            hotwords=self.hotwords,
             beam_size=5,
             vad_filter=True,  # skip silence/noise: faster, and fewer invented words
             vad_parameters={"min_silence_duration_ms": 500},

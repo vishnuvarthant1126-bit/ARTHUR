@@ -39,10 +39,12 @@ class OllamaProvider(LLMProvider):
         model: str,
         timeout_seconds: float = 120.0,
         context_tokens: int | None = None,
+        keep_alive: str | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self.model = model
         self._base_url = base_url
+        self._keep_alive = keep_alive  # how long Ollama keeps the model loaded, e.g. "30m"
         # Ollama's default context window is small; conversation memory needs more.
         self._context_tokens = context_tokens
         # One shared client = connection pooling (reuses TCP connections).
@@ -153,6 +155,8 @@ class OllamaProvider(LLMProvider):
         }
         if tools:
             payload["tools"] = tools
+        if self._keep_alive:
+            payload["keep_alive"] = self._keep_alive
         options: dict[str, Any] = {}
         if temperature is not None:
             options["temperature"] = temperature

@@ -41,6 +41,10 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3:8b"
+    # How long Ollama keeps the model in GPU memory after the last request. Ollama's own
+    # default (5 min) means a ~10 s reload for the first question after a pause.
+    # Longer = faster answers, but the GPU memory (~6 GB) stays reserved. "-1" = forever.
+    ollama_keep_alive: str = "30m"
 
     openai_compat_base_url: str | None = None
     # SecretStr hides the value if settings are ever printed or logged.
@@ -88,6 +92,8 @@ class Settings(BaseSettings):
     whisper_compute_type: str = "int8"
     whisper_language: str | None = "en"  # blank = auto-detect (slower)
     voice_max_seconds: float = 60.0
+    # Small, fast model used only to check clips for "Hey Arthur" (~0.6 s on CPU).
+    whisper_wake_model: str = "base.en"
     models_path: Path = Path("data/models")
 
     # --- Voice: text-to-speech (Piper) ---

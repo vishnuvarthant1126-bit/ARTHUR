@@ -3,10 +3,13 @@
 from fastapi import APIRouter, HTTPException, Request, Response, UploadFile, status
 from pydantic import BaseModel, Field
 
+from app.observability.logging import get_logger
 from app.voice.speech_to_text import Transcript, TranscriptionError
 from app.voice.text_to_speech import MAX_SPEECH_CHARS, SpeechError, VoiceInfo, prepare_for_speech
+from app.voice.wake_word import WakeResult, detect_wake_phrase
 
 router = APIRouter(prefix="/voice", tags=["voice"])
+log = get_logger(__name__)
 
 MAX_AUDIO_BYTES = 10 * 1024 * 1024  # 10 MB is several minutes of compressed speech
 
@@ -23,6 +26,34 @@ async def transcribe(audio: UploadFile, request: Request) -> Transcript:
         return await stt.transcribe(data)
     except TranscriptionError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+
+
+MAX_WAKE_CLIP_BYTES = 2 * 1024 * 1024  # a 12 s, 16 kHz mono WAV is ~0.4 MB
+
+
+@router.post("/wake", response_model=WakeResult)
+async def check_wake_word(audio: UploadFile, request: Request) -> WakeResult:
+    """Did this short clip start with "Hey Arthur"? Clips are never stored or logged."""
+    data = await audio.read(MAX_WAKE_CLIP_BYTES + 1)
+    if len(data) > MAX_WAKE_CLIP_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Clip too large.")
+    try:
+        quick = await request.app.state.wake_stt.transcribe(data)  # fast model: ~0.6 s
+    except TranscriptionError:
+        return WakeResult(wake=False)  # noise, a cough, silence: simply not a wake word
+    result = detect_wake_phrase(quick.text)
+
+    if result.wake and result.command:
+        # "Hey Arthur, <command>": re-read the same clip with the accurate model, so the
+        # command itself is transcribed as well as a normal voice message would be.
+        try:
+            accurate = detect_wake_phrase((await request.app.state.stt.transcribe(data)).text)
+            if accurate.wake and accurate.command:
+                result = accurate
+        except TranscriptionError:
+            pass
+    log.info("wake_check", wake=result.wake, has_command=bool(result.command))
+    return result
 
 
 class VoiceList(BaseModel):

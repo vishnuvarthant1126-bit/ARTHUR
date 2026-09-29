@@ -145,6 +145,8 @@ body[data-state="streaming"] .core span { animation-duration: .9s; background: v
 .mic:disabled { opacity: .35; cursor: not-allowed; }
 .mic.recording { color: #fff; background: var(--err); border-color: var(--err); animation: pulse 1.2s infinite; }
 .mic.working { color: var(--accent); border-color: var(--accent); }
+#wake[aria-pressed="true"] { color: #06121c; background: var(--ok); border-color: var(--ok); }
+.status[data-state="waiting"] .dot { background: var(--ok); box-shadow: 0 0 10px var(--ok); animation: pulse 2.4s infinite; }
 .status[data-state="listening"] .dot { background: var(--err); box-shadow: 0 0 8px var(--err); animation: pulse .8s infinite; }
 .send.stop { background: var(--err); }
 .send.stop svg { display: none; }

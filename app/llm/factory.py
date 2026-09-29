@@ -18,6 +18,7 @@ def build_provider(name: str, settings: Settings) -> LLMProvider:
                 model=settings.ollama_model,
                 timeout_seconds=settings.llm_timeout_seconds,
                 context_tokens=settings.llm_context_tokens,
+                keep_alive=settings.ollama_keep_alive,
             )
         case "openai_compat":
             if not settings.openai_compat_base_url or not settings.openai_compat_model:

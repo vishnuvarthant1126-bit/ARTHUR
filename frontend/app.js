@@ -7,7 +7,7 @@ const els = {
   send: $("send"), clear: $("clear"), status: $("status"), statusText: $("status-text"), model: $("model"),
   memoryToggle: $("memory-toggle"), memoryPanel: $("memory-panel"), memoryClose: $("memory-close"),
   memoryList: $("memory-list"), memoryEmpty: $("memory-empty"),
-  mic: $("mic"),
+  mic: $("mic"), wake: $("wake"),
   voiceToggle: $("voice-toggle"), voicePanel: $("voice-panel"), voiceClose: $("voice-close"),
   speakMode: $("speak-mode"), voiceSelect: $("voice-select"), voiceSpeed: $("voice-speed"),
   voiceSpeedValue: $("voice-speed-value"), voiceVolume: $("voice-volume"),
@@ -268,7 +268,7 @@ function endReply() {
   state.reply = null;
   state.busy = false;
   if (isSpeaking()) setStatus("speaking", "Speaking…");
-  else if (state.connected) setStatus("online", "Online");
+  else idleStatus();
   refreshComposer();
   els.input.focus();
 }
@@ -361,7 +361,7 @@ async function transcribeRecording(mimeType) {
   voice.recorder = null;
   const blob = new Blob(voice.chunks, { type: mimeType || "audio/webm" });
   voice.chunks = [];
-  if (blob.size === 0) { setStatus("online", "Online"); return; }
+  if (blob.size === 0) { idleStatus(); return; }
   voice.busy = true;
   els.mic.classList.add("working");
   setStatus("thinking", "Transcribing…");
@@ -380,8 +380,199 @@ async function transcribeRecording(mimeType) {
   } finally {
     voice.busy = false;
     els.mic.classList.remove("working");
-    if (!state.busy && state.connected) setStatus("online", "Online");
+    if (!state.busy) idleStatus();
   }
+}
+
+// ---------- hands-free: "Hey Arthur" (wake word) ----------
+// While enabled, the mic stays open. The browser measures loudness ~125 times a second and
+// cuts out clips of speech (from the moment sound starts until 0.7 s of silence). Only
+// those clips go to ARTHUR on this computer, which checks whether they start with
+// "Hey Arthur". Nothing is stored. While ARTHUR is thinking or speaking, clips are
+// ignored, so it can't wake itself up with its own voice.
+const WAKE = {
+  prerollMs: 300, // keep a little audio from just before speech started ("Hey" is short)
+  endSilenceMs: 700, // this much quiet ends a clip
+  minSpeechMs: 350, // shorter bursts (clicks, coughs) are ignored
+  maxWakeClipMs: 10_000,
+  maxCommandClipMs: 15_000,
+  commandTimeoutMs: 7_000, // after "Yes?", wait this long for the command
+  minThreshold: 0.015, // loudness (RMS) below this is always "quiet"
+  noiseFactor: 3.5, // speech must be this many times louder than the room's background noise
+};
+const TAP_WORKLET = `
+class ArthurTap extends AudioWorkletProcessor {
+  process(inputs) {
+    const channel = inputs[0][0];
+    if (channel) this.port.postMessage(channel.slice(0));
+    return true;
+  }
+}
+registerProcessor("arthur-tap", ArthurTap);`;
+
+const wake = {
+  enabled: false, ctx: null, stream: null, node: null,
+  phase: "wake", // "wake": waiting for the phrase · "command": listening after "Yes?"
+  noise: 0.005, inSpeech: false, preroll: [], clip: [], speechMs: 0, silenceMs: 0,
+  checking: false, commandTimer: null,
+};
+
+async function toggleWakeMode() {
+  if (wake.enabled) return stopWakeMode();
+  if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) {
+    addError("Hands-free mode isn't supported in this browser. Try Chrome or Edge.");
+    return;
+  }
+  try {
+    wake.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+    });
+  } catch (error) {
+    micError(error);
+    return;
+  }
+  // Ask for 16 kHz (what Whisper uses); the browser resamples the mic for us.
+  try { wake.ctx = new AudioContext({ sampleRate: 16000 }); } catch { wake.ctx = new AudioContext(); }
+  await wake.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([TAP_WORKLET], { type: "text/javascript" })));
+  const source = wake.ctx.createMediaStreamSource(wake.stream);
+  wake.node = new AudioWorkletNode(wake.ctx, "arthur-tap");
+  const mute = wake.ctx.createGain();
+  mute.gain.value = 0; // connected so the audio graph runs, but silent: no echo
+  source.connect(wake.node).connect(mute).connect(wake.ctx.destination);
+  wake.node.port.onmessage = (e) => onAudioBlock(e.data);
+  wake.enabled = true;
+  wake.phase = "wake";
+  els.wake.setAttribute("aria-pressed", "true");
+  showWakeStatus();
+}
+
+function stopWakeMode() {
+  wake.enabled = false;
+  clearTimeout(wake.commandTimer);
+  wake.node?.disconnect();
+  wake.stream?.getTracks().forEach((t) => t.stop()); // mic indicator off
+  wake.ctx?.close();
+  Object.assign(wake, { ctx: null, stream: null, node: null, inSpeech: false, clip: [], preroll: [] });
+  els.wake.setAttribute("aria-pressed", "false");
+  if (!state.busy && !isSpeaking() && state.connected) setStatus("online", "Online");
+}
+
+// What the status light shows when ARTHUR isn't busy: waiting for "Hey Arthur", or Online.
+function idleStatus() {
+  if (!state.connected) return;
+  if (wake.enabled) showWakeStatus();
+  else setStatus("online", "Online");
+}
+
+function showWakeStatus() {
+  if (!wake.enabled || state.busy || isSpeaking() || voice.recorder) return;
+  if (wake.phase === "command") setStatus("listening", "Listening…");
+  else setStatus("waiting", "Say “Hey Arthur”");
+}
+
+// Paused while ARTHUR answers or speaks, while push-to-talk records, or while a clip is checked.
+function wakePaused() {
+  return state.busy || isSpeaking() || voice.recorder || voice.busy || wake.checking;
+}
+
+function onAudioBlock(samples) {
+  if (!wake.enabled) return;
+  const blockMs = (samples.length / wake.ctx.sampleRate) * 1000;
+  if (wakePaused()) {
+    wake.inSpeech = false;
+    wake.clip = [];
+    return;
+  }
+  let sum = 0;
+  for (const s of samples) sum += s * s;
+  const rms = Math.sqrt(sum / samples.length);
+  const threshold = Math.max(WAKE.minThreshold, wake.noise * WAKE.noiseFactor);
+
+  if (!wake.inSpeech) {
+    wake.noise = wake.noise * 0.995 + rms * 0.005; // slowly learn the room's background noise
+    wake.preroll.push(samples);
+    while (wake.preroll.length * blockMs > WAKE.prerollMs) wake.preroll.shift();
+    if (rms > threshold) {
+      Object.assign(wake, { inSpeech: true, clip: [...wake.preroll], speechMs: 0, silenceMs: 0 });
+      clearTimeout(wake.commandTimer); // the user started talking
+    }
+    return;
+  }
+  wake.clip.push(samples);
+  if (rms > threshold * 0.6) { wake.speechMs += blockMs; wake.silenceMs = 0; } else { wake.silenceMs += blockMs; }
+  const clipMs = wake.clip.length * blockMs;
+  const maxMs = wake.phase === "command" ? WAKE.maxCommandClipMs : WAKE.maxWakeClipMs;
+  if (wake.silenceMs >= WAKE.endSilenceMs || clipMs >= maxMs) {
+    const clip = wake.clip;
+    Object.assign(wake, { inSpeech: false, clip: [], preroll: [] });
+    if (wake.speechMs >= WAKE.minSpeechMs) handleClip(encodeWav(clip, wake.ctx.sampleRate));
+  }
+}
+
+async function handleClip(wav) {
+  wake.checking = true;
+  const form = new FormData();
+  form.append("audio", wav, "clip.wav");
+  try {
+    if (wake.phase === "command") {
+      setStatus("thinking", "Transcribing…");
+      const res = await fetch("/voice/transcribe", { method: "POST", body: form });
+      const body = await res.json();
+      wake.phase = "wake";
+      if (res.ok) send(body.text, { fromVoice: true });
+      else addError(body.detail || "Sorry, I didn't catch that.");
+      return;
+    }
+    const res = await fetch("/voice/wake", { method: "POST", body: form });
+    if (!res.ok) return;
+    const result = await res.json();
+    if (!result.wake) return; // not for ARTHUR: ignore silently
+    if (result.command) {
+      send(result.command, { fromVoice: true }); // "Hey Arthur, what's the weather?"
+    } else {
+      sayYes(); // just "Hey Arthur": answer, then listen for the command
+    }
+  } catch {
+    /* ARTHUR unreachable - the connection status already shows it */
+  } finally {
+    wake.checking = false;
+    showWakeStatus();
+  }
+}
+
+function sayYes() {
+  wake.phase = "command";
+  stopSpeaking();
+  speech.active = true;
+  speakStreamed("Yes?", { final: true });
+  speech.active = false;
+  clearTimeout(wake.commandTimer);
+  // If nothing is said after "Yes?", quietly go back to waiting for the wake word.
+  wake.commandTimer = setTimeout(() => {
+    if (wake.phase === "command" && !wake.inSpeech) { wake.phase = "wake"; showWakeStatus(); }
+  }, WAKE.commandTimeoutMs + 1500);
+}
+
+// Float32 samples -> 16-bit PCM WAV (resampled to 16 kHz if the browser ignored our request).
+function encodeWav(blocks, rate) {
+  let samples = new Float32Array(blocks.reduce((n, b) => n + b.length, 0));
+  let offset = 0;
+  for (const b of blocks) { samples.set(b, offset); offset += b.length; }
+  if (rate !== 16000) {
+    const ratio = rate / 16000;
+    const resampled = new Float32Array(Math.floor(samples.length / ratio));
+    for (let i = 0; i < resampled.length; i++) resampled[i] = samples[Math.floor(i * ratio)];
+    samples = resampled;
+  }
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const text = (pos, s) => [...s].forEach((c, i) => view.setUint8(pos + i, c.charCodeAt(0)));
+  text(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true); text(8, "WAVE");
+  text(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, 16000, true); view.setUint32(28, 32000, true); view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true); text(36, "data"); view.setUint32(40, samples.length * 2, true);
+  samples.forEach((s, i) => view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, s)) * 0x7fff, true));
+  return new Blob([buffer], { type: "audio/wav" });
 }
 
 // ---------- voice output (text-to-speech) ----------
@@ -475,7 +666,7 @@ async function playSpeechQueue() {
   }
   speech.playing = false;
   speech.audio = null;
-  if (!state.busy && state.connected) setStatus("online", "Online");
+  if (!state.busy) idleStatus();
   refreshComposer();
 }
 
@@ -755,6 +946,7 @@ els.input.addEventListener("keydown", (e) => {
 els.input.addEventListener("input", autosize);
 els.clear.addEventListener("click", clearConversation);
 els.mic.addEventListener("click", toggleRecording);
+els.wake.addEventListener("click", toggleWakeMode);
 els.voiceToggle.addEventListener("click", () => toggleVoicePanel());
 els.voiceClose.addEventListener("click", () => toggleVoicePanel(false));
 els.speakMode.addEventListener("change", () => updateSpeechSetting("mode", els.speakMode.value));

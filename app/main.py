@@ -150,6 +150,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         max_seconds=settings.voice_max_seconds,
         download_root=str(settings.resolve(settings.models_path) / "whisper"),
     )
+    app.state.wake_stt = WhisperSTT(
+        settings.whisper_wake_model,
+        "cpu",
+        "int8",
+        language="en",
+        max_seconds=15,
+        min_confidence=0.3,
+        download_root=str(settings.resolve(settings.models_path) / "whisper"),
+    )
     app.state.tts = PiperTTS(
         settings.resolve(settings.voices_path), default_voice=settings.tts_default_voice
     )
@@ -157,6 +166,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # gather() schedules both right away and returns a future we can cancel at shutdown.
     warm_up = asyncio.gather(
         asyncio.to_thread(app.state.stt.warm_up),
+        asyncio.to_thread(app.state.wake_stt.warm_up),
         asyncio.to_thread(app.state.tts.warm_up),
         return_exceptions=True,  # a missing voice model must not crash startup
     )

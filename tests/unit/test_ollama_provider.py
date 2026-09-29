@@ -64,6 +64,21 @@ async def test_generate_sends_messages_and_parses_reply():
     assert result.completion_tokens == 3
 
 
+async def test_keep_alive_is_sent_when_configured():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"message": {"content": "ok"}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://o")
+    provider = OllamaProvider("http://o", "qwen3:8b", keep_alive="30m", client=client)
+
+    await provider.generate(MESSAGES)
+
+    assert captured["body"]["keep_alive"] == "30m"
+
+
 async def test_missing_model_gives_pull_hint():
     provider = make_provider(lambda r: httpx.Response(404, json={"error": "model not found"}))
     with pytest.raises(LLMResponseError, match="ollama pull qwen3:8b"):
