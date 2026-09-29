@@ -136,6 +136,16 @@ body[data-state="streaming"] .core span { animation-duration: .9s; background: v
   display: grid; place-items: center;
 }
 .send:disabled { opacity: .35; cursor: not-allowed; }
+
+.mic {
+  width: 38px; height: 38px; flex: none; border-radius: 12px; display: grid; place-items: center;
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+}
+.mic:hover { color: var(--text); border-color: var(--muted); }
+.mic:disabled { opacity: .35; cursor: not-allowed; }
+.mic.recording { color: #fff; background: var(--err); border-color: var(--err); animation: pulse 1.2s infinite; }
+.mic.working { color: var(--accent); border-color: var(--accent); }
+.status[data-state="listening"] .dot { background: var(--err); box-shadow: 0 0 8px var(--err); animation: pulse .8s infinite; }
 .send.stop { background: var(--err); }
 .send.stop svg { display: none; }
 .send.stop::before { content: ""; width: 12px; height: 12px; background: #fff; border-radius: 2px; }

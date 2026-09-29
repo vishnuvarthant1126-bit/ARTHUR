@@ -43,6 +43,7 @@ from app.search.service import WebSearchService
 from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
 from app.tools.defaults import create_tool_registry
+from app.voice.speech_to_text import SpeechToText, Transcript
 
 
 def tool_call(name: str, **arguments) -> ToolCall:
@@ -208,6 +209,49 @@ class FakeSearchProvider(SearchProvider):
         return self.results[:max_results]
 
 
+class FakeSTT(SpeechToText):
+    """Pretend speech recogniser: returns `text`, or raises `error`."""
+
+    def __init__(self, text: str = "What is 25 times 50?", error: Exception | None = None):
+        self.text = text
+        self.error = error
+        self.received: list[bytes] = []
+
+    async def transcribe(self, audio: bytes, *, language: str | None = None) -> Transcript:
+        self.received.append(audio)
+        if self.error:
+            raise self.error
+        return Transcript(
+            text=self.text, language="en", duration_seconds=2.0, speech_seconds=1.8,
+            confidence=0.9, processing_ms=5.0,
+        )  # fmt: skip
+
+
+def wav_bytes(seconds: float, *, rate: int = 16000, tone: bool = False) -> bytes:
+    """A WAV file: silence, or a 440 Hz tone (not speech) when tone=True."""
+    import io
+    import math
+    import struct
+    import wave
+
+    frames = int(seconds * rate)
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        if tone:
+            wav.writeframes(
+                b"".join(
+                    struct.pack("<h", int(8000 * math.sin(2 * math.pi * 440 * i / rate)))
+                    for i in range(frames)
+                )
+            )
+        else:
+            wav.writeframes(b"\x00\x00" * frames)
+    return buffer.getvalue()
+
+
 def offline_http_client() -> httpx.AsyncClient:
     """HTTP client whose every request fails - tests must never touch the internet."""
 
@@ -242,6 +286,7 @@ def _app_with(llm: LLMProvider):
     app.state.memory = memory_manager
     app.state.documents = documents
     app.state.retriever = retriever
+    app.state.stt = FakeSTT()
     app.state.audit = audit
     app.state.tools = create_tool_registry(
         policy=PermissionPolicy(),

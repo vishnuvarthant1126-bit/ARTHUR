@@ -7,6 +7,7 @@ const els = {
   send: $("send"), clear: $("clear"), status: $("status"), statusText: $("status-text"), model: $("model"),
   memoryToggle: $("memory-toggle"), memoryPanel: $("memory-panel"), memoryClose: $("memory-close"),
   memoryList: $("memory-list"), memoryEmpty: $("memory-empty"),
+  mic: $("mic"),
   docsToggle: $("docs-toggle"), docsPanel: $("docs-panel"), docsClose: $("docs-close"),
   docsInput: $("docs-input"), docsStatus: $("docs-status"), docsList: $("docs-list"), docsEmpty: $("docs-empty"),
 };
@@ -291,6 +292,87 @@ function scrollToBottom() {
   els.log.scrollTop = els.log.scrollHeight;
 }
 
+// ---------- voice input (speech-to-text) ----------
+// Click 🎤 to start recording, click again to stop. The audio is sent to ARTHUR on this
+// computer (/voice/transcribe), the text appears in the box and is sent like a typed message.
+const voice = { recorder: null, chunks: [], stream: null, timer: null, busy: false };
+const MAX_RECORDING_MS = 60_000;
+
+function micError(error) {
+  const messages = {
+    NotAllowedError: "Microphone permission was denied. Allow it via the lock icon in the address bar, then try again.",
+    NotFoundError: "No microphone was found. Plug one in or check Windows sound settings.",
+    NotReadableError: "The microphone is busy in another app (e.g. a video call).",
+    SecurityError: "The browser blocked the microphone on this page.",
+  };
+  addError(messages[error.name] || `Microphone problem: ${error.message}`);
+}
+
+async function toggleRecording() {
+  if (voice.recorder) return stopRecording();
+  if (voice.busy || state.busy) return;
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    addError("Voice input isn't supported in this browser. Try Chrome, Edge or Firefox.");
+    return;
+  }
+  try {
+    // echoCancellation/noiseSuppression: the browser cleans up background noise for us.
+    voice.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+    });
+  } catch (error) {
+    micError(error);
+    return;
+  }
+  const mimeType = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/webm"]
+    .find((t) => MediaRecorder.isTypeSupported(t)) || "";
+  voice.chunks = [];
+  voice.recorder = new MediaRecorder(voice.stream, mimeType ? { mimeType } : {});
+  voice.recorder.ondataavailable = (e) => { if (e.data.size) voice.chunks.push(e.data); };
+  voice.recorder.onstop = () => transcribeRecording(voice.recorder?.mimeType || mimeType);
+  voice.recorder.start();
+  voice.timer = setTimeout(stopRecording, MAX_RECORDING_MS); // never record forever
+  els.mic.classList.add("recording");
+  els.mic.setAttribute("aria-label", "Stop recording");
+  setStatus("listening", "Listening…");
+}
+
+function stopRecording() {
+  clearTimeout(voice.timer);
+  if (voice.recorder?.state === "recording") voice.recorder.stop();
+  voice.stream?.getTracks().forEach((t) => t.stop()); // turns the browser's mic indicator off
+  els.mic.classList.remove("recording");
+  els.mic.setAttribute("aria-label", "Start voice input");
+}
+
+async function transcribeRecording(mimeType) {
+  voice.recorder = null;
+  const blob = new Blob(voice.chunks, { type: mimeType || "audio/webm" });
+  voice.chunks = [];
+  if (blob.size === 0) { setStatus("online", "Online"); return; }
+  voice.busy = true;
+  els.mic.classList.add("working");
+  setStatus("thinking", "Transcribing…");
+  try {
+    const form = new FormData();
+    form.append("audio", blob, `recording.${mimeType.includes("ogg") ? "ogg" : "webm"}`);
+    const res = await fetch("/voice/transcribe", { method: "POST", body: form });
+    const body = await res.json();
+    if (!res.ok) {
+      addError(body.detail || body.error?.message || `Transcription failed (${res.status}).`);
+      return;
+    }
+    state.lastInputWasVoice = true; // Phase 12: voice questions get spoken answers
+    send(body.text);
+  } catch {
+    addError("Couldn't reach ARTHUR to transcribe the recording.");
+  } finally {
+    voice.busy = false;
+    els.mic.classList.remove("working");
+    if (!state.busy && state.connected) setStatus("online", "Online");
+  }
+}
+
 // ---------- memory panel ----------
 function toggleMemoryPanel(open = els.memoryPanel.hidden) {
   if (open) toggleDocsPanel(false); // one panel at a time
@@ -513,6 +595,7 @@ els.input.addEventListener("keydown", (e) => {
 
 els.input.addEventListener("input", autosize);
 els.clear.addEventListener("click", clearConversation);
+els.mic.addEventListener("click", toggleRecording);
 els.memoryToggle.addEventListener("click", () => toggleMemoryPanel());
 els.memoryClose.addEventListener("click", () => toggleMemoryPanel(false));
 els.docsToggle.addEventListener("click", () => toggleDocsPanel());

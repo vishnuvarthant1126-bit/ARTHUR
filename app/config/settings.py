@@ -82,6 +82,14 @@ class Settings(BaseSettings):
     search_cache_minutes: int = 10
     web_fetch_max_kb: int = 2048
 
+    # --- Voice: speech-to-text ---
+    whisper_model: str = "small"  # tiny | base | small | medium (bigger = better, slower)
+    whisper_device: str = "cpu"  # cpu | cuda | auto (the GPU is busy with the LLM)
+    whisper_compute_type: str = "int8"
+    whisper_language: str | None = "en"  # blank = auto-detect (slower)
+    voice_max_seconds: float = 60.0
+    models_path: Path = Path("data/models")
+
     # --- Agent loop: hard limits so a confused model can never loop forever ---
     agent_max_steps: int = 8
     agent_max_seconds: float = 120.0
@@ -108,6 +116,7 @@ class Settings(BaseSettings):
         "openai_compat_base_url",
         "openai_compat_model",
         "searxng_url",
+        "whisper_language",
         mode="before",
     )
     @classmethod

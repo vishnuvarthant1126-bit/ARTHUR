@@ -3,6 +3,7 @@
 Run with:  uvicorn app.main:app --reload
 """
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,7 +17,7 @@ from app.agent.orchestrator import Orchestrator
 from app.api import websocket
 from app.api.errors import register_exception_handlers
 from app.api.middleware import RequestContextMiddleware
-from app.api.routes import chat, health, memory, tools
+from app.api.routes import chat, health, memory, tools, voice
 from app.api.routes import documents as documents_routes
 from app.config.settings import Settings, get_settings
 from app.database.database import Database
@@ -36,6 +37,7 @@ from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
 from app.tools.defaults import create_tool_registry
 from app.tools.registry import ToolRegistry
+from app.voice.speech_to_text import WhisperSTT
 
 log = get_logger("arthur")
 
@@ -139,6 +141,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.orchestrator = build_orchestrator(
         llm, settings, memory_manager, app.state.tools, retriever
     )
+    app.state.stt = WhisperSTT(
+        settings.whisper_model,
+        settings.whisper_device,
+        settings.whisper_compute_type,
+        language=settings.whisper_language,
+        max_seconds=settings.voice_max_seconds,
+        download_root=str(settings.resolve(settings.models_path) / "whisper"),
+    )
+    # Load the speech model in the background, so the first voice message doesn't wait for it.
+    warm_up = asyncio.create_task(asyncio.to_thread(app.state.stt.warm_up))
 
     log.info(
         "arthur_started",
@@ -151,6 +163,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         tools=[t.name for t in app.state.tools.all()],
     )
     yield
+    warm_up.cancel()
     await http_client.aclose()
     await embeddings.aclose()
     await llm.aclose()
@@ -172,6 +185,7 @@ def create_app() -> FastAPI:
     app.include_router(memory.router)
     app.include_router(documents_routes.router)
     app.include_router(tools.router)
+    app.include_router(voice.router)
     app.include_router(websocket.router)
     # Mounted last: API routes above win; everything else is served from frontend/.
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

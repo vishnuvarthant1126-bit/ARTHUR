@@ -7,11 +7,18 @@ like Grafana Loki can index them.
 """
 
 import logging
+import sys
 
 import structlog
 
 
 def configure_logging(level: str = "INFO", json_logs: bool = False) -> None:
+    # The Windows console defaults to an old encoding (cp1252) that can't show every
+    # character. Without this, logging an unusual error message could itself crash.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     processors: list[structlog.typing.Processor] = [
         structlog.contextvars.merge_contextvars,  # adds request_id etc. bound per request
         structlog.processors.add_log_level,
