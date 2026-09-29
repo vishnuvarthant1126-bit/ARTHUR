@@ -93,8 +93,8 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 2 | Sat 2026-09-26 | 5–6: long-term memory (SQLite + ChromaDB + embeddings, memory policy), tool system + registry | ✅ Done (same day, at the owner's request) |
 | 3 | Mon 2026-09-28 | 7–8: agent loop (tool calling), planner/executor with step limits | ✅ Done |
 | 4 | Mon 2026-09-28 | 9–10: document RAG with citations, web search | ✅ Done (same day as session 3, owner's request) |
-| 5 | Tue 2026-09-29 | 11–13: speech-to-text, text-to-speech, wake word | 🟡 11 ✅ 12 ✅ · 13 (wake word) ⏭ Next – paused so the owner can test mic + voice in Chrome |
-| 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | |
+| 5 | Tue 2026-09-29 | 11–13: speech-to-text, text-to-speech, wake word | ✅ Done (owner verified mic + spoken replies in Chrome) |
+| 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | ⏭ Next |
 | 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | |
 | 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | |
 | 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
@@ -135,7 +135,13 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   tests/integration/test_startup.py runs the real lifespan on temp storage.
   Fixed: logging crash on cp1252 console, stale WHISPER_DEVICE=auto in .env, startup
   create_task(gather) crash.
-- Phase 13 plan (wake word): no pretrained "hey arthur" model exists for openWakeWord, so use
-  browser energy-VAD → short clips → Whisper base.en (0.6 s) → fuzzy match "hey/ok arthur";
-  remainder after the wake phrase is the command, otherwise say "Yes?" and listen. Off by
-  default, visible indicator, push-to-talk stays. Explain false positives/negatives, CPU, privacy.
+- Session 5 done (Phase 13, commit b624d13): 338 tests. `app/voice/wake_word.py`
+  (`detect_wake_phrase`: greeting+name or name first, SequenceMatcher ≥ 0.8, "offer" only after
+  a greeting), `POST /voice/wake` (app.state.wake_stt = base.en; commands re-read with small).
+  Frontend: AudioWorklet tap + energy VAD, `handleClip`, `sayYes`, `idleStatus`. Measured
+  19/20 detected, 0/32 false alarms (scripts/evaluate_wake_word.py); Whisper hotwords made it
+  worse (12/20) – don't use. `OLLAMA_KEEP_ALIVE=30m` fixes ~10 s reload after 5 min idle.
+- Phase 14–15 notes: file tools must be restricted to ALLOWED_DIRECTORIES (resolve symlinks,
+  block `..`, size/type limits, deny system folders); reading is level 0, writing/deleting ≥ 2.
+  Browser agent: Playwright (needs `playwright install chromium`, ~150 MB – ask first), reuse
+  check_public_url for SSRF, confirmation for submit/purchase/login/send.

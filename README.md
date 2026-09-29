@@ -3,7 +3,8 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 10 – searches the web with sources and answers from your documents with page
+> Status: Phase 13 – talk to it (speech-to-text), hear it (text-to-speech), call it hands-free
+> ("Hey Arthur"); searches the web with sources and answers from your documents with page
 > citations; an agent that chooses tools itself and plans multi-step tasks, with
 > conversation + long-term semantic memory, swappable LLM providers, and a permission-checked,
 > audited tool system. Full documentation arrives as features land.
@@ -106,6 +107,17 @@ Document text is treated as data; uploads from other websites are rejected (CSRF
 10 searches/minute limit and one retry. `read_webpage` reads one public page with SSRF
 protection: http(s) only, every hop resolved and checked against private/local/reserved
 addresses, 2 MB and text/HTML only. Results are untrusted data; answers cite Markdown links.
+
+## Voice (all local)
+| Part | How | Speed (CPU) |
+|---|---|---|
+| Speech-to-text | faster-whisper `small`, VAD, confidence check – `POST /voice/transcribe` | ~1.5 s / sentence |
+| Text-to-speech | Piper voices in `data/voices` – `POST /voice/speak`, `GET /voice/voices` | ~0.3 s / sentence; first sound ~0.25 s after the first sentence |
+| Wake word | browser loudness detection → clips → Whisper `base.en` → "Hey/OK Arthur" at the start – `POST /voice/wake` | ~0.6 s / clip |
+
+Wake word, measured with `scripts/evaluate_wake_word.py`: 19/20 detected, 0/32 false alarms.
+Clips are never stored; hands-free mode is off by default. Use Chrome or Edge – embedded
+browser views (like the Claude app's) block the microphone.
 
 ## Agent loop and planner
 ```
