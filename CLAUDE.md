@@ -93,7 +93,7 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 2 | Sat 2026-09-26 | 5–6: long-term memory (SQLite + ChromaDB + embeddings, memory policy), tool system + registry | ✅ Done (same day, at the owner's request) |
 | 3 | Mon 2026-09-28 | 7–8: agent loop (tool calling), planner/executor with step limits | ✅ Done |
 | 4 | Mon 2026-09-28 | 9–10: document RAG with citations, web search | ✅ Done (same day as session 3, owner's request) |
-| 5 | Tue 2026-09-29 | 11–13: speech-to-text, text-to-speech, wake word | ⏭ Next |
+| 5 | Tue 2026-09-29 | 11–13: speech-to-text, text-to-speech, wake word | 🟡 11 ✅ 12 ✅ · 13 (wake word) ⏭ Next – paused so the owner can test mic + voice in Chrome |
 | 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | |
 | 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | |
 | 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | |
@@ -125,6 +125,17 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   cited links, Singapore AI conferences flagship flow (plan → 2 searches → summary, 21 s),
   read_webpage works and blocks 127.0.0.1/192.168.x/file://. Snippets can be stale (3.14.6 vs
   3.14.7) – model flagged disagreement. Known gap: DNS rebinding (fix in Phase 19).
-- Phase 11–13 notes (voice): faster-whisper STT (`/voice/transcribe`, CPU int8 fallback since
-  the GPU holds qwen3), Piper TTS, openWakeWord or push-to-talk; browser records audio via
-  MediaRecorder (webm/opus) → needs ffmpeg (installed). Check wheels for Python 3.12 first.
+- Session 5 so far (Phases 11–12, commits 0e84f10, 116ad03): 313 tests. `app/voice/`:
+  `speech_to_text.py` (WhisperSTT small/CPU/int8 ~1.5 s per sentence, VAD, confidence,
+  CUDA→CPU runtime fallback since cublas64_12.dll is missing) and `text_to_speech.py`
+  (PiperTTS, voices in data/voices: en_GB-alan-medium default, en_US-lessac-medium;
+  `prepare_for_speech`). Routes /voice/transcribe, /voice/speak, /voice/voices. Frontend:
+  mic button, sentence-streamed speech queue, Voice panel. Browser pane BLOCKS the mic –
+  real mic tests need Chrome/Edge. Tests: Piper speaks → Whisper transcribes (no mic needed);
+  tests/integration/test_startup.py runs the real lifespan on temp storage.
+  Fixed: logging crash on cp1252 console, stale WHISPER_DEVICE=auto in .env, startup
+  create_task(gather) crash.
+- Phase 13 plan (wake word): no pretrained "hey arthur" model exists for openWakeWord, so use
+  browser energy-VAD → short clips → Whisper base.en (0.6 s) → fuzzy match "hey/ok arthur";
+  remainder after the wake phrase is the command, otherwise say "Yes?" and listen. Off by
+  default, visible indicator, push-to-talk stays. Explain false positives/negatives, CPU, privacy.
