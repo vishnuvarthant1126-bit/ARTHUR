@@ -311,7 +311,7 @@ const MAX_RECORDING_MS = 60_000;
 
 function micError(error) {
   const messages = {
-    NotAllowedError: "Microphone permission was denied. Allow it via the lock icon in the address bar, then try again.",
+    NotAllowedError: "Microphone access was blocked. If you see ARTHUR inside another app (e.g. the Claude app), open http://127.0.0.1:8000 in Chrome or Edge instead. In the browser: click the icon left of the address, set Microphone to Allow, then reload.",
     NotFoundError: "No microphone was found. Plug one in or check Windows sound settings.",
     NotReadableError: "The microphone is busy in another app (e.g. a video call).",
     SecurityError: "The browser blocked the microphone on this page.",
