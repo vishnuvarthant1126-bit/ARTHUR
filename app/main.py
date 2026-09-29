@@ -38,6 +38,7 @@ from app.security.permissions import PermissionPolicy
 from app.tools.defaults import create_tool_registry
 from app.tools.registry import ToolRegistry
 from app.voice.speech_to_text import WhisperSTT
+from app.voice.text_to_speech import PiperTTS
 
 log = get_logger("arthur")
 
@@ -149,8 +150,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         max_seconds=settings.voice_max_seconds,
         download_root=str(settings.resolve(settings.models_path) / "whisper"),
     )
-    # Load the speech model in the background, so the first voice message doesn't wait for it.
-    warm_up = asyncio.create_task(asyncio.to_thread(app.state.stt.warm_up))
+    app.state.tts = PiperTTS(
+        settings.resolve(settings.voices_path), default_voice=settings.tts_default_voice
+    )
+    # Load the speech models in the background, so the first voice message doesn't wait.
+    # gather() schedules both right away and returns a future we can cancel at shutdown.
+    warm_up = asyncio.gather(
+        asyncio.to_thread(app.state.stt.warm_up),
+        asyncio.to_thread(app.state.tts.warm_up),
+        return_exceptions=True,  # a missing voice model must not crash startup
+    )
 
     log.info(
         "arthur_started",

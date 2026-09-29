@@ -8,6 +8,10 @@ const els = {
   memoryToggle: $("memory-toggle"), memoryPanel: $("memory-panel"), memoryClose: $("memory-close"),
   memoryList: $("memory-list"), memoryEmpty: $("memory-empty"),
   mic: $("mic"),
+  voiceToggle: $("voice-toggle"), voicePanel: $("voice-panel"), voiceClose: $("voice-close"),
+  speakMode: $("speak-mode"), voiceSelect: $("voice-select"), voiceSpeed: $("voice-speed"),
+  voiceSpeedValue: $("voice-speed-value"), voiceVolume: $("voice-volume"),
+  voiceVolumeValue: $("voice-volume-value"), voiceTest: $("voice-test"),
   docsToggle: $("docs-toggle"), docsPanel: $("docs-panel"), docsClose: $("docs-close"),
   docsInput: $("docs-input"), docsStatus: $("docs-status"), docsList: $("docs-list"), docsEmpty: $("docs-empty"),
 };
@@ -40,9 +44,10 @@ function setStatus(kind, label) {
 }
 
 function refreshComposer() {
-  els.send.disabled = !state.connected || (!state.busy && !els.input.value.trim());
-  els.send.classList.toggle("stop", state.busy);
-  els.send.setAttribute("aria-label", state.busy ? "Stop" : "Send");
+  const stoppable = state.busy || isSpeaking();
+  els.send.disabled = !stoppable && (!state.connected || !els.input.value.trim());
+  els.send.classList.toggle("stop", stoppable);
+  els.send.setAttribute("aria-label", stoppable ? "Stop" : "Send");
 }
 
 // ---------- connection ----------
@@ -111,6 +116,7 @@ function handleEvent(event) {
       if (!state.reply) return;
       if (!state.reply.text) setStatus("streaming", "Responding…");
       state.reply.text += event.content;
+      speakStreamed(event.content);
       state.reply.bubble.innerHTML = renderMarkdown(state.reply.text);
       state.reply.bubble.classList.add("cursor");
       scrollToBottom();
@@ -126,8 +132,10 @@ function handleEvent(event) {
 }
 
 // ---------- conversation ----------
-function send(text) {
+function send(text, { fromVoice = false } = {}) {
   if (!state.connected || state.busy || !text) return;
+  state.lastInputWasVoice = fromVoice; // decides whether the reply is spoken ("When I talk")
+  stopSpeaking(); // a new question interrupts the previous answer
   els.empty.hidden = true;
   addMessage("user", text);
   startReply();
@@ -157,6 +165,7 @@ function addMessage(role, text) {
 }
 
 function startReply() {
+  beginSpokenReply();
   const { body, bubble } = addMessage("arthur", "");
   bubble.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
   const plan = document.createElement("ol");
@@ -176,6 +185,7 @@ function startReply() {
 
 function finishReply(info) {
   const reply = state.reply;
+  if (!info.stopped) speakStreamed("", { final: true }); // say the last, unfinished sentence
   if (!els.memoryPanel.hidden) loadMemories(); // a reply may have saved/forgotten something
   if (reply) {
     reply.bubble.classList.remove("cursor");
@@ -257,7 +267,8 @@ function failReply(message) {
 function endReply() {
   state.reply = null;
   state.busy = false;
-  if (state.connected) setStatus("online", "Online");
+  if (isSpeaking()) setStatus("speaking", "Speaking…");
+  else if (state.connected) setStatus("online", "Online");
   refreshComposer();
   els.input.focus();
 }
@@ -310,6 +321,7 @@ function micError(error) {
 
 async function toggleRecording() {
   if (voice.recorder) return stopRecording();
+  stopSpeaking(); // "barge in": starting to talk silences ARTHUR
   if (voice.busy || state.busy) return;
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
     addError("Voice input isn't supported in this browser. Try Chrome, Edge or Firefox.");
@@ -362,8 +374,7 @@ async function transcribeRecording(mimeType) {
       addError(body.detail || body.error?.message || `Transcription failed (${res.status}).`);
       return;
     }
-    state.lastInputWasVoice = true; // Phase 12: voice questions get spoken answers
-    send(body.text);
+    send(body.text, { fromVoice: true });
   } catch {
     addError("Couldn't reach ARTHUR to transcribe the recording.");
   } finally {
@@ -373,9 +384,153 @@ async function transcribeRecording(mimeType) {
   }
 }
 
+// ---------- voice output (text-to-speech) ----------
+// As the reply streams in, finished sentences are sent to /voice/speak (in order, fetched
+// ahead of time) and played one after another - so ARTHUR starts talking after sentence one.
+const SPEECH_DEFAULTS = { mode: "voice", voice: "", speed: 1, volume: 1 };
+const speech = {
+  settings: loadSpeechSettings(),
+  queue: [], // promises of audio URLs, in sentence order
+  audio: null, // the <audio> currently playing
+  pending: "", // streamed text not yet spoken (an unfinished sentence)
+  inCode: false, // inside a ``` code block - never read code aloud
+  active: false, // is this reply being spoken?
+  generation: 0, // bumps on stop, so late audio from an old reply is dropped
+  playing: false,
+};
+
+function loadSpeechSettings() {
+  try {
+    return { ...SPEECH_DEFAULTS, ...JSON.parse(localStorage.getItem("arthur.speech") || "{}") };
+  } catch {
+    return { ...SPEECH_DEFAULTS };
+  }
+}
+
+function saveSpeechSettings() {
+  try { localStorage.setItem("arthur.speech", JSON.stringify(speech.settings)); } catch { /* fine */ }
+}
+
+function isSpeaking() {
+  return speech.playing || speech.queue.length > 0;
+}
+
+function speakStreamed(text, { final = false } = {}) {
+  if (!speech.active) return;
+  speech.pending += text;
+  // Split off complete sentences: . ! ? : followed by a space, or a line break. The two
+  // characters before the mark must be "word" characters, so "3.14", "e.g." and the
+  // "p. 2" inside a citation like [handbook.pdf, p. 2] are not treated as sentence ends.
+  const parts = speech.pending.split(/(?<=[^\s.]{2}[.!?:])\s+|\n+/);
+  const rest = parts.pop();
+  speech.pending = final ? "" : rest;
+  if (final) parts.push(rest);
+  for (let part of parts) {
+    if (part.includes("```")) {
+      const fences = part.split("```");
+      part = fences.filter((_, i) => (speech.inCode ? i % 2 === 1 : i % 2 === 0)).join(" ");
+      if (fences.length % 2 === 0) speech.inCode = !speech.inCode;
+    } else if (speech.inCode) {
+      continue;
+    }
+    if (part.trim()) enqueueSpeech(part.trim());
+  }
+}
+
+function enqueueSpeech(sentence) {
+  const generation = speech.generation;
+  const { voice, speed } = speech.settings;
+  const audioUrl = fetch("/voice/speak", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: sentence, voice: voice || null, speed }),
+  })
+    .then((res) => (res.status === 200 ? res.blob() : null))
+    .then((blob) => (blob && generation === speech.generation ? URL.createObjectURL(blob) : null))
+    .catch(() => null);
+  speech.queue.push(audioUrl);
+  if (!speech.playing) playSpeechQueue();
+  refreshComposer();
+}
+
+async function playSpeechQueue() {
+  speech.playing = true;
+  while (speech.queue.length) {
+    const generation = speech.generation;
+    const url = await speech.queue.shift();
+    if (!url || generation !== speech.generation) continue;
+    if (!state.busy) setStatus("speaking", "Speaking…");
+    await new Promise((resolve) => {
+      const audio = new Audio(url);
+      speech.audio = audio;
+      audio.volume = speech.settings.volume;
+      audio.onended = audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+      audio.play().catch(() => {
+        // Browsers only allow sound after the user has interacted with the page.
+        addError("Your browser blocked ARTHUR's voice. Click anywhere on the page, then try again.");
+        stopSpeaking();
+        resolve();
+      });
+    });
+  }
+  speech.playing = false;
+  speech.audio = null;
+  if (!state.busy && state.connected) setStatus("online", "Online");
+  refreshComposer();
+}
+
+function stopSpeaking() {
+  speech.generation += 1;
+  speech.queue = [];
+  speech.pending = "";
+  speech.inCode = false;
+  speech.audio?.pause();
+  speech.audio?.dispatchEvent(new Event("ended")); // resolve the waiting play step
+  refreshComposer();
+}
+
+function beginSpokenReply() {
+  const mode = speech.settings.mode;
+  speech.active = mode === "always" || (mode === "voice" && state.lastInputWasVoice);
+  speech.pending = "";
+  speech.inCode = false;
+}
+
+async function loadVoices() {
+  try {
+    const { default: fallback, voices } = await (await fetch("/voice/voices")).json();
+    els.voiceSelect.replaceChildren(
+      ...voices.map((v) => new Option(`${v.name} (${v.language.replace("_", "-")}, ${v.quality})`, v.id))
+    );
+    els.voiceSelect.value = speech.settings.voice || fallback;
+  } catch { /* the panel still works with the server's default voice */ }
+}
+
+function toggleVoicePanel(open = els.voicePanel.hidden) {
+  if (open) { toggleMemoryPanel(false); toggleDocsPanel(false); loadVoices(); }
+  els.voicePanel.hidden = !open;
+  els.voiceToggle.setAttribute("aria-expanded", String(open));
+}
+
+function showSpeechSettings() {
+  const s = speech.settings;
+  els.speakMode.value = s.mode;
+  els.voiceSpeed.value = s.speed;
+  els.voiceVolume.value = s.volume;
+  els.voiceSpeedValue.textContent = `${Number(s.speed).toFixed(2)}×`;
+  els.voiceVolumeValue.textContent = `${Math.round(s.volume * 100)}%`;
+}
+
+function updateSpeechSetting(key, value) {
+  speech.settings[key] = value;
+  if (key === "volume" && speech.audio) speech.audio.volume = value;
+  saveSpeechSettings();
+  showSpeechSettings();
+}
+
 // ---------- memory panel ----------
 function toggleMemoryPanel(open = els.memoryPanel.hidden) {
-  if (open) toggleDocsPanel(false); // one panel at a time
+  if (open) { toggleDocsPanel(false); toggleVoicePanel(false); } // one panel at a time
   els.memoryPanel.hidden = !open;
   els.memoryToggle.setAttribute("aria-expanded", String(open));
   if (open) loadMemories();
@@ -383,7 +538,7 @@ function toggleMemoryPanel(open = els.memoryPanel.hidden) {
 
 // ---------- documents panel ----------
 function toggleDocsPanel(open = els.docsPanel.hidden) {
-  if (open) toggleMemoryPanel(false);
+  if (open) { toggleMemoryPanel(false); toggleVoicePanel(false); }
   els.docsPanel.hidden = !open;
   els.docsToggle.setAttribute("aria-expanded", String(open));
   if (open) loadDocuments();
@@ -582,8 +737,12 @@ function autosize() {
 
 els.form.addEventListener("submit", (e) => {
   e.preventDefault();
-  if (state.busy) stop();
-  else send(els.input.value.trim());
+  if (state.busy || isSpeaking()) {
+    stop();
+    stopSpeaking();
+  } else {
+    send(els.input.value.trim());
+  }
 });
 
 els.input.addEventListener("keydown", (e) => {
@@ -596,6 +755,19 @@ els.input.addEventListener("keydown", (e) => {
 els.input.addEventListener("input", autosize);
 els.clear.addEventListener("click", clearConversation);
 els.mic.addEventListener("click", toggleRecording);
+els.voiceToggle.addEventListener("click", () => toggleVoicePanel());
+els.voiceClose.addEventListener("click", () => toggleVoicePanel(false));
+els.speakMode.addEventListener("change", () => updateSpeechSetting("mode", els.speakMode.value));
+els.voiceSelect.addEventListener("change", () => updateSpeechSetting("voice", els.voiceSelect.value));
+els.voiceSpeed.addEventListener("input", () => updateSpeechSetting("speed", Number(els.voiceSpeed.value)));
+els.voiceVolume.addEventListener("input", () => updateSpeechSetting("volume", Number(els.voiceVolume.value)));
+els.voiceTest.addEventListener("click", () => {
+  stopSpeaking();
+  speech.active = true;
+  speakStreamed("Hello, I'm Arthur. This is how I sound at this speed.", { final: true });
+  speech.active = false;
+});
+showSpeechSettings();
 els.memoryToggle.addEventListener("click", () => toggleMemoryPanel());
 els.memoryClose.addEventListener("click", () => toggleMemoryPanel(false));
 els.docsToggle.addEventListener("click", () => toggleDocsPanel());
@@ -605,6 +777,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   toggleMemoryPanel(false);
   toggleDocsPanel(false);
+  toggleVoicePanel(false);
+  stopSpeaking();
 });
 document.querySelectorAll(".chip").forEach((chip) =>
   chip.addEventListener("click", () => send(chip.textContent))

@@ -20,11 +20,37 @@
         <div id="status" class="status" data-state="connecting" role="status" aria-live="polite">
           <span class="dot"></span><span id="status-text">Connecting…</span>
         </div>
+        <button id="voice-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="voice-panel" title="Voice settings">Voice</button>
         <button id="docs-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="docs-panel">Docs</button>
         <button id="memory-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="memory-panel">Memory</button>
         <button id="clear" class="ghost" type="button" title="Clear conversation">Clear</button>
       </div>
     </header>
+
+    <aside id="voice-panel" class="memory-panel" hidden aria-label="Voice settings">
+      <div class="memory-head">
+        <div>
+          <h2>Voice</h2>
+          <p class="subtle">ARTHUR's voice is generated on your computer (Piper).</p>
+        </div>
+        <button id="voice-close" class="ghost" type="button" aria-label="Close voice panel">✕</button>
+      </div>
+      <div class="settings">
+        <label for="speak-mode">Speak replies</label>
+        <select id="speak-mode">
+          <option value="voice">When I talk to ARTHUR</option>
+          <option value="always">Always</option>
+          <option value="off">Never</option>
+        </select>
+        <label for="voice-select">Voice</label>
+        <select id="voice-select"></select>
+        <label for="voice-speed">Speed <output id="voice-speed-value">1.0×</output></label>
+        <input id="voice-speed" type="range" min="0.75" max="1.5" step="0.05" value="1">
+        <label for="voice-volume">Volume <output id="voice-volume-value">100%</output></label>
+        <input id="voice-volume" type="range" min="0" max="1" step="0.05" value="1">
+        <button id="voice-test" class="upload-button" type="button">▶ Test voice</button>
+      </div>
+    </aside>
 
     <aside id="docs-panel" class="memory-panel" hidden aria-label="Documents">
       <div class="memory-head">

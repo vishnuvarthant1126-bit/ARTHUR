@@ -90,6 +90,10 @@ class Settings(BaseSettings):
     voice_max_seconds: float = 60.0
     models_path: Path = Path("data/models")
 
+    # --- Voice: text-to-speech (Piper) ---
+    voices_path: Path = Path("data/voices")
+    tts_default_voice: str = "en_GB-alan-medium"
+
     # --- Agent loop: hard limits so a confused model can never loop forever ---
     agent_max_steps: int = 8
     agent_max_seconds: float = 120.0

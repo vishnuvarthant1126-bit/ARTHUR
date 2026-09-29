@@ -215,6 +215,23 @@ body[data-state="streaming"] .core span { animation-duration: .9s; background: v
 .upload:hover, .upload:focus-within { border-color: var(--accent); }
 .upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .docs-status { margin: 8px 0 0; min-height: 1em; }
+
+.settings { display: grid; gap: 6px; margin-top: 12px; font-size: 13.5px; }
+.settings label { color: var(--muted); margin-top: 6px; display: flex; justify-content: space-between; }
+.settings output { color: var(--text); }
+.settings select {
+  background: var(--bg-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 8px; font: inherit;
+}
+.settings input[type="range"] { accent-color: var(--accent); width: 100%; }
+.upload-button {
+  margin-top: 10px; padding: 8px; border-radius: 10px; background: var(--bg-2);
+  border: 1px solid var(--border); color: var(--accent);
+}
+.upload-button:hover { border-color: var(--accent); }
+#voice-toggle[aria-expanded="true"] { color: var(--text); border-color: var(--accent); }
+.status[data-state="speaking"] .dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1s infinite; }
+body[data-state="speaking"] .core span { animation-duration: 1s; }
 .docs-status.error { color: var(--err); }
 
 @media (max-width: 560px) {
