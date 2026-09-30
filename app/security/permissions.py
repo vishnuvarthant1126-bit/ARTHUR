@@ -39,17 +39,22 @@ class PermissionPolicy:
         self.blocked_tools = blocked_tools or set()
         self.allowed_tools = allowed_tools  # None = every registered tool
 
-    def check(self, tool: Tool, *, confirmed: bool) -> PermissionDecision:
+    def check(
+        self, tool: Tool, *, confirmed: bool, level: PermissionLevel | None = None
+    ) -> PermissionDecision:
+        """`level` is the level of this specific call (a tool may raise it, e.g. a "Buy" click);
+        it defaults to the tool's own level and can never be lower than it."""
+        level = max(tool.permission_level, level if level is not None else 0)
         if tool.name in self.blocked_tools:
             return PermissionDecision(Decision.DENIED, f"Tool '{tool.name}' is disabled.")
         if self.allowed_tools is not None and tool.name not in self.allowed_tools:
             return PermissionDecision(Decision.DENIED, f"Tool '{tool.name}' is not allowed.")
-        if tool.permission_level >= PermissionLevel.SENSITIVE:
+        if level >= PermissionLevel.SENSITIVE:
             return PermissionDecision(
                 Decision.DENIED,
                 "This is a highly sensitive action (money, passwords or accounts). "
                 "ARTHUR never performs these - please do it yourself.",
             )
-        if tool.permission_level > self.auto_approve_max_level and not confirmed:
+        if level > self.auto_approve_max_level and not confirmed:
             return PermissionDecision(Decision.NEEDS_CONFIRMATION, "Needs your confirmation.")
         return PermissionDecision(Decision.ALLOWED)

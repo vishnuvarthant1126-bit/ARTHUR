@@ -22,3 +22,5 @@ ddgs>=9.0                    # DuckDuckGo search, free, no API key
 # --- Voice (Phases 11-13) ---
 faster-whisper>=1.1          # local speech-to-text (Whisper, CTranslate2)
 piper-tts>=1.3               # local text-to-speech
+# --- Browser agent (Phase 15) ---
+playwright>=1.48             # then once: python -m playwright install chromium

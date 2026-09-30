@@ -97,6 +97,24 @@ class ToolRegistry:
                 status="error", error=f"Invalid arguments - {problems}",
             )  # fmt: skip
 
+        # Some calls are riskier than the tool's usual level (clicking "Buy" vs "Search").
+        try:
+            call_level = tool.required_level(args)
+            if inspect.isawaitable(call_level):
+                call_level = await call_level
+        except ToolError as exc:
+            return await self._finish(
+                name, arguments, level, "denied", start, context, status="error", error=str(exc)
+            )
+        if call_level > tool.permission_level:
+            level = int(call_level)
+            decision = self.policy.check(tool, confirmed=context.confirmed, level=call_level)
+            if decision.decision == Decision.DENIED:
+                return await self._finish(
+                    name, arguments, level, "denied", start, context,
+                    status="denied", error=decision.reason,
+                )  # fmt: skip
+
         if decision.decision == Decision.NEEDS_CONFIRMATION:
             preview = tool.preview(args)
             if inspect.isawaitable(preview):

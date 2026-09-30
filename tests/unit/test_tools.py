@@ -268,6 +268,38 @@ async def test_crashing_tool_does_not_crash_arthur():
     assert result.error == "Tool 'buggy' failed unexpectedly."
 
 
+async def test_a_call_can_be_riskier_than_the_tool():
+    """E.g. a browser click: 'Search' runs, 'Buy now' needs confirmation, 'Pay' is refused."""
+    from app.tools.base import PermissionLevel
+
+    class ClickInput(BaseModel):
+        text: str
+
+    class ClickTool(Tool[ClickInput]):
+        name = "click"
+        description = "click something"
+        input_model = ClickInput
+        permission_level = PermissionLevel.LOW_RISK
+
+        def required_level(self, args):
+            return {"Buy now": PermissionLevel.CONFIRM, "Pay": PermissionLevel.SENSITIVE}.get(
+                args.text, self.permission_level
+            )
+
+        async def run(self, args, context):
+            return {"clicked": args.text}
+
+    registry = registry_with(ClickTool())
+
+    assert (await registry.execute("click", {"text": "Search"})).status == "ok"
+    assert (await registry.execute("click", {"text": "Buy now"})).status == "needs_confirmation"
+    confirmed = await registry.execute("click", {"text": "Buy now"}, ToolContext(confirmed=True))
+    assert confirmed.status == "ok"
+    assert (
+        await registry.execute("click", {"text": "Pay"}, ToolContext(confirmed=True))
+    ).status == "denied"
+
+
 def test_duplicate_registration_is_rejected():
     registry = registry_with(make_tool("echo", PermissionLevel.READ_ONLY))
     with pytest.raises(ValueError):

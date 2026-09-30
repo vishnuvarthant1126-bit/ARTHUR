@@ -2,6 +2,7 @@
 
 import httpx
 
+from app.files.workspace import Workspace
 from app.memory.manager import MemoryManager
 from app.rag.documents import DocumentService
 from app.rag.retrieval import DocumentRetriever
@@ -10,6 +11,7 @@ from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
 from app.tools.calculator import CalculatorTool
 from app.tools.document_search import DocumentSearchTool, ListDocumentsTool
+from app.tools.file_tools import FindFilesTool, ListFolderTool, ReadFileTool, SaveFileTool
 from app.tools.memory_tools import DeleteMemoryTool, SaveMemoryTool, SearchMemoryTool
 from app.tools.registry import ToolRegistry
 from app.tools.time_tool import CurrentTimeTool
@@ -27,6 +29,7 @@ def create_tool_registry(
     retriever: DocumentRetriever | None = None,
     search: WebSearchService | None = None,
     web_fetch_max_bytes: int = 2 * 1024 * 1024,
+    workspace: Workspace | None = None,
     default_timeout_seconds: float = 10.0,
     memory_min_score: float = 0.55,
     document_min_score: float = 0.58,
@@ -46,4 +49,9 @@ def create_tool_registry(
     if search is not None:
         registry.register(WebSearchTool(search))
         registry.register(ReadWebpageTool(http_client, web_fetch_max_bytes))
+    if workspace is not None:
+        registry.register(FindFilesTool(workspace))
+        registry.register(ListFolderTool(workspace))
+        registry.register(ReadFileTool(workspace))
+        registry.register(SaveFileTool(workspace))
     return registry

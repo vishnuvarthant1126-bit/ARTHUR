@@ -80,9 +80,14 @@ def test_store_forgets_idle_sessions():
 
 
 def test_orchestrator_includes_history_and_trims_to_context_window():
+    from app.agent.prompts import SYSTEM_PROMPT
+    from app.utils.tokens import estimate_tokens
+
     llm = FakeLLM()
     store = ConversationStore()
-    orchestrator = Orchestrator(llm, store, context_tokens=1500, reply_reserve_tokens=500)
+    # Room for the (growing) system prompt + reply reserve + ~1000 tokens of history.
+    window = estimate_tokens(SYSTEM_PROMPT) + 500 + 1000
+    orchestrator = Orchestrator(llm, store, context_tokens=window, reply_reserve_tokens=500)
     convo = store.get("s1")
     for i in range(20):
         convo.add_exchange(f"q{i} " + "x" * 200, f"a{i} " + "y" * 200)

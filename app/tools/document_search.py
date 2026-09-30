@@ -19,9 +19,10 @@ class DocumentSearchInput(BaseModel):
 class DocumentSearchTool(Tool[DocumentSearchInput]):
     name = "document_search"
     description = (
-        "Search the user's uploaded documents (PDF, Word, text, CSV) for passages relevant to a "
-        "question. Use it whenever the user asks about their documents, files, handbook, report, "
-        "notes or anything that might be written in them. Returns passages with their source."
+        "Search INSIDE the documents the user uploaded to ARTHUR's Docs panel (a small, indexed "
+        "collection) for passages relevant to a question. Returns passages with their source. "
+        "This does NOT search the user's computer: for files in their folders use find_files "
+        "and read_file. If this finds nothing, try find_files."
     )
     input_model = DocumentSearchInput
     permission_level = PermissionLevel.READ_ONLY

@@ -21,6 +21,7 @@ from app.api.routes import chat, health, memory, tools, voice
 from app.api.routes import documents as documents_routes
 from app.config.settings import Settings, get_settings
 from app.database.database import Database
+from app.files.workspace import Workspace
 from app.llm.base import LLMProvider
 from app.llm.factory import create_llm_provider
 from app.memory.long_term import MemoryRepository
@@ -135,6 +136,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         retriever=retriever,
         search=search,
         web_fetch_max_bytes=settings.web_fetch_max_kb * 1024,
+        workspace=Workspace(settings.file_roots, settings.files_save_dir),
         default_timeout_seconds=settings.tools_default_timeout_seconds,
         memory_min_score=settings.memory_min_score,
         document_min_score=settings.rag_min_score,

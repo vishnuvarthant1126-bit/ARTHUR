@@ -73,6 +73,12 @@ class Tool[InputT: BaseModel](ABC):
         """
         return f"{self.name}({args.model_dump_json()})"
 
+    def required_level(self, args: InputT) -> PermissionLevel | Awaitable[PermissionLevel]:
+        """The permission level of THIS call. Override to make some calls riskier than others
+        (e.g. clicking "Buy now" needs confirmation, clicking "Search" doesn't).
+        Can never lower the tool's own `permission_level`. May be `async`."""
+        return self.permission_level
+
     def summarize(self, output: Any) -> str:
         """One short line describing a successful result, shown in the UI."""
         return json.dumps(output, ensure_ascii=False, default=str)

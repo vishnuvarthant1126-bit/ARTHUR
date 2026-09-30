@@ -100,6 +100,10 @@ class Settings(BaseSettings):
     voices_path: Path = Path("data/voices")
     tts_default_voice: str = "en_GB-alan-medium"
 
+    # --- File tools: ARTHUR may only use these folders (semicolon-separated) ---
+    allowed_directories: str = ""  # blank = only the ARTHUR folder in Documents
+    files_save_dir: Path = Path.home() / "Documents" / "ARTHUR" / "reports"
+
     # --- Agent loop: hard limits so a confused model can never loop forever ---
     agent_max_steps: int = 8
     agent_max_seconds: float = 120.0
@@ -118,6 +122,13 @@ class Settings(BaseSettings):
         return path if path.is_absolute() else PROJECT_ROOT / path
 
     @property
+    def file_roots(self) -> list[Path]:
+        folders = [
+            Path(p.strip()).expanduser() for p in self.allowed_directories.split(";") if p.strip()
+        ]
+        return folders or [self.files_save_dir.parent]
+
+    @property
     def blocked_tools(self) -> set[str]:
         return {name.strip() for name in self.tools_blocked.split(",") if name.strip()}
 
@@ -133,6 +144,12 @@ class Settings(BaseSettings):
     def empty_is_none(cls, value: object) -> object:
         """`KEY=` (blank) in .env means "not set"."""
         return value or None
+
+    @field_validator("files_save_dir", mode="before")
+    @classmethod
+    def blank_save_dir_is_default(cls, value: object) -> object:
+        # "FILES_SAVE_DIR=" would otherwise become Path("") = the current folder.
+        return value or Path.home() / "Documents" / "ARTHUR" / "reports"
 
     @field_validator("openai_compat_api_key", mode="before")
     @classmethod

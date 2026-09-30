@@ -64,6 +64,10 @@ AGENT_TOOLS = frozenset(
         "list_documents",
         "web_search",
         "read_webpage",
+        "find_files",
+        "list_folder",
+        "read_file",
+        "save_file",
     }
 )
 
