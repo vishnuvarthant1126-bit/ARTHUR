@@ -70,6 +70,16 @@ ruff check . ; ruff format --check .
 - Sample doc: `scripts/make_sample_handbook.py` → data/samples/student_handbook.pdf (has an
   injection line on p. 4 on purpose). It is uploaded on this machine.
 - Never name a method `list` in a class that uses `list[...]` annotations (hit twice).
+- `app/files/workspace.py` – `Workspace` sandbox (roots from ALLOWED_DIRECTORIES, resolve then
+  check, blocked system/hidden/secret names); tools find_files/list_folder/read_file (0),
+  save_file (2). Tests pass `system_roots=[SYSTEMROOT]` because pytest tmp is under AppData.
+- `app/browser/` – `agent.py` `BrowserAgent` (Playwright in own thread + ProactorEventLoop,
+  `_guard` route checks every request, snapshot numbers elements via `data-arthur-id`,
+  injectable `url_checker`), `risk.py` (`click_level`, `type_level(text=)`). Tools
+  browser_open/find_text (0), browser_click/type (1, raised per call via `Tool.required_level`).
+  Tool results are cut at 4000 chars (executor `max_result_chars`) – `describe()` lists elements
+  first. Tests use a local http.server + a fake checker that allows only it.
+- Honesty checks (`verification.py`): `claims_action` and `fakes_permission_request`.
 - `app/tools/` – `Tool` base (name, description, input_model, permission_level, timeout, run),
   `ToolRegistry.execute` (lookup → permission → validate → confirm → timeout → audit),
   tools: calculator (AST, no eval), current_time, weather (Open-Meteo), memory tools.
@@ -94,8 +104,8 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 3 | Mon 2026-09-28 | 7–8: agent loop (tool calling), planner/executor with step limits | ✅ Done |
 | 4 | Mon 2026-09-28 | 9–10: document RAG with citations, web search | ✅ Done (same day as session 3, owner's request) |
 | 5 | Tue 2026-09-29 | 11–13: speech-to-text, text-to-speech, wake word | ✅ Done (owner verified mic + spoken replies in Chrome) |
-| 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | ⏭ Next |
-| 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | |
+| 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | ✅ Done |
+| 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | ⏭ Next |
 | 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | |
 | 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
 | 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
@@ -141,7 +151,14 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   Frontend: AudioWorklet tap + energy VAD, `handleClip`, `sayYes`, `idleStatus`. Measured
   19/20 detected, 0/32 false alarms (scripts/evaluate_wake_word.py); Whisper hotwords made it
   worse (12/20) – don't use. `OLLAMA_KEEP_ALIVE=30m` fixes ~10 s reload after 5 min idle.
-- Phase 14–15 notes: file tools must be restricted to ALLOWED_DIRECTORIES (resolve symlinks,
-  block `..`, size/type limits, deny system folders); reading is level 0, writing/deleting ≥ 2.
-  Browser agent: Playwright (needs `playwright install chromium`, ~150 MB – ask first), reuse
-  check_public_url for SSRF, confirmation for submit/purchase/login/send.
+- Session 6 done (Phases 14–15, commits ce500a8, 0b1725e): 404 tests. Verified live: latest
+  resume found + summarised, save asked (no → nothing, yes → saved), .env outside roots refused;
+  python.org release read, Donate click asked, "no" cancelled, PyPI username asked, password in
+  wrong field (search box) now asks, bot check stopped. Fixed: elements cut by 4000-char result
+  limit, model-written fake "Reply yes" prompts, typing into links. Live tests: restart the
+  server after edits (reload takes ~60 s and the old worker keeps answering). Avoid PowerShell
+  Set-Content utf8 (adds BOM). Sample files (fictional) in Documents\ARTHUR\samples.
+- Phase 16–17 notes: computer use must be allow-listed per app, screenshots only on request,
+  every mouse/keyboard action ≥ level 2 with a preview, never type passwords, emergency stop;
+  pyautogui/mss likely. Vision: qwen3 is text-only – needs a vision model (e.g. qwen2.5vl:7b
+  via Ollama, ~5 GB – ask before pulling; 8 GB VRAM, so only one model loaded at a time).

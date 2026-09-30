@@ -3,8 +3,9 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 13 – talk to it (speech-to-text), hear it (text-to-speech), call it hands-free
-> ("Hey Arthur"); searches the web with sources and answers from your documents with page
+> Status: Phase 15 – finds, reads and (with your OK) saves files in folders you allow; browses
+> the web in its own isolated browser, asking before risky clicks; talk to it (speech-to-text),
+> hear it (text-to-speech), call it hands-free ("Hey Arthur"); searches the web with sources and answers from your documents with page
 > citations; an agent that chooses tools itself and plans multi-step tasks, with
 > conversation + long-term semantic memory, swappable LLM providers, and a permission-checked,
 > audited tool system. Full documentation arrives as features land.
@@ -86,8 +87,11 @@ confirmation → run with timeout → error capture → audit log.
 |---|---|---|---|
 | 0 | Read-only | Runs | `calculator`, `current_time`, `weather`, `search_memory` |
 | 1 | Low-risk, reversible | Runs | `save_memory` |
-| 2 | Needs confirmation | Returns a preview until confirmed | `delete_memory` |
-| 3 | Highly sensitive | Always denied | (money, passwords, accounts) |
+| 2 | Needs confirmation | Returns a preview until confirmed | `delete_memory`, `save_file`, risky browser clicks |
+| 3 | Highly sensitive | Always denied | payments, password/card fields |
+
+Some tools raise their level per call (`required_level`): a browser click on "Search" runs,
+"Buy now" asks, "Pay" is denied.
 
 The calculator never uses `eval()`; it evaluates a whitelisted syntax tree with size limits.
 
@@ -119,6 +123,22 @@ Wake word, measured with `scripts/evaluate_wake_word.py`: 19/20 detected, 0/32 f
 Clips are never stored; hands-free mode is off by default. Use Chrome or Edge – embedded
 browser views (like the Claude app's) block the microphone.
 
+## Files (only folders you allow)
+`ALLOWED_DIRECTORIES` in `.env` (semicolon-separated; blank = `Documents\ARTHUR`). Paths are
+resolved before checking (no `..`, junction, `file://` or network-path tricks). System folders,
+AppData, hidden files and secret-looking files (`.env`, keys, `*password*`…) are always blocked.
+Tools: `find_files`, `list_folder`, `read_file` (level 0), `save_file` (level 2: asks first,
+.md/.txt/.csv only, never overwrites). `python scripts/make_sample_files.py` makes fictional samples.
+
+## Browser agent (Playwright)
+`python -m playwright install chromium` once. ARTHUR's own Chromium: fresh profile, no downloads,
+every request checked against private/local addresses. Pages come back as text plus numbered
+elements. Tools: `browser_open`, `browser_find_text` (level 0), `browser_click`,
+`browser_type` (level raised per action by `app/browser/risk.py`):
+links and search boxes run; buy/submit/send/sign in/other fields ask; pay/transfer, password
+and card fields, card numbers are refused. CAPTCHAs are never bypassed.
+`BROWSER_HEADLESS=false` shows the window.
+
 ## Agent loop and planner
 ```
 message ─► memory intents ("remember…", "forget…")? ─► handled directly
@@ -128,6 +148,7 @@ message ─► memory intents ("remember…", "forget…")? ─► handled direc
                 │                        └► final answer written only from step results
                 └─ no ─► ToolLoop: LLM ⇄ tools until it answers (≤ 8 rounds, ≤ 120 s)
 every reply ─► honesty check: claims an action no tool performed? → visible correction
+              or writes its own "Reply yes" question? → note that nothing is waiting
 ```
 Level-2 tools stop the loop and ask the user; the model can never confirm on its own.
 `save_memory` is not offered to the agent (only an explicit "remember…" saves).
