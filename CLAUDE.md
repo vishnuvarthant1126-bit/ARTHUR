@@ -79,7 +79,17 @@ ruff check . ; ruff format --check .
   browser_open/find_text (0), browser_click/type (1, raised per call via `Tool.required_level`).
   Tool results are cut at 4000 chars (executor `max_result_chars`) – `describe()` lists elements
   first. Tests use a local http.server + a fake checker that allows only it.
-- Honesty checks (`verification.py`): `claims_action` and `fakes_permission_request`.
+- Honesty checks (`verification.py`): `claims_action` and `fakes_permission_request`;
+  orchestrator `_for_history` stores permission questions as a neutral note.
+- `app/computer/` – `apps.py` (pure per-app rules: `WindowInfo`, `AppSpec.matches/problem`,
+  key allow-lists), `desktop.py` (`DesktopController`: pywinauto UIA on ONE COM worker thread,
+  own Notepad tabs tracked by UIA runtime_id, preferred window, chunked typing with focus/tab/
+  stop checks, PrintWindow screenshots, `workspace_rules`), `risk.py` (key/text levels,
+  send_keys escaping). Tools open_app/read_window/click_control/type_text/press_key(shortcut).
+  Tests use a FakeDesktop – never the real screen unless ARTHUR_DESKTOP_TESTS=1.
+- `app/vision/provider.py` – `OllamaVision` (qwen2.5vl:7b, keep_alive 2m), `prepare_image`.
+  Tools describe_image (0), look_at_screen (1 window / 2 whole screen); `POST /vision/describe`.
+  `FakeVision` in tests/conftest.py (also on the test app's state).
 - `app/tools/` – `Tool` base (name, description, input_model, permission_level, timeout, run),
   `ToolRegistry.execute` (lookup → permission → validate → confirm → timeout → audit),
   tools: calculator (AST, no eval), current_time, weather (Open-Meteo), memory tools.
@@ -105,8 +115,8 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 4 | Mon 2026-09-28 | 9–10: document RAG with citations, web search | ✅ Done (same day as session 3, owner's request) |
 | 5 | Tue 2026-09-29 | 11–13: speech-to-text, text-to-speech, wake word | ✅ Done (owner verified mic + spoken replies in Chrome) |
 | 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | ✅ Done |
-| 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | ⏭ Next |
-| 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | |
+| 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | ✅ Done (Wed 2026-09-30, same day as session 6, owner's request) |
+| 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | ⏭ Next |
 | 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
 | 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
 | 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | |
@@ -158,7 +168,14 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   limit, model-written fake "Reply yes" prompts, typing into links. Live tests: restart the
   server after edits (reload takes ~60 s and the old worker keeps answering). Avoid PowerShell
   Set-Content utf8 (adds BOM). Sample files (fictional) in Documents\ARTHUR\samples.
-- Phase 16–17 notes: computer use must be allow-listed per app, screenshots only on request,
-  every mouse/keyboard action ≥ level 2 with a preview, never type passwords, emergency stop;
-  pyautogui/mss likely. Vision: qwen3 is text-only – needs a vision model (e.g. qwen2.5vl:7b
-  via Ollama, ~5 GB – ask before pulling; 8 GB VRAM, so only one model loaded at a time).
+- Session 7 done (Phases 16–17, commits 74bcfc1, 4faab88): 440 tests (+2 opt-in:
+  ARTHUR_DESKTOP_TESTS=1, ARTHUR_VISION_TESTS=1). Verified live: Notepad list typed after yes,
+  Calculator 348×27 via app + read_window, Explorer list/select/delete asked ("no" kept files),
+  Win+R/password/System32 refused, receipt picture read (SGD 11.20), Calculator screenshot
+  "dark theme", whole-screen asked. qwen3 keeps copying permission messages from history →
+  history stores a note + both forms flagged. Vision swap: 29 s first (10 s cached), qwen3
+  reload ~10 s. The owner's Notepad has ~20 personal tabs incl. .env – never read them.
+- Phase 18–19 notes: scheduler must persist reminders in SQLite and survive restarts; reminders
+  deliver via WS/UI (and optional TTS); no recurring task may run tools ≥ 2 without a fresh
+  confirmation. Security phase: DNS rebinding (pin resolved IP in read_webpage/browser),
+  rate limits per endpoint, review audit/redaction, auth token for API (local-only today).

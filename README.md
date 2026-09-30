@@ -3,7 +3,9 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 15 – finds, reads and (with your OK) saves files in folders you allow; browses
+> Status: Phase 17 – uses Notepad, Calculator and File Explorer (every click/keystroke
+> confirmed by you); looks at pictures and app windows with a local vision model;
+> finds, reads and (with your OK) saves files in folders you allow; browses
 > the web in its own isolated browser, asking before risky clicks; talk to it (speech-to-text),
 > hear it (text-to-speech), call it hands-free ("Hey Arthur"); searches the web with sources and answers from your documents with page
 > citations; an agent that chooses tools itself and plans multi-step tasks, with
@@ -138,6 +140,22 @@ elements. Tools: `browser_open`, `browser_find_text` (level 0), `browser_click`,
 links and search boxes run; buy/submit/send/sign in/other fields ask; pay/transfer, password
 and card fields, card numbers are refused. CAPTCHAs are never bypassed.
 `BROWSER_HEADLESS=false` shows the window.
+
+## Computer use (Windows)
+`COMPUTER_ALLOWED_APPS=notepad;calculator;explorer`. ARTHUR reads windows through Windows UI
+Automation as numbered controls (no pixel guessing; buttons are "invoked", the mouse never moves).
+`open_app` (1) and `read_window` (0) run; `click_control`, `type_text`, `press_key` (2) **ask every
+time**; Win-key shortcuts, Ctrl+Alt+Del, Alt+F4, Shift+Delete, the clipboard, passwords and card
+numbers are refused. Notepad: only the tab ARTHUR opened itself. Explorer: only while every tab
+shows an allowed folder; items can be selected, never opened. Rules are re-checked before every
+action; typing stops if the focus or Notepad tab changes, or you press Stop.
+`COMPUTER_USE_ENABLED=false` turns it all off.
+
+## Vision
+`ollama pull qwen2.5vl:7b` (~6 GB). `describe_image` (0) looks at a picture in your allowed
+folders; `look_at_screen` (1) at one allowed app's window, or (2, asks first) the whole screen.
+`POST /vision/describe` takes an uploaded image. On an 8 GB GPU Ollama swaps qwen3 and the vision
+model: ~30 s per picture question. Text in images is treated as data, never instructions.
 
 ## Agent loop and planner
 ```
