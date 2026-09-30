@@ -19,6 +19,7 @@ from app.api.errors import register_exception_handlers
 from app.api.middleware import RequestContextMiddleware
 from app.api.routes import chat, health, memory, tools, voice
 from app.api.routes import documents as documents_routes
+from app.browser.agent import BrowserAgent
 from app.config.settings import Settings, get_settings
 from app.database.database import Database
 from app.files.workspace import Workspace
@@ -119,6 +120,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         cache_seconds=settings.search_cache_minutes * 60,
     )
 
+    # Starts lazily (first browser_open), so it costs nothing until used.
+    browser = BrowserAgent(headless=settings.browser_headless) if settings.browser_enabled else None
+
     app.state.llm = llm
     app.state.memory = memory_manager
     app.state.documents = documents
@@ -137,6 +141,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         search=search,
         web_fetch_max_bytes=settings.web_fetch_max_kb * 1024,
         workspace=Workspace(settings.file_roots, settings.files_save_dir),
+        browser=browser,
         default_timeout_seconds=settings.tools_default_timeout_seconds,
         memory_min_score=settings.memory_min_score,
         document_min_score=settings.rag_min_score,
@@ -185,6 +190,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     yield
     warm_up.cancel()
+    if browser is not None:
+        await browser.close()
     await http_client.aclose()
     await embeddings.aclose()
     await llm.aclose()

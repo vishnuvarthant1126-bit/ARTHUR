@@ -22,5 +22,21 @@ CORRECTION = (
 )
 
 
+# The model copying ARTHUR's own "I need your permission first ... Reply yes" message
+# (it sees earlier ones in the chat history) without calling a tool.
+_FAKE_PERMISSION = re.compile(
+    r"need your permission|reply \W*yes\W* to (go ahead|continue|proceed|confirm)", re.IGNORECASE
+)
+
+FAKE_PERMISSION_NOTE = (
+    "\n\n> ⚠️ **Note:** that question came from the language model, not ARTHUR's safety "
+    "system - no action is waiting for approval. Ask again and I'll use the proper tool."
+)
+
+
 def claims_action(text: str) -> bool:
     return bool(_ACTION_CLAIM.search(text))
+
+
+def fakes_permission_request(text: str) -> bool:
+    return bool(_FAKE_PERMISSION.search(text))

@@ -38,7 +38,12 @@ from app.agent.state import (
     TextEvent,
     ToolEndEvent,
 )
-from app.agent.verification import CORRECTION, claims_action
+from app.agent.verification import (
+    CORRECTION,
+    FAKE_PERMISSION_NOTE,
+    claims_action,
+    fakes_permission_request,
+)
 from app.llm.base import LLMError, LLMProvider, Message, Role
 from app.memory import policy
 from app.memory.manager import MemoryManager, MemorySearchResult
@@ -68,6 +73,10 @@ AGENT_TOOLS = frozenset(
         "list_folder",
         "read_file",
         "save_file",
+        "browser_open",
+        "browser_find_text",
+        "browser_click",
+        "browser_type",
     }
 )
 
@@ -252,6 +261,7 @@ class Orchestrator:
         """Pass events through, handling confirmations and checking honesty."""
         answer: list[str] = []
         acted = False  # did a state-changing tool (level >= 1) actually succeed?
+        asked = False  # did the real permission system ask the user?
         async for event in work:
             yield event
             if isinstance(event, TextEvent):
@@ -261,6 +271,7 @@ class Orchestrator:
                 acted = acted or bool(tool and tool.permission_level >= PermissionLevel.LOW_RISK)
             elif isinstance(event, ConfirmationEvent):
                 acted = True  # the system is asking the user; nothing is being claimed
+                asked = True
                 conversation.pending = PendingAction(
                     kind="tool_call",
                     target_id=event.name,
@@ -272,7 +283,11 @@ class Orchestrator:
                     "Reply **yes** to go ahead or **no** to cancel."
                 )
 
-        if not acted and claims_action("".join(answer)):
+        text = "".join(answer)
+        if not asked and fakes_permission_request(text):
+            log.warning("fake_permission_request")
+            yield TextEvent(text=FAKE_PERMISSION_NOTE)
+        elif not acted and claims_action(text):
             log.warning("hallucinated_action_claim")
             yield TextEvent(text=CORRECTION)
 

@@ -221,6 +221,35 @@ async def test_false_action_claim_gets_a_visible_correction():
     assert "no action was actually performed" in reply.content
 
 
+async def test_fake_permission_question_is_flagged():
+    """The model copied ARTHUR's own permission message without calling a tool."""
+    memory, _ = make_memory()
+    llm = FakeLLM(
+        script=[
+            'I need your permission first: **Type "x" into "Password"**\n\n'
+            "Reply **yes** to go ahead or **no** to cancel."
+        ]
+    )
+    orchestrator = Orchestrator(llm, ConversationStore(), memory=memory, tools=registry(memory))
+
+    reply = await orchestrator.respond("s1", "type my password")
+
+    assert "no action is waiting for approval" in reply.content
+    assert orchestrator.conversations.get("s1").pending is None
+
+
+async def test_real_permission_question_is_not_flagged():
+    memory, _ = make_memory()
+    saved, _ = await memory.save_memory("The user likes tea.")
+    llm = FakeLLM(script=[[tool_call("delete_memory", memory_id=saved.id)]])
+    orchestrator = Orchestrator(llm, ConversationStore(), memory=memory, tools=registry(memory))
+
+    reply = await orchestrator.respond("s1", "delete my tea memory")
+
+    assert "Reply **yes**" in reply.content
+    assert "no action is waiting" not in reply.content
+
+
 async def test_true_action_claim_is_not_corrected():
     memory, _ = make_memory()
     saved, _ = await memory.save_memory("The user likes tea.")

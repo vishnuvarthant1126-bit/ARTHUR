@@ -104,6 +104,10 @@ class Settings(BaseSettings):
     allowed_directories: str = ""  # blank = only the ARTHUR folder in Documents
     files_save_dir: Path = Path.home() / "Documents" / "ARTHUR" / "reports"
 
+    # --- Browser agent (Phase 15): ARTHUR's own isolated Chromium ---
+    browser_enabled: bool = True
+    browser_headless: bool = True  # false = you can watch the window
+
     # --- Agent loop: hard limits so a confused model can never loop forever ---
     agent_max_steps: int = 8
     agent_max_seconds: float = 120.0
