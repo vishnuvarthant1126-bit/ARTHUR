@@ -83,6 +83,8 @@ AGENT_TOOLS = frozenset(
         "click_control",
         "type_text",
         "press_key",
+        "describe_image",
+        "look_at_screen",
     }
 )
 

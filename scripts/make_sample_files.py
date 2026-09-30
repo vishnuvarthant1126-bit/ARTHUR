@@ -48,6 +48,28 @@ def pdf(text: str, path: Path) -> None:
     path.write_bytes(bytes(doc.output()))
 
 
+def receipt(path: Path) -> None:
+    """A fictional cafe receipt picture, for trying describe_image (Phase 17)."""
+    from PIL import Image, ImageDraw
+
+    lines = [
+        "BLUE LANTERN CAFE",
+        "Receipt #0427   2026-09-30",
+        "",
+        "Flat white           4.80",
+        "Blueberry muffin     3.90",
+        "Sparkling water      2.50",
+        "",
+        "TOTAL (SGD)         11.20",
+        "Thank you!",
+    ]
+    image = Image.new("RGB", (520, 460), "white")
+    draw = ImageDraw.Draw(image)
+    for i, line in enumerate(lines):
+        draw.text((40, 30 + i * 44), line, fill="black", font_size=28)
+    image.save(path)
+
+
 def main() -> None:
     TARGET.mkdir(parents=True, exist_ok=True)
     old = TARGET / "Sample_Resume_Alex_Tan_2025.pdf"
@@ -62,6 +84,7 @@ def main() -> None:
     for line in REPORT[1:]:
         report.add_paragraph(line)
     report.save(TARGET / "ARTHUR Project Report.docx")
+    receipt(TARGET / "Sample_Receipt_Cafe.png")
     for f in sorted(TARGET.iterdir()):
         print(f"  {f.name}", file=sys.stderr)
 

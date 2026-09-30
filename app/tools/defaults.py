@@ -30,8 +30,10 @@ from app.tools.file_tools import FindFilesTool, ListFolderTool, ReadFileTool, Sa
 from app.tools.memory_tools import DeleteMemoryTool, SaveMemoryTool, SearchMemoryTool
 from app.tools.registry import ToolRegistry
 from app.tools.time_tool import CurrentTimeTool
+from app.tools.vision_tools import DescribeImageTool, LookAtScreenTool
 from app.tools.weather import WeatherTool
 from app.tools.web_search import ReadWebpageTool, WebSearchTool
+from app.vision.provider import VisionProvider
 
 
 def create_tool_registry(
@@ -47,6 +49,7 @@ def create_tool_registry(
     workspace: Workspace | None = None,
     browser: BrowserAgent | None = None,
     desktop: DesktopController | None = None,
+    vision: VisionProvider | None = None,
     default_timeout_seconds: float = 10.0,
     memory_min_score: float = 0.55,
     document_min_score: float = 0.58,
@@ -82,4 +85,8 @@ def create_tool_registry(
         registry.register(ClickControlTool(desktop))
         registry.register(TypeTextTool(desktop))
         registry.register(PressKeyTool(desktop))
+    if vision is not None and workspace is not None:
+        registry.register(DescribeImageTool(workspace, vision))
+    if vision is not None and desktop is not None:
+        registry.register(LookAtScreenTool(desktop, vision))
     return registry

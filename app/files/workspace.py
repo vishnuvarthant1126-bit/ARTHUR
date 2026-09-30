@@ -47,6 +47,7 @@ TEXT_EXTENSIONS = {
     ".ts", ".java", ".c", ".cpp", ".h", ".cs", ".ino", ".sql", ".ini", ".toml", ".drawio",
 }  # fmt: skip
 READABLE_EXTENSIONS = TEXT_EXTENSIONS | set(SUPPORTED_TYPES)
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}  # -> describe_image
 WRITABLE_EXTENSIONS = {".md", ".txt", ".csv"}
 
 
@@ -219,6 +220,8 @@ class Workspace:
         if not path.is_file():
             raise FileAccessError(f"Not a file: {path}")
         extension = path.suffix.lower()
+        if extension in IMAGE_EXTENSIONS:
+            raise FileAccessError("That's a picture - use describe_image to look at it.")
         if extension not in READABLE_EXTENSIONS:
             raise FileAccessError(
                 f"ARTHUR can't read '{extension}' files. Readable: "

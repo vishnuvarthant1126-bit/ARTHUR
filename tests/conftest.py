@@ -43,6 +43,7 @@ from app.search.service import WebSearchService
 from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
 from app.tools.defaults import create_tool_registry
+from app.vision.provider import VisionProvider
 from app.voice.speech_to_text import SpeechToText, Transcript
 
 
@@ -227,6 +228,20 @@ class FakeSTT(SpeechToText):
         )  # fmt: skip
 
 
+class FakeVision(VisionProvider):
+    """Answers from a script instead of a real vision model; records what it was shown."""
+
+    model = "fake-vision"
+
+    def __init__(self, answer: str = "A calculator showing 84.") -> None:
+        self.answer = answer
+        self.seen: list[tuple[bytes, str]] = []
+
+    async def describe(self, image: bytes, question: str) -> str:
+        self.seen.append((image, question))
+        return self.answer
+
+
 def wav_bytes(seconds: float, *, rate: int = 16000, tone: bool = False) -> bytes:
     """A WAV file: silence, or a 440 Hz tone (not speech) when tone=True."""
     import io
@@ -287,6 +302,7 @@ def _app_with(llm: LLMProvider):
     app.state.documents = documents
     app.state.retriever = retriever
     app.state.stt = FakeSTT()
+    app.state.vision = FakeVision()
     app.state.audit = audit
     app.state.tools = create_tool_registry(
         policy=PermissionPolicy(),

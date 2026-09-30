@@ -153,7 +153,7 @@ def test_read_text_and_pdf(ws, tree):
 
 
 def test_read_refuses_binary_and_huge_files(ws, tree):
-    with pytest.raises(FileAccessError, match="can't read '.png'"):
+    with pytest.raises(FileAccessError, match="use describe_image"):
         ws.read(str(tree["allowed"] / "photo.png"))
     ws.max_read_bytes = 10
     with pytest.raises(FileAccessError, match="too large"):

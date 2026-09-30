@@ -112,6 +112,12 @@ class Settings(BaseSettings):
     computer_use_enabled: bool = True  # false = emergency off switch
     computer_allowed_apps: str = "notepad;calculator"  # also possible: explorer
 
+    # --- Vision (Phase 17): a second local model that can see images ---
+    vision_enabled: bool = True
+    vision_model: str = "qwen2.5vl:7b"  # ollama pull qwen2.5vl:7b (~6 GB)
+    # Short: qwen3 + the vision model don't fit in 8 GB together, so give the GPU back soon.
+    vision_keep_alive: str = "2m"
+
     # --- Agent loop: hard limits so a confused model can never loop forever ---
     agent_max_steps: int = 8
     agent_max_seconds: float = 120.0

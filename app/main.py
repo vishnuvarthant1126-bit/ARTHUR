@@ -18,7 +18,7 @@ from app.agent.orchestrator import Orchestrator
 from app.api import websocket
 from app.api.errors import register_exception_handlers
 from app.api.middleware import RequestContextMiddleware
-from app.api.routes import chat, health, memory, tools, voice
+from app.api.routes import chat, health, memory, tools, vision, voice
 from app.api.routes import documents as documents_routes
 from app.browser.agent import BrowserAgent
 from app.computer.apps import allowed_apps
@@ -42,6 +42,7 @@ from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
 from app.tools.defaults import create_tool_registry
 from app.tools.registry import ToolRegistry
+from app.vision.provider import OllamaVision
 from app.voice.speech_to_text import WhisperSTT
 from app.voice.text_to_speech import PiperTTS
 
@@ -127,12 +128,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     browser = BrowserAgent(headless=settings.browser_headless) if settings.browser_enabled else None
     workspace = Workspace(settings.file_roots, settings.files_save_dir)
     desktop = build_desktop(settings, workspace)
+    vision = (
+        OllamaVision(
+            settings.ollama_base_url, settings.vision_model, keep_alive=settings.vision_keep_alive
+        )
+        if settings.vision_enabled
+        else None
+    )
 
     app.state.llm = llm
     app.state.memory = memory_manager
     app.state.documents = documents
     app.state.retriever = retriever
     app.state.audit = audit
+    app.state.vision = vision
     app.state.tools = create_tool_registry(
         policy=PermissionPolicy(
             auto_approve_max_level=settings.tools_auto_approve_max_level,
@@ -148,6 +157,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         workspace=workspace,
         browser=browser,
         desktop=desktop,
+        vision=vision,
         default_timeout_seconds=settings.tools_default_timeout_seconds,
         memory_min_score=settings.memory_min_score,
         document_min_score=settings.rag_min_score,
@@ -200,6 +210,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await browser.close()
     if desktop is not None:
         desktop.close()
+    if vision is not None:
+        await vision.aclose()
     await http_client.aclose()
     await embeddings.aclose()
     await llm.aclose()
@@ -232,6 +244,7 @@ def create_app() -> FastAPI:
     app.include_router(documents_routes.router)
     app.include_router(tools.router)
     app.include_router(voice.router)
+    app.include_router(vision.router)
     app.include_router(websocket.router)
     # Mounted last: API routes above win; everything else is served from frontend/.
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
