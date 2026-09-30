@@ -238,6 +238,14 @@ async def test_fake_permission_question_is_flagged():
     assert orchestrator.conversations.get("s1").pending is None
 
 
+def test_copied_history_note_is_flagged_too():
+    from app.agent.verification import fakes_permission_request
+
+    copied = '(ARTHUR\'s safety system asked the user to approve: **Delete "x" in Explorer**)'
+    assert fakes_permission_request(copied)
+    assert not fakes_permission_request("The calculator shows 9,396.")
+
+
 async def test_real_permission_question_is_not_flagged():
     memory, _ = make_memory()
     saved, _ = await memory.save_memory("The user likes tea.")
@@ -248,6 +256,38 @@ async def test_real_permission_question_is_not_flagged():
 
     assert "Reply **yes**" in reply.content
     assert "no action is waiting" not in reply.content
+
+
+async def test_history_keeps_no_permission_template_to_copy():
+    """The model copied earlier "Reply **yes**" messages instead of calling tools."""
+    memory, _ = make_memory()
+    saved, _ = await memory.save_memory("The user likes tea.")
+    llm = FakeLLM(script=[[tool_call("delete_memory", memory_id=saved.id)]])
+    orchestrator = Orchestrator(llm, ConversationStore(), memory=memory, tools=registry(memory))
+
+    reply = await orchestrator.respond("s1", "delete my tea memory")
+    assert "Reply **yes**" in reply.content  # the user still sees the real question
+
+    history = orchestrator.conversations.get("s1").messages[-1].content
+    assert "Reply **yes**" not in history
+    assert "safety system asked the user to approve" in history
+
+
+async def test_deleting_a_memory_that_does_not_exist_never_asks():
+    """Seen live: the model passed a FILE name to delete_memory."""
+    memory, _ = make_memory()
+    llm = FakeLLM(
+        script=[
+            [tool_call("delete_memory", memory_id="Sample_Resume_2025.pdf")],
+            "That isn't a memory, so nothing was deleted.",
+        ]
+    )
+    orchestrator = Orchestrator(llm, ConversationStore(), memory=memory, tools=registry(memory))
+
+    reply = await orchestrator.respond("s1", "delete the 2025 resume")
+
+    assert "Reply **yes**" not in reply.content
+    assert orchestrator.conversations.get("s1").pending is None
 
 
 async def test_true_action_claim_is_not_corrected():

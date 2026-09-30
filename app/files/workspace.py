@@ -141,7 +141,7 @@ class Workspace:
         # Every folder on the way from the root, and the final name, must be allowed.
         root = next(r for r in self.roots if _inside(real, r))
         for part in real.relative_to(root).parts:
-            if part.startswith(".") or part.lower() in BLOCKED_DIR_NAMES or _blocked_name(part):
+            if part.startswith(".") or part.lower() in BLOCKED_DIR_NAMES or is_blocked_name(part):
                 return False
         try:
             if real.exists() and _hidden(real.stat()):  # Windows "hidden"/"system" attribute
@@ -181,7 +181,7 @@ class Workspace:
                         continue
                     if not all(w in lower.replace("_", " ").replace("-", " ") for w in words):
                         continue
-                    if _blocked_name(name) or name.startswith("."):
+                    if is_blocked_name(name) or name.startswith("."):
                         continue
                     try:
                         info = path.stat()
@@ -288,7 +288,7 @@ def _inside(path: Path, root: Path) -> bool:
     return p == r or p.startswith(r.rstrip("\\/") + os.sep)
 
 
-def _blocked_name(name: str) -> bool:
+def is_blocked_name(name: str) -> bool:
     lower = name.lower()
     return any(fnmatch.fnmatch(lower, pattern) for pattern in BLOCKED_FILE_PATTERNS)
 

@@ -17,6 +17,7 @@ confirmation) so the UI can show what ARTHUR is doing.
 """
 
 import asyncio
+import re
 import time
 from collections.abc import AsyncIterator
 
@@ -77,6 +78,11 @@ AGENT_TOOLS = frozenset(
         "browser_find_text",
         "browser_click",
         "browser_type",
+        "open_app",
+        "read_window",
+        "click_control",
+        "type_text",
+        "press_key",
     }
 )
 
@@ -156,7 +162,7 @@ class Orchestrator:
             # so the next turn ("continue") has the context. Nothing is saved if
             # the model failed before producing any text.
             if parts:
-                conversation.add_exchange(user_text, "".join(parts).strip())
+                conversation.add_exchange(user_text, _for_history("".join(parts).strip()))
 
     async def respond(
         self, session_id: str, user_text: str, request_id: str | None = None
@@ -279,7 +285,7 @@ class Orchestrator:
                     payload={"arguments": event.arguments},
                 )
                 yield TextEvent(
-                    text=f"I need your permission first: **{event.preview}**\n\n"
+                    text=f"I need your permission first: {_show_preview(event.preview)}\n\n"
                     "Reply **yes** to go ahead or **no** to cancel."
                 )
 
@@ -403,10 +409,38 @@ class Orchestrator:
                     ToolContext(session_id=conversation.session_id, confirmed=True),
                 )
                 if result.ok:
-                    return f"Done: {pending.description}."
+                    return f"Done: {pending.description.splitlines()[0].rstrip(':.')}."
                 return f"That didn't work: {result.error}"
         if policy.is_no(user_text):
             return (
                 "Okay, I won't do that." if pending.kind == "tool_call" else "Okay, I'll keep it."
             )
         return None  # user moved on; the pending action is cancelled
+
+
+def _show_preview(preview: str) -> str:
+    """First line in bold; more lines (e.g. the text to be typed) as a quoted block."""
+    head, _, rest = preview.partition("\n")
+    shown = f"**{head.strip()}**"
+    if rest.strip():
+        shown += "\n\n" + "\n".join(f"> {line}" for line in rest.strip().splitlines())
+    return shown
+
+
+_PERMISSION_QUESTION = re.compile(
+    r"I need your permission first: (.*?)\n\nReply \*\*yes\*\* to go ahead or \*\*no\*\* to "
+    r"cancel\.",
+    re.DOTALL,
+)
+
+
+def _for_history(reply: str) -> str:
+    """What the model sees of this reply in later turns.
+
+    Permission questions are stored as a plain note: the small model copied the exact
+    "I need your permission... Reply yes" wording instead of calling the tool (seen live).
+    """
+    return _PERMISSION_QUESTION.sub(
+        lambda m: f"(ARTHUR's safety system asked the user to approve: {m.group(1).strip()})",
+        reply,
+    )

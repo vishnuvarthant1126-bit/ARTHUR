@@ -83,6 +83,16 @@ class DeleteMemoryTool(Tool[DeleteMemoryInput]):
     def __init__(self, memory: MemoryManager) -> None:
         self.memory = memory
 
+    async def required_level(self, args: DeleteMemoryInput) -> PermissionLevel:
+        # Checked before asking the user: never ask "delete X?" for something that isn't there
+        # (the model once passed a FILE name here).
+        if await self.memory.retrieve_memory(args.memory_id) is None:
+            raise ToolError(
+                f"No memory with id '{args.memory_id}'. This tool only deletes memories "
+                "(ids come from search_memory), not files."
+            )
+        return self.permission_level
+
     async def preview(self, args: DeleteMemoryInput) -> str:
         memory = await self.memory.retrieve_memory(args.memory_id)
         if memory is None:

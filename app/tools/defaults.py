@@ -3,6 +3,7 @@
 import httpx
 
 from app.browser.agent import BrowserAgent
+from app.computer.desktop import DesktopController
 from app.files.workspace import Workspace
 from app.memory.manager import MemoryManager
 from app.rag.documents import DocumentService
@@ -17,6 +18,13 @@ from app.tools.browser_tools import (
     BrowserTypeTool,
 )
 from app.tools.calculator import CalculatorTool
+from app.tools.computer_tools import (
+    ClickControlTool,
+    OpenAppTool,
+    PressKeyTool,
+    ReadWindowTool,
+    TypeTextTool,
+)
 from app.tools.document_search import DocumentSearchTool, ListDocumentsTool
 from app.tools.file_tools import FindFilesTool, ListFolderTool, ReadFileTool, SaveFileTool
 from app.tools.memory_tools import DeleteMemoryTool, SaveMemoryTool, SearchMemoryTool
@@ -38,6 +46,7 @@ def create_tool_registry(
     web_fetch_max_bytes: int = 2 * 1024 * 1024,
     workspace: Workspace | None = None,
     browser: BrowserAgent | None = None,
+    desktop: DesktopController | None = None,
     default_timeout_seconds: float = 10.0,
     memory_min_score: float = 0.55,
     document_min_score: float = 0.58,
@@ -67,4 +76,10 @@ def create_tool_registry(
         registry.register(BrowserFindTextTool(browser))
         registry.register(BrowserClickTool(browser))
         registry.register(BrowserTypeTool(browser))
+    if desktop is not None:
+        registry.register(OpenAppTool(desktop))
+        registry.register(ReadWindowTool(desktop))
+        registry.register(ClickControlTool(desktop))
+        registry.register(TypeTextTool(desktop))
+        registry.register(PressKeyTool(desktop))
     return registry

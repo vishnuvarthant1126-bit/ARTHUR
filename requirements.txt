@@ -24,3 +24,6 @@ faster-whisper>=1.1          # local speech-to-text (Whisper, CTranslate2)
 piper-tts>=1.3               # local text-to-speech
 # --- Browser agent (Phase 15) ---
 playwright>=1.48             # then once: python -m playwright install chromium
+# --- Computer use (Phase 16, Windows) ---
+pywinauto>=0.6.9; sys_platform == "win32"   # Windows UI Automation
+Pillow>=10.0                 # screenshots and images

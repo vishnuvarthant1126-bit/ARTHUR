@@ -108,6 +108,10 @@ class Settings(BaseSettings):
     browser_enabled: bool = True
     browser_headless: bool = True  # false = you can watch the window
 
+    # --- Computer use (Phase 16, Windows): only these apps; every action asks first ---
+    computer_use_enabled: bool = True  # false = emergency off switch
+    computer_allowed_apps: str = "notepad;calculator"  # also possible: explorer
+
     # --- Agent loop: hard limits so a confused model can never loop forever ---
     agent_max_steps: int = 8
     agent_max_seconds: float = 120.0

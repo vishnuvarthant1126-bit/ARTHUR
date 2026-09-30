@@ -22,10 +22,12 @@ CORRECTION = (
 )
 
 
-# The model copying ARTHUR's own "I need your permission first ... Reply yes" message
-# (it sees earlier ones in the chat history) without calling a tool.
+# The model copying ARTHUR's own "I need your permission first ... Reply yes" message, or
+# the note that replaces it in the history, without calling a tool (both seen live).
 _FAKE_PERMISSION = re.compile(
-    r"need your permission|reply \W*yes\W* to (go ahead|continue|proceed|confirm)", re.IGNORECASE
+    r"need your permission|reply \W*yes\W* to (go ahead|continue|proceed|confirm)"
+    r"|safety system asked|asked the user to approve",
+    re.IGNORECASE,
 )
 
 FAKE_PERMISSION_NOTE = (

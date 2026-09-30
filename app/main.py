@@ -4,6 +4,7 @@ Run with:  uvicorn app.main:app --reload
 """
 
 import asyncio
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -20,6 +21,8 @@ from app.api.middleware import RequestContextMiddleware
 from app.api.routes import chat, health, memory, tools, voice
 from app.api.routes import documents as documents_routes
 from app.browser.agent import BrowserAgent
+from app.computer.apps import allowed_apps
+from app.computer.desktop import DesktopController, workspace_rules
 from app.config.settings import Settings, get_settings
 from app.database.database import Database
 from app.files.workspace import Workspace
@@ -122,6 +125,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Starts lazily (first browser_open), so it costs nothing until used.
     browser = BrowserAgent(headless=settings.browser_headless) if settings.browser_enabled else None
+    workspace = Workspace(settings.file_roots, settings.files_save_dir)
+    desktop = build_desktop(settings, workspace)
 
     app.state.llm = llm
     app.state.memory = memory_manager
@@ -140,8 +145,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         retriever=retriever,
         search=search,
         web_fetch_max_bytes=settings.web_fetch_max_kb * 1024,
-        workspace=Workspace(settings.file_roots, settings.files_save_dir),
+        workspace=workspace,
         browser=browser,
+        desktop=desktop,
         default_timeout_seconds=settings.tools_default_timeout_seconds,
         memory_min_score=settings.memory_min_score,
         document_min_score=settings.rag_min_score,
@@ -192,11 +198,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     warm_up.cancel()
     if browser is not None:
         await browser.close()
+    if desktop is not None:
+        desktop.close()
     await http_client.aclose()
     await embeddings.aclose()
     await llm.aclose()
     db.close()
     log.info("arthur_stopped")
+
+
+def build_desktop(settings: Settings, workspace: Workspace) -> DesktopController | None:
+    """Computer use (Phase 16): Windows only, and only the apps listed in .env."""
+    apps = allowed_apps(settings.computer_allowed_apps)
+    if sys.platform != "win32" or not settings.computer_use_enabled or not apps:
+        return None
+    folder_allowed, resolve_folder = workspace_rules(workspace)
+    default_folder = workspace.roots[0] if workspace.roots else workspace.save_dir
+    return DesktopController(apps, folder_allowed, resolve_folder, default_folder)
 
 
 def create_app() -> FastAPI:
