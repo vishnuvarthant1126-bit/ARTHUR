@@ -219,10 +219,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     # Load the speech models in the background, so the first voice message doesn't wait.
     # gather() schedules both right away and returns a future we can cancel at shutdown.
+    speech_models = (app.state.stt, app.state.wake_stt, app.state.tts)
     warm_up = asyncio.gather(
-        asyncio.to_thread(app.state.stt.warm_up),
-        asyncio.to_thread(app.state.wake_stt.warm_up),
-        asyncio.to_thread(app.state.tts.warm_up),
+        *(asyncio.to_thread(m.warm_up) for m in speech_models if settings.voice_warm_up),
         return_exceptions=True,  # a missing voice model must not crash startup
     )
 

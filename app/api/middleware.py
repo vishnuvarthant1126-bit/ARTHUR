@@ -120,7 +120,17 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                 )
 
         start = time.perf_counter()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            # An unexpected crash: the error handler outside this middleware answers with
+            # HTTP 500. Count it here first - crashes are the requests you most want to see
+            # (the load test found that they were missing from the metrics).
+            if metrics is not None:
+                route = _route_label(request, 500)
+                metrics.http_requests.labels(request.method, route, "500").inc()
+                metrics.http_duration.labels(route).observe(time.perf_counter() - start)
+            raise
         response.headers["X-Request-ID"] = request_id
         for name, value in SECURITY_HEADERS.items():
             response.headers[name] = value

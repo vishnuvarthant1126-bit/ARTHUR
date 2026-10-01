@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     # Longer = faster answers, but the GPU memory (~6 GB) stays reserved. "-1" = forever.
     ollama_keep_alive: str = "30m"
 
+    # LLM_PROVIDER=echo: a stand-in model for load tests and offline demos (app/llm/echo.py).
+    echo_delay_seconds: float = 0.0  # how long each "answer" takes
+    echo_words: int = 30
+
     openai_compat_base_url: str | None = None
     # SecretStr hides the value if settings are ever printed or logged.
     openai_compat_api_key: SecretStr | None = None
@@ -95,6 +99,8 @@ class Settings(BaseSettings):
     # Small, fast model used only to check clips for "Hey Arthur" (~0.6 s on CPU).
     whisper_wake_model: str = "base.en"
     models_path: Path = Path("data/models")
+    # Load the speech models at start-up (first voice message is fast). Off for load tests.
+    voice_warm_up: bool = True
 
     # --- Voice: text-to-speech (Piper) ---
     voices_path: Path = Path("data/voices")

@@ -2,11 +2,12 @@
 
 from app.config.settings import Settings
 from app.llm.base import LLMProvider
+from app.llm.echo import EchoProvider
 from app.llm.ollama import OllamaProvider
 from app.llm.openai_compat import OpenAICompatProvider
 from app.llm.resilience import FallbackProvider, RetryingProvider
 
-SUPPORTED_PROVIDERS = ("ollama", "openai_compat")
+SUPPORTED_PROVIDERS = ("ollama", "openai_compat", "echo")
 
 
 def build_provider(name: str, settings: Settings) -> LLMProvider:
@@ -20,6 +21,8 @@ def build_provider(name: str, settings: Settings) -> LLMProvider:
                 context_tokens=settings.llm_context_tokens,
                 keep_alive=settings.ollama_keep_alive,
             )
+        case "echo":
+            return EchoProvider(settings.echo_delay_seconds, settings.echo_words)
         case "openai_compat":
             if not settings.openai_compat_base_url or not settings.openai_compat_model:
                 raise ValueError(

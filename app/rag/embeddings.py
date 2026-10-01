@@ -11,6 +11,8 @@ Sentences that mean similar things land close together on that map:
 So we can find memories by *meaning*, even when no words match exactly.
 """
 
+import hashlib
+import re
 from abc import ABC, abstractmethod
 
 import httpx
@@ -76,9 +78,34 @@ class OllamaEmbeddings(EmbeddingProvider):
         return embeddings
 
 
+class HashEmbeddings(EmbeddingProvider):
+    """Embeddings without a model (EMBEDDING_PROVIDER=hash) - for load tests and offline demos.
+
+    Each word is hashed to one of 256 positions; texts sharing words get similar vectors.
+    It matches WORDS, not meaning - fine for measuring speed, useless for real search quality.
+    """
+
+    DIMENSIONS = 256
+    model = "hash"
+
+    def _vector(self, text: str) -> list[float]:
+        vector = [0.0] * self.DIMENSIONS
+        for word in re.findall(r"[a-z0-9']+", text.lower()):
+            vector[int(hashlib.md5(word.encode()).hexdigest(), 16) % self.DIMENSIONS] += 1.0  # noqa: S324
+        return vector if any(vector) else [1e-6] * self.DIMENSIONS
+
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._vector(text) for text in texts]
+
+    async def embed_query(self, text: str) -> list[float]:
+        return self._vector(text)
+
+
 def create_embedding_provider(name: str, base_url: str, model: str) -> EmbeddingProvider:
     match name.lower():
         case "ollama":
             return OllamaEmbeddings(base_url=base_url, model=model)
+        case "hash":
+            return HashEmbeddings()
         case other:
-            raise ValueError(f"Unknown EMBEDDING_PROVIDER '{other}'. Supported: ollama")
+            raise ValueError(f"Unknown EMBEDDING_PROVIDER '{other}'. Supported: ollama, hash")

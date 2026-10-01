@@ -96,6 +96,23 @@ async def test_metrics_endpoints(client, fake_llm):
     assert all(not r["route"].startswith("/metrics") for r in summary["routes"])
 
 
+async def test_crashes_are_counted_as_server_errors(client, fake_llm):
+    """Found by the load test: a request that crashed (HTTP 500) was not counted at all."""
+    metrics: Metrics = client._transport.app.state.metrics
+    fake_llm.error = RuntimeError("boom")  # an unexpected, non-LLM error
+
+    response = await client.post("/chat", json={"message": "Hello"}, headers=ORIGIN)
+
+    assert response.status_code == 500
+    assert (
+        value(metrics, "arthur_http_requests_total", method="POST", route="/chat", status="500")
+        == 1
+    )
+    chat = next(r for r in metrics.summary()["routes"] if r["route"] == "/chat")
+    assert chat["errors"] == 1
+    assert value(metrics, "arthur_chat_turns_total", channel="http", outcome="error") == 1
+
+
 async def test_refused_requests_are_counted_by_reason(client):
     metrics: Metrics = client._transport.app.state.metrics
 
