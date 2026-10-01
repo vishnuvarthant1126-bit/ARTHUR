@@ -51,7 +51,8 @@ audit log.
 |---|---|---|
 | Reading outside your folders (`..`, links, `file://`, network paths) | Paths are resolved first, then checked against `ALLOWED_DIRECTORIES`; system folders, hidden files and secret-looking names always blocked | `tests/unit/test_file_tools.py` |
 | Getting around the folder rule through Notepad tabs or Explorer | Notepad: only the tab ARTHUR opened. Explorer: only allowed folders, items can't be opened | `tests/unit/test_computer.py` |
-| Keystrokes landing in the wrong window; dangerous shortcuts | Focus/tab check before each chunk; Win-key, Ctrl+Alt+Del, Shift+Delete, clipboard refused | same |
+| **Simulated keystrokes landing in another app.** Key presses go to whichever window has the focus; in a live test (Session 9) text meant for Notepad, with its Enter key, was typed into a chat app when that app took the focus. In a terminal that would run a command | **ARTHUR sends no keystrokes at all.** Notepad: Windows messages addressed to its text control's handle. Calculator: button presses through UI Automation. Explorer: shell actions on the checked items. Typed text is read back and compared | `tests/unit/test_computer.py::test_arthur_has_no_way_to_send_real_keystrokes`, opt-in `real_desktop` tests |
+| Dangerous shortcuts | Only a short list of keys per app exists; Win-key, Ctrl+Alt+Del, Alt+F4, Shift+Delete and the clipboard are refused | `tests/unit/test_computer.py` |
 | Screenshots of private things | One allowed window only; the whole screen always asks | `tests/unit/test_vision.py` |
 | A reminder that acts on its own | Reminders only notify; they never run tools | `tests/unit/test_reminders.py` |
 | Arbitrary programs or shell commands | There is no shell tool. Apps start from fixed Windows paths, never through a shell | `test_computer.py` |

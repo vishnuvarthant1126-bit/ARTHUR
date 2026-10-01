@@ -15,13 +15,11 @@ from dataclasses import dataclass, field
 
 from app.files.workspace import is_blocked_name
 
-# Keys every app may use (lower-case, "+" between modifiers and key).
-NAVIGATION_KEYS = frozenset(
-    {"up", "down", "left", "right", "home", "end", "pageup", "pagedown", "escape", "tab"}
-)
-EDITING_KEYS = frozenset(
-    {"enter", "backspace", "delete", "shift+tab", "ctrl+a", "ctrl+z", "ctrl+y", "ctrl+home",
-     "ctrl+end"}
+# Keys ARTHUR can "press" in Notepad. None of them is a real keystroke: each one is a
+# message sent to Notepad's own text control (see desktop.NOTEPAD_KEYS).
+NOTEPAD_KEYS = frozenset(
+    {"enter", "tab", "backspace", "delete", "up", "down", "left", "right", "home", "end",
+     "pageup", "pagedown", "ctrl+a", "ctrl+z", "ctrl+y", "ctrl+home", "ctrl+end"}
 )  # fmt: skip
 
 # "Is this folder inside the user's allowed folders?" (the file sandbox answers it)
@@ -99,7 +97,7 @@ APPS: dict[str, AppSpec] = {
         name="notepad",
         label="Notepad",
         launch=("notepad.exe",),
-        keys=NAVIGATION_KEYS | EDITING_KEYS,
+        keys=NOTEPAD_KEYS,
         control_types=frozenset({"Document"}),  # no tabs (names of your files), no menus
     ),
     "calculator": _Calculator(
@@ -116,7 +114,9 @@ APPS: dict[str, AppSpec] = {
         name="explorer",
         label="File Explorer",
         launch=("explorer.exe",),
-        keys=NAVIGATION_KEYS | {"delete", "f5", "alt+up"},  # no Enter: that OPENS (runs) files
+        # refresh, go up one folder, move the selection to the Recycle Bin. No Enter (that
+        # OPENS = may run a file) and no arrows: select items with click_control instead.
+        keys=frozenset({"f5", "alt+up", "delete"}),
         control_types=frozenset({"ListItem"}),
         can_type=False,
     ),
@@ -130,7 +130,7 @@ def allowed_apps(names: str) -> dict[str, AppSpec]:
 
 
 def calculator_text_ok(text: str) -> bool:
-    return bool(re.fullmatch(r"[0-9+\-*/=.,%() \n]+", text))
+    return bool(re.fullmatch(r"[0-9+\-*/x×÷=.,% \n]+", text))
 
 
 def _document_name(title: str) -> str:

@@ -8,8 +8,14 @@ Safety, enforced here and not by the model:
 - only apps in COMPUTER_ALLOWED_APPS, and only windows their rules allow (apps.py);
 - the rules are checked again right before EVERY action (the window may have changed);
 - buttons are pressed with UI Automation "invoke" - the real mouse never moves;
-- typing goes in small chunks; before each one ARTHUR checks the right window still
-  has the keyboard focus and that Stop wasn't pressed;
+- ARTHUR NEVER SENDS KEYSTROKES. Simulated key presses go to whichever window has the
+  keyboard focus - in a live test, text meant for Notepad (with its Enter key) landed in
+  another app when that app took the focus. Instead:
+    Notepad     text and editing keys are Windows messages sent to the handle of Notepad's
+                own text control (EM_REPLACESEL, WM_KEYDOWN ...): they can't arrive anywhere else
+    Calculator  its buttons are pressed through UI Automation ("invoke")
+    Explorer    refresh / go up / delete go through the Windows shell, for the checked items
+- typed text is read back and compared - ARTHUR never reports success it didn't see;
 - apps are started from their fixed Windows paths, never through a shell.
 
 All UI Automation calls run on ONE worker thread (COM objects belong to the thread
@@ -38,14 +44,63 @@ from app.computer.apps import (
     calculator_text_ok,
     item_is_hidden,
 )
-from app.computer.risk import normalize_key, to_send_keys_combo, to_send_keys_text
+from app.computer.risk import normalize_key
 from app.observability.logging import get_logger
 
 log = get_logger(__name__)
 
 MAX_ELEMENTS = 80
 MAX_TEXT_CHARS = 20_000
-TYPE_CHUNK = 20  # characters typed between focus/stop checks
+
+# Windows messages for edit controls (sent to ONE control's handle, never "to the keyboard").
+EM_SETSEL, EM_REPLACESEL, EM_UNDO, EM_REDO = 0x00B1, 0x00C2, 0x00C7, 0x0454
+WM_KEYDOWN, WM_KEYUP = 0x0100, 0x0101
+SW_SHOWNOACTIVATE, GA_ROOT = 4, 2
+
+# key -> (how, value): insert text, set the selection, an edit message, or a virtual-key code
+NOTEPAD_KEYS: dict[str, tuple[str, Any]] = {
+    "enter": ("text", "\r\n"),
+    "tab": ("text", "\t"),
+    "ctrl+a": ("select", (0, -1)),
+    "ctrl+home": ("select", (0, 0)),
+    "ctrl+end": ("select", (-1, -1)),
+    "ctrl+z": ("message", EM_UNDO),
+    "ctrl+y": ("message", EM_REDO),
+    "backspace": ("key", 0x08),
+    "delete": ("key", 0x2E),
+    "pageup": ("key", 0x21),
+    "pagedown": ("key", 0x22),
+    "end": ("key", 0x23),
+    "home": ("key", 0x24),
+    "left": ("key", 0x25),
+    "up": ("key", 0x26),
+    "right": ("key", 0x27),
+    "down": ("key", 0x28),
+}
+# character / name -> the automation id of Calculator's button
+CALCULATOR_BUTTONS = {
+    **{str(n): f"num{n}Button" for n in range(10)},
+    "+": "plusButton",
+    "-": "minusButton",
+    "*": "multiplyButton",
+    "x": "multiplyButton",
+    "×": "multiplyButton",
+    "/": "divideButton",
+    "÷": "divideButton",
+    "=": "equalButton",
+    "\n": "equalButton",
+    ".": "decimalSeparatorButton",
+    "%": "percentButton",
+    "clear": "clearButton",
+    "clear_entry": "clearEntryButton",
+    "backspace": "backSpaceButton",
+}
+CALCULATOR_KEYS = {
+    "enter": "=",
+    "escape": "clear",
+    "backspace": "backspace",
+    "delete": "clear_entry",
+}
 
 
 class DesktopError(Exception):
@@ -96,6 +151,10 @@ class DesktopController:
     async def press_key(self, app: str, key: str) -> WindowSnapshot:
         return await self._run(self._press_key, app, key)
 
+    async def selection(self, app: str) -> list[str]:
+        """Names of the items selected in File Explorer (for the delete confirmation)."""
+        return await self._run(self._selection, app)
+
     async def screenshot(self, app: str | None, max_side: int = 1280) -> bytes:
         return await self._run(self._screenshot, app, max_side)
 
@@ -109,7 +168,7 @@ class DesktopController:
         return {"type": info.control_type, "name": info.name or ""}
 
     def cancel(self) -> None:
-        """Emergency stop: typing stops at the next chunk."""
+        """Emergency stop: a running sequence of button presses stops at the next one."""
         self._stop.set()
 
     def close(self) -> None:
@@ -289,49 +348,138 @@ class DesktopController:
         return self._snapshot(app)
 
     def _type_text(self, app: str, text: str) -> WindowSnapshot:
-        from pywinauto.keyboard import send_keys
-
         spec, info, window = self._find(app)
         if not spec.can_type:
             raise DesktopError(f"ARTHUR doesn't type into {spec.label}.")
-        if spec.name == "calculator" and not calculator_text_ok(text):
-            raise DesktopError("Calculator only takes numbers and + - * / = . %")
-        window.set_focus()  # also restores a minimized window (which has no text area)
-        target = window
-        if spec.name == "notepad":
-            documents = window.descendants(control_type="Document")
-            if not documents:
-                raise DesktopError("Notepad's text area wasn't found.")
-            target = documents[0]
-            target.set_focus()
-        elif spec.name == "calculator":
-            _require_foreground(info.handle)
-            send_keys("{ESC}")  # every typed calculation starts fresh
-        for start in range(0, len(text), TYPE_CHUNK):
-            if self._stop.is_set():
-                raise DesktopError("Stopped - typing was cancelled.")
-            _require_foreground(info.handle)
-            if spec.name == "notepad" and _selected_tab(window) not in self._own_tabs:
-                raise DesktopError("You switched Notepad tabs, so ARTHUR stopped typing.")
-            chunk = text[start : start + TYPE_CHUNK]
-            send_keys(to_send_keys_text(chunk), with_spaces=True, with_tabs=True, pause=0.005)
+        if spec.name == "calculator":
+            if not calculator_text_ok(text):
+                raise DesktopError("Calculator only takes numbers and + - * / = . %")
+            self._calculator_press(window, ["clear", *text])  # each sum starts fresh
+        else:
+            handle = self._notepad_edit(info, window)
+            wanted = text.replace("\r\n", "\n").replace("\r", "\n")
+            _send(handle, EM_SETSEL, -1, -1)  # caret to the end of the document
+            _send(handle, EM_REPLACESEL, 1, wanted.replace("\n", "\r\n"))
+            time.sleep(0.1)
+            if wanted not in self._text(spec, info, window):
+                raise DesktopError(
+                    "Notepad didn't take the text as sent. Use read_window to see what it shows."
+                )
         log.info("desktop_type", app=spec.name, chars=len(text))
-        time.sleep(0.2)
         return self._snapshot(app)
 
-    def _press_key(self, app: str, key: str) -> WindowSnapshot:
-        from pywinauto.keyboard import send_keys
+    def _notepad_edit(self, info: WindowInfo, window: Any) -> int:
+        """The window handle of Notepad's text control in ARTHUR's own tab."""
+        import win32gui
 
+        if win32gui.IsIconic(info.handle):  # minimized: show it WITHOUT taking the focus
+            win32gui.ShowWindow(info.handle, SW_SHOWNOACTIVATE)
+            time.sleep(0.4)
+        documents = window.descendants(control_type="Document")
+        handle = documents[0].element_info.handle if documents else 0
+        if (
+            not handle
+            or win32gui.GetClassName(handle) != "RichEditD2DPT"
+            or win32gui.GetAncestor(handle, GA_ROOT) != info.handle
+        ):
+            raise DesktopError("Notepad's text area wasn't found.")
+        return handle
+
+    def _calculator_press(self, window: Any, symbols: list[str]) -> None:
+        """Press Calculator's own buttons through UI Automation - no keyboard involved."""
+        deadline = time.monotonic() + 5  # a just-started Calculator needs a moment
+        while True:
+            buttons = {
+                b.element_info.automation_id: b for b in window.descendants(control_type="Button")
+            }
+            if "clearButton" in buttons or time.monotonic() > deadline:
+                break
+            time.sleep(0.3)
+        for symbol in symbols:
+            if self._stop.is_set():
+                raise DesktopError("Stopped.")
+            if symbol in (" ", ","):
+                continue
+            button = buttons.get(CALCULATOR_BUTTONS.get(symbol, ""))
+            if button is None:
+                raise DesktopError(f"Calculator has no '{symbol}' button in this mode.")
+            button.invoke()
+            time.sleep(0.03)
+
+    def _press_key(self, app: str, key: str) -> WindowSnapshot:
         spec, info, window = self._find(app)
         key = normalize_key(key)
         if key not in spec.keys:
             raise DesktopError(f"'{key}' isn't allowed in {spec.label}.")
-        window.set_focus()
-        _require_foreground(info.handle)
-        send_keys(to_send_keys_combo(key))
+        if spec.name == "notepad":
+            handle = self._notepad_edit(info, window)
+            kind, value = NOTEPAD_KEYS[key]
+            if kind == "text":
+                _send(handle, EM_REPLACESEL, 1, value)
+            elif kind == "select":
+                _send(handle, EM_SETSEL, *value)
+            elif kind == "message":
+                _send(handle, value, 0, 0)
+            else:  # a navigation/editing key, delivered to this control only
+                _send(handle, WM_KEYDOWN, value, 0)
+                _send(handle, WM_KEYUP, value, 0xC0000001)
+        elif spec.name == "calculator":
+            self._calculator_press(window, [CALCULATOR_KEYS[key]])
+        else:
+            self._explorer_key(info, key)
         log.info("desktop_key", app=spec.name, key=key)
         time.sleep(0.3)
         return self._snapshot(app)
+
+    def _explorer_key(self, info: WindowInfo, key: str) -> None:
+        shell_window = self._explorer_tab(info)
+        if key == "f5":
+            shell_window.Refresh()
+        elif key == "alt+up":
+            parent = str(Path(info.locations[0]).parent)
+            if not self.folder_allowed(parent):
+                raise DesktopError("The folder above is outside your allowed folders.")
+            shell_window.Navigate2(parent)
+        elif key == "delete":
+            from win32com.shell import shell, shellcon
+
+            flags = (
+                shellcon.FOF_ALLOWUNDO  # = to the Recycle Bin, not gone for good
+                | shellcon.FOF_NOCONFIRMATION  # the user already confirmed in ARTHUR
+                | shellcon.FOF_SILENT
+                | shellcon.FOF_NOERRORUI
+            )
+            for path in self._selected_paths(info):
+                shell.SHFileOperation((0, shellcon.FO_DELETE, path, None, flags, None, None))
+                log.info("desktop_recycled", name=Path(path).name)
+
+    def _explorer_tab(self, info: WindowInfo) -> Any:
+        import win32com.client
+
+        if len(info.locations) != 1:
+            raise DesktopError(
+                "That File Explorer window has several tabs and ARTHUR can't tell which one "
+                "is in front. Close the other tabs, or use open_app for a new window."
+            )
+        for shell_window in win32com.client.Dispatch("Shell.Application").Windows():
+            if _safe(lambda w=shell_window: int(w.HWND), 0) == info.handle:
+                return shell_window
+        raise DesktopError("File Explorer window not found.")
+
+    def _selected_paths(self, info: WindowInfo) -> list[str]:
+        """Selected items, checked: only things ARTHUR may see, inside allowed folders."""
+        items = self._explorer_tab(info).Document.SelectedItems()
+        paths = [items.Item(i).Path for i in range(items.Count)]
+        if not paths:
+            raise DesktopError("Nothing is selected in File Explorer. Select an item first.")
+        for path in paths:
+            if item_is_hidden(Path(path).name) or not self.folder_allowed(str(Path(path).parent)):
+                raise DesktopError("The selection includes something ARTHUR may not touch.")
+        return paths
+
+    def _selection(self, app: str) -> list[str]:
+        _spec, info, _window = self._find(app)
+        return [Path(path).name for path in self._selected_paths(info)]
 
     def _screenshot(self, app: str | None, max_side: int) -> bytes:
         from PIL import ImageGrab
@@ -411,14 +559,12 @@ def _invoke_named(window: Any, control_type: str, name: str) -> None:
     raise DesktopError(f"Couldn't find '{name}'.")
 
 
-def _require_foreground(handle: int) -> None:
+def _send(handle: int, message: int, wparam: Any, lparam: Any) -> int:
+    """Send one Windows message to ONE control. It is delivered to that handle - it does
+    not matter which window has the focus."""
     import win32gui
 
-    deadline = time.monotonic() + 1.0  # Windows needs a moment to switch windows
-    while win32gui.GetForegroundWindow() != handle:
-        if time.monotonic() > deadline:
-            raise DesktopError("Another window took the keyboard focus, so ARTHUR stopped typing.")
-        time.sleep(0.05)
+    return win32gui.SendMessage(handle, message, wparam, lparam)
 
 
 def _capture_window(handle: int):

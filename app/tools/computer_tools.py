@@ -132,7 +132,8 @@ class TypeInput(BaseModel):
 class TypeTextTool(_DesktopTool, Tool[TypeInput]):
     name = "type_text"
     description = (
-        "Type text into Notepad (ARTHUR's own new tab) or Calculator (e.g. '12*7='). "
+        "Add text at the end of Notepad (ARTHUR's own new tab), or enter a sum in "
+        "Calculator (e.g. '12*7='; each sum starts fresh). "
         "The user confirms first. Passwords and card numbers are never typed."
     )
     input_model = TypeInput
@@ -160,14 +161,25 @@ class KeyInput(BaseModel):
 class PressKeyTool(_DesktopTool, Tool[KeyInput]):
     name = "press_key"
     description = (
-        "Press one key or shortcut in an allowed app (e.g. enter, escape, ctrl+z, delete). "
+        "Press one key in an allowed app. Notepad: enter, backspace, delete, arrows, home, "
+        "end, ctrl+a, ctrl+z. Calculator: enter, escape, backspace. File Explorer: f5 "
+        "(refresh), alt+up (folder above), delete (selected item to the Recycle Bin). "
         "The user confirms first."
     )
     input_model = KeyInput
     permission_level = PermissionLevel.CONFIRM
     timeout_seconds = 20.0
 
-    def required_level(self, args: KeyInput) -> PermissionLevel:
+    def _deletes_files(self, args: KeyInput) -> bool:
+        return normalize_key(args.shortcut) == "delete" and args.app.strip().lower() == "explorer"
+
+    async def _selected(self, args: KeyInput) -> list[str]:
+        try:
+            return await self.desktop.selection(args.app)
+        except DesktopError as exc:
+            raise ToolError(str(exc)) from exc
+
+    async def required_level(self, args: KeyInput) -> PermissionLevel:
         level = key_level(args.shortcut)
         if level < PermissionLevel.SENSITIVE:
             spec = self.desktop.apps.get(args.app.strip().lower())
@@ -176,14 +188,15 @@ class PressKeyTool(_DesktopTool, Tool[KeyInput]):
                     f"'{normalize_key(args.shortcut)}' isn't allowed in {spec.label}. "
                     f"Allowed: {', '.join(sorted(spec.keys))}"
                 )
+            if self._deletes_files(args):
+                await self._selected(args)  # nothing (or something forbidden) selected: refuse now
         return level
 
-    def preview(self, args: KeyInput) -> str:
-        key = normalize_key(args.shortcut)
-        text = f"Press {key} in {self.label(args.app)}"
-        if key == "delete" and args.app.strip().lower() == "explorer":
-            text += " (moves the selected item to the Recycle Bin)"
-        return text
+    async def preview(self, args: KeyInput) -> str:
+        if self._deletes_files(args):  # name exactly what would be deleted
+            names = ", ".join(f'"{name}"' for name in await self._selected(args))
+            return f"Move {names} to the Recycle Bin (File Explorer)"
+        return f"Press {normalize_key(args.shortcut)} in {self.label(args.app)}"
 
     async def run(self, args: KeyInput, context: ToolContext) -> dict:
         return await self._do(self.desktop.press_key(args.app, args.shortcut))

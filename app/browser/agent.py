@@ -246,8 +246,8 @@ class BrowserAgent:
         return self._host_checks[key]
 
     async def _open(self, url: str) -> PageSnapshot:
-        if not url.startswith(("http://", "https://")):
-            url = "https://" + url
+        if "://" not in url and not url.startswith(("file:", "javascript:", "data:")):
+            url = "https://" + url  # "python.org" -> "https://python.org"
         problem = await self._check_host(url)
         if problem:
             raise BrowserError(f"Can't open that address: {problem}")

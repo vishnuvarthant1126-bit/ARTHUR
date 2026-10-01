@@ -31,16 +31,21 @@ def speak(text: str) -> bytes:
     if not VOICE.exists():
         pytest.skip("Piper voice not downloaded")
     voice = piper.PiperVoice.load(str(VOICE))
+    # Piper adds a little randomness so speech sounds natural - the same sentence gives
+    # different audio every time (measured: 22 different clips in 60 runs). A test must
+    # get the same input every run, so the randomness is switched off here.
+    steady = piper.SynthesisConfig(noise_scale=0.0, noise_w_scale=0.0)
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wav:
-        voice.synthesize_wav(text, wav)
+        voice.synthesize_wav(text, wav, syn_config=steady)
     return buffer.getvalue()
 
 
 async def test_spoken_sentence_is_transcribed(stt):
     transcript = await stt.transcribe(speak("What is twenty five times fifty?"))
-    assert transcript.text.lower().replace(",", "").startswith("what is 25 times 50")
-    assert transcript.confidence > 0.5
+    heard = f"heard {transcript.text!r} with confidence {transcript.confidence:.2f}"
+    assert transcript.text.lower().replace(",", "").startswith("what is 25 times 50"), heard
+    assert transcript.confidence > 0.5, heard
 
 
 async def test_arthur_can_understand_his_own_voice(stt):

@@ -15,8 +15,6 @@ from app.computer.risk import (
     key_level,
     normalize_key,
     text_level,
-    to_send_keys_combo,
-    to_send_keys_text,
 )
 from app.files.workspace import Workspace
 from app.security.permissions import PermissionPolicy
@@ -92,7 +90,7 @@ def test_hidden_explorer_items():
 
 def test_calculator_accepts_only_maths():
     assert calculator_text_ok("12*7=")
-    assert calculator_text_ok("(3.5 + 2) / 4 =")
+    assert calculator_text_ok("3.5 + 2 / 4 =")
     assert not calculator_text_ok("hello")
 
 
@@ -149,11 +147,20 @@ def test_text_levels():
     assert text_level("card 4111 1111 1111 1111") == PermissionLevel.SENSITIVE
 
 
-def test_send_keys_escaping():
-    assert to_send_keys_text("a+b (c) {d}\nx") == "a{+}b {(}c{)} {{}d{}}{ENTER}x"
-    assert to_send_keys_combo("ctrl+a") == "^a"
-    assert to_send_keys_combo("shift+tab") == "+{TAB}"
-    assert to_send_keys_combo("alt+up") == "%{UP}"
+def test_arthur_has_no_way_to_send_real_keystrokes():
+    """Simulated keystrokes go to whichever window has the focus. In a live test, text
+    meant for Notepad was typed into another app (and sent with its Enter key) when that
+    app took the focus. So the keyboard is not used at all: every "key" is a message
+    addressed to one control, a button press through UI Automation, or a shell action."""
+    source = "".join(p.read_text(encoding="utf-8") for p in Path("app").rglob("*.py"))
+    for forbidden in ("send_keys", "pywinauto.keyboard", "keybd_event", "SendInput", "pyautogui"):
+        assert forbidden not in source, f"{forbidden} would bring real keystrokes back"
+
+    from app.computer.desktop import CALCULATOR_KEYS, NOTEPAD_KEYS
+
+    assert set(NOTEPAD_KEYS) == set(APPS["notepad"].keys)  # every allowed key has a message
+    assert set(CALCULATOR_KEYS) == set(APPS["calculator"].keys)
+    assert APPS["explorer"].keys == {"f5", "alt+up", "delete"}
 
 
 # ---------- tools with a fake desktop ----------
@@ -164,6 +171,7 @@ class FakeDesktop:
         self.apps = allowed_apps("notepad;calculator;explorer")
         self.calls = []
         self.cancelled = False
+        self.selected = ["old report.pdf"]
 
     def snapshot(self, app="calculator"):
         return WindowSnapshot(
@@ -187,6 +195,11 @@ class FakeDesktop:
     async def type_text(self, app, text):
         self.calls.append(("type", app, text))
         return self.snapshot(app)
+
+    async def selection(self, app):
+        if not self.selected:
+            raise DesktopError("Nothing is selected in File Explorer. Select an item first.")
+        return self.selected
 
     async def press_key(self, app, key):
         self.calls.append(("key", app, key))
@@ -230,7 +243,7 @@ async def test_every_input_action_asks_first(registry, desktop):
 
     key = await registry.execute("press_key", {"app": "explorer", "shortcut": "Delete"})
     assert key.status == "needs_confirmation"
-    assert "Recycle Bin" in key.preview
+    assert key.preview == 'Move "old report.pdf" to the Recycle Bin (File Explorer)'
     assert desktop.calls == []  # nothing happened before the user's "yes"
 
     done = await registry.execute(
@@ -252,6 +265,21 @@ async def test_dangerous_input_is_refused_even_with_yes(registry, desktop):
     assert wrong_key.status == "error"
     assert "isn't allowed in File Explorer" in wrong_key.error
     assert desktop.calls == []
+
+
+async def test_delete_with_nothing_selected_never_asks(registry, desktop):
+    desktop.selected = []
+    result = await registry.execute("press_key", {"app": "explorer", "shortcut": "delete"})
+    assert result.status == "error"
+    assert "Nothing is selected" in result.error
+
+    notepad = await registry.execute("press_key", {"app": "notepad", "shortcut": "Ctrl + Z"})
+    assert notepad.preview == "Press ctrl+z in Notepad"
+
+
+def test_calculator_text_rules():
+    assert calculator_text_ok("12 x 7 =") and calculator_text_ok("9÷3=")
+    assert not calculator_text_ok("(1+2)*3")  # the standard Calculator has no brackets
 
 
 async def test_stop_cancels_typing(desktop):
@@ -293,3 +321,84 @@ async def test_real_desktop_calculator_and_rules():
             await controller.open_app("notepad")
     finally:
         controller.close()
+
+
+@pytest.mark.skipif(
+    os.environ.get("ARTHUR_DESKTOP_TESTS") != "1", reason="set ARTHUR_DESKTOP_TESTS=1 to run"
+)
+async def test_real_desktop_notepad_own_tab_and_explorer(tmp_path):
+    """Drives the REAL Notepad and File Explorer (opt-in). No keystrokes are sent, so it is
+    safe to run while you use the computer. Leaves one empty Notepad tab and one test file
+    in the Recycle Bin."""
+    from app.computer.desktop import DesktopController
+
+    folder = tmp_path / "arthur-desktop-test"
+    folder.mkdir()
+    (folder / "hello.txt").write_text("hi")
+    (folder / "passwords.txt").write_text("hunter2")
+    workspace = Workspace([folder], folder, system_roots=[Path(os.environ["SYSTEMROOT"])])
+    folder_allowed, resolve_folder = workspace_rules(workspace)
+    controller = DesktopController(
+        allowed_apps("notepad;explorer"), folder_allowed, resolve_folder, folder
+    )
+    try:
+        # Notepad: before open_app there is no tab of ARTHUR's own - your tabs are off limits.
+        with pytest.raises(DesktopError):
+            await controller.read_window("notepad")
+
+        opened = await controller.open_app("notepad")
+        assert opened.text == ""
+        assert [e["type"] for e in opened.elements] == ["Document"]  # no tabs, no menus
+
+        typed = await controller.type_text("notepad", "ARTHUR test (1+1) {ok}\nline 2")
+        assert typed.text == "ARTHUR test (1+1) {ok}\nline 2"
+        assert controller.element("notepad", 1) == {"type": "Document", "name": "Text editor"}
+
+        more = await controller.type_text("notepad", "\nline 3")
+        assert more.text.endswith("line 2\nline 3")  # added at the end
+        await controller.press_key("notepad", "backspace")
+        undone = await controller.press_key("notepad", "ctrl+z")
+        assert undone.text.endswith("line 3")
+        await controller.press_key("notepad", "ctrl+a")
+        cleared = await controller.press_key("notepad", "backspace")
+        assert cleared.text == ""  # leave the tab empty, so Notepad won't ask to save it
+        with pytest.raises(DesktopError, match="isn't allowed"):
+            await controller.press_key("notepad", "ctrl+s")
+        assert len(await controller.screenshot("notepad")) > 1000  # a JPEG of that window
+
+        # Explorer: only the allowed folder; secret-looking files are hidden.
+        shown = await controller.open_app("explorer", str(folder))
+        assert shown.text == f"Folder: {folder.resolve()}"
+        names = [e["name"] for e in shown.elements]
+        assert "hello.txt" in names or "hello" in names
+        assert not any("password" in name for name in names)
+        with pytest.raises(DesktopError, match="Nothing is selected"):
+            await controller.press_key("explorer", "delete")
+        selected = await controller.click("explorer", shown.elements[0]["id"])
+        assert selected.elements[0]["selected"]
+        assert await controller.selection("explorer") == ["hello.txt"]
+        await controller.press_key("explorer", "delete")  # to the Recycle Bin
+        assert not (folder / "hello.txt").exists()
+        assert (folder / "passwords.txt").exists()  # never seen, never touched
+        await controller.press_key("explorer", "f5")
+        with pytest.raises(DesktopError, match="outside your allowed folders"):
+            await controller.press_key("explorer", "alt+up")
+        with pytest.raises(DesktopError):
+            await controller.open_app("explorer", r"C:\Windows")
+        with pytest.raises(DesktopError, match="isn't on the current"):
+            await controller.click("explorer", 99)
+    finally:
+        _close_explorer_window(str(folder.resolve()))
+        controller.close()
+
+
+def _close_explorer_window(location: str) -> None:
+    """Tidy up: close the Explorer window this test opened (matched by its folder)."""
+    import win32com.client
+
+    for window in win32com.client.Dispatch("Shell.Application").Windows():
+        try:
+            if window.Document.Folder.Self.Path.lower() == location.lower():
+                window.Quit()
+        except Exception:  # noqa: S112 - other shell windows may not expose a folder
+            continue

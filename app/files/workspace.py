@@ -13,6 +13,7 @@ Documents until you resolve it. Searches never follow links or junctions, so a
 link inside Documents can't lead the search somewhere else.
 """
 
+import contextlib
 import fnmatch
 import os
 import stat
@@ -92,6 +93,10 @@ class Workspace:
         scan_seconds: float = 8.0,
         system_roots: list[Path] | None = None,  # tests only; the app always uses the default
     ) -> None:
+        # ARTHUR's own reports folder is created if missing (on a fresh computer nothing
+        # exists yet, and "save this" would fail with "folder doesn't exist").
+        with contextlib.suppress(OSError):
+            save_dir.mkdir(parents=True, exist_ok=True)
         self.roots = [r.resolve() for r in roots if r.exists()]
         missing = [str(r) for r in roots if not r.exists()]
         if missing:

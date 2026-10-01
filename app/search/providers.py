@@ -71,13 +71,14 @@ class SearxngProvider(SearchProvider):
                 f"SearXNG returned HTTP {response.status_code}.",
                 retryable=response.status_code in {429, 502, 503, 504},
             )
-        return [
+        results = [
             SearchResult(
                 title=r.get("title", ""), url=r.get("url", ""), snippet=r.get("content", "")
             )
-            for r in response.json().get("results", [])[:max_results]
+            for r in response.json().get("results", [])
             if r.get("url", "").startswith(("http://", "https://"))
         ]
+        return results[:max_results]  # cut AFTER dropping non-web links, not before
 
 
 def create_search_provider(

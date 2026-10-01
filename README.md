@@ -150,7 +150,10 @@ Automation as numbered controls (no pixel guessing; buttons are "invoked", the m
 time**; Win-key shortcuts, Ctrl+Alt+Del, Alt+F4, Shift+Delete, the clipboard, passwords and card
 numbers are refused. Notepad: only the tab ARTHUR opened itself. Explorer: only while every tab
 shows an allowed folder; items can be selected, never opened. Rules are re-checked before every
-action; typing stops if the focus or Notepad tab changes, or you press Stop.
+action. **ARTHUR never sends real keystrokes** (they go to whichever window has the focus):
+Notepad gets Windows messages addressed to its own text control, Calculator's buttons are
+pressed through UI Automation, Explorer actions go through the shell. Typed text is read back
+and compared.
 `COMPUTER_USE_ENABLED=false` turns it all off.
 
 ## Vision

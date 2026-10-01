@@ -27,7 +27,12 @@ def configure_logging(level: str = "INFO", json_logs: bool = False) -> None:
     if json_logs:
         processors += [structlog.processors.dict_tracebacks, structlog.processors.JSONRenderer()]
     else:
-        processors += [structlog.dev.ConsoleRenderer()]
+        # plain_traceback: structlog's default "rich" traceback prints the LOCAL VARIABLES
+        # of every function in the stack - message text, file contents, keys - and takes
+        # seconds to render. A plain traceback shows where it failed, which is enough.
+        processors += [
+            structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback)
+        ]
 
     structlog.configure(
         processors=processors,

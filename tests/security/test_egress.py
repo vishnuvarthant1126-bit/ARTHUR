@@ -12,7 +12,6 @@ import pytest
 from app.search.webpage import fetch_page, pinned_request
 from app.security.egress_proxy import EgressProxy, port_allowed
 from app.security.network import (
-    LookupFailed,
     Target,
     UnsafeUrlError,
     is_public,
@@ -68,10 +67,27 @@ async def test_unsafe_urls_are_refused(url):
 )
 async def test_disguised_loopback_addresses_are_refused(url):
     """127.0.0.1 written as one number, in hexadecimal or octal. Linux reads these as
-    127.0.0.1 (refused as private); Windows doesn't understand them at all (lookup fails).
-    Either way ARTHUR never connects."""
-    with pytest.raises((UnsafeUrlError, LookupFailed)):
+    127.0.0.1, Windows tries a slow DNS lookup. ARTHUR refuses them itself, without any
+    lookup - so the answer is the same (and instant) on every system."""
+    with pytest.raises(UnsafeUrlError, match="Unusual numeric"):
         await resolve_public(url)
+
+
+@pytest.mark.parametrize("host", ["bbc.de", "fb.cc", "cafe.de", "example.com", "1e100.net"])
+async def test_real_names_are_not_mistaken_for_numbers(monkeypatch, host):
+    """Names made only of the letters a-f (bbc.de, fb.cc) look "hexadecimal" but are real
+    websites: they must reach the normal lookup, not be refused as numeric addresses."""
+    import asyncio
+
+    looked_up = []
+
+    async def fake_getaddrinfo(name, port, **kwargs):
+        looked_up.append(name)
+        return [(2, 1, 6, "", ("93.184.215.14", port))]
+
+    monkeypatch.setattr(asyncio.get_running_loop(), "getaddrinfo", fake_getaddrinfo)
+    target = await resolve_public(f"https://{host}/")
+    assert looked_up == [host] and target.ip == "93.184.215.14"
 
 
 # ---------- read_webpage: the checked address is the one that gets used ----------

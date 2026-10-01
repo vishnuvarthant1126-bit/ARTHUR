@@ -162,11 +162,17 @@ class SaveFileTool(Tool[SaveFileInput]):
     def __init__(self, workspace: Workspace) -> None:
         self.workspace = workspace
 
-    def preview(self, args: SaveFileInput) -> str:
+    def required_level(self, args: SaveFileInput) -> PermissionLevel:
+        # Checked before asking: never ask the user to approve a save that can't work
+        # (wrong file type, outside the allowed folders, file already exists).
         try:
-            target = self.workspace.plan_save(args.filename, args.content, overwrite=args.overwrite)
+            self.workspace.plan_save(args.filename, args.content, overwrite=args.overwrite)
         except FileAccessError as exc:
-            return f"Save {args.filename} - but it will fail: {exc}"
+            raise ToolError(str(exc)) from exc
+        return self.permission_level
+
+    def preview(self, args: SaveFileInput) -> str:
+        target = self.workspace.plan_save(args.filename, args.content, overwrite=args.overwrite)
         size = len(args.content.encode("utf-8")) / 1024
         action = "Overwrite" if target.exists() else "Save"
         return f"{action} {target.name} ({size:.1f} KB) in {target.parent}"

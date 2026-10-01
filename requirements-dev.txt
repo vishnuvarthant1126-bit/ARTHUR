@@ -4,3 +4,4 @@ pytest-asyncio>=0.24
 ruff>=0.8                    # linter/formatter: catches mistakes, keeps style consistent
 fpdf2>=2.8                   # builds small PDFs for document tests
 pip-audit>=2.7               # python -m pip_audit  (known vulnerabilities in dependencies)
+pytest-cov>=6                # coverage:  pytest --cov

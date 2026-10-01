@@ -18,6 +18,7 @@ OUTGOING (where ARTHUR may connect)
 
 import asyncio
 import ipaddress
+import re
 import socket
 from dataclasses import dataclass
 from urllib.parse import urlsplit
@@ -55,6 +56,20 @@ class Target:
     port: int
 
 
+# A host where EVERY dot-separated part is a number (decimal, octal or 0x-hexadecimal).
+# Deliberately not "any hex-looking text": bbc.de, fb.cc and cafe.de are real names.
+_NUMBER = r"(?:0x[0-9a-f]+|\d+)"
+_NUMERIC_HOST = re.compile(rf"{_NUMBER}(?:\.{_NUMBER})*", re.IGNORECASE)
+
+
+def _is_ip_address(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return False
+
+
 def is_public(ip: str) -> bool:
     address = ipaddress.ip_address(ip)
     if getattr(address, "ipv4_mapped", None):  # ::ffff:192.168.1.1 is still private
@@ -74,6 +89,11 @@ async def resolve_public(url: str) -> Target:
         raise UnsafeUrlError("Links with embedded usernames or passwords are not allowed.")
     if host.lower() == "localhost" or host.lower().endswith((".localhost", ".local", ".internal")):
         raise UnsafeUrlError("Local addresses are not allowed.")
+    if _NUMERIC_HOST.fullmatch(host) and not _is_ip_address(host):
+        # 2130706433, 0x7f.0.0.1, 017700000001 ... other ways to write an address such as
+        # 127.0.0.1. Linux would read them as IPs, Windows tries a slow DNS lookup. No real
+        # website is named like this, so refuse outright - the same on every system.
+        raise UnsafeUrlError("Unusual numeric addresses are not allowed.")
     try:
         port = parts.port or (443 if parts.scheme == "https" else 80)
     except ValueError as exc:
