@@ -3,7 +3,9 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 17 – uses Notepad, Calculator and File Explorer (every click/keystroke
+> Status: Phase 19 – reminders that survive restarts ("remind me at 5pm…"); a reviewed
+> security model with a test for every defence ([docs/SECURITY.md](docs/SECURITY.md));
+> uses Notepad, Calculator and File Explorer (every click/keystroke
 > confirmed by you); looks at pictures and app windows with a local vision model;
 > finds, reads and (with your OK) saves files in folders you allow; browses
 > the web in its own isolated browser, asking before risky clicks; talk to it (speech-to-text),
@@ -156,6 +158,26 @@ action; typing stops if the focus or Notepad tab changes, or you press Stop.
 folders; `look_at_screen` (1) at one allowed app's window, or (2, asks first) the whole screen.
 `POST /vision/describe` takes an uploaded image. On an 8 GB GPU Ollama swaps qwen3 and the vision
 model: ~30 s per picture question. Text in images is treated as data, never instructions.
+
+## Reminders
+"Remind me at 5pm to call mum", "in 20 minutes", "every weekday at 8am". The model passes your
+time wording unchanged and `app/scheduler/when.py` (plain Python) calculates the moment.
+Reminders are stored in SQLite, checked every 5 s, and pushed to the open chat as a ⏰ message
+(with a chime, and speech if voice is on). One that was due while ARTHUR was off is delivered
+when you return. Reminders only notify – they never run tools. Tools: `set_reminder` (1),
+`list_reminders` (0), `cancel_reminder` (2). API: `GET/POST/DELETE /reminders`; Reminders panel.
+
+## Security
+Full threat → defence → test table: [docs/SECURITY.md](docs/SECURITY.md). In short:
+- **Incoming:** Host allow-list (localhost only – stops DNS rebinding), Origin check (CSRF),
+  rate limits, Content-Security-Policy and other security headers.
+- **Outgoing:** public addresses only, and the *checked* address is the one used: `read_webpage`
+  pins it; the browser sends everything through ARTHUR's own egress proxy.
+- **Agent:** tools run only through the registry (levels 0–3); a "yes" must be a short, pure
+  confirmation and expires after 5 minutes; injected text can't approve anything.
+- **Secrets:** never stored or typed; masked in the audit log by key and by value.
+- `pytest tests/security` (101 tests) and `python -m pip_audit`.
+- ARTHUR has no login and listens on 127.0.0.1 only – don't expose it to a network.
 
 ## Agent loop and planner
 ```

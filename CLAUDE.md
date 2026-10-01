@@ -61,7 +61,20 @@ ruff check . ; ruff format --check .
   rollback), `retrieval.py` (`DocumentRetriever`, `DocumentHit.citation`). Chroma collection
   "documents" with metadata. Orchestrator auto-retrieves passages (≥ `RAG_MIN_SCORE`=0.58,
   measured by scripts/calibrate_rag.py) into the system prompt; tools document_search/list_documents.
-- `app/api/middleware.py` – rejects non-GET requests whose Origin isn't ARTHUR (CSRF).
+- `app/api/middleware.py` – front door, in order: Host allow-list (421) → Origin check (403) →
+  rate limit (429) → security headers + CSP (not on /docs). `app.state.allowed_hosts` and
+  `app.state.rate_limiter` are set in `create_app`; tests add hosts "test"/"testserver".
+- `app/security/` – `network.py` (`host_allowed`, `resolve_public` → `Target`, `is_public`),
+  `egress_proxy.py` (`EgressProxy`: all Chromium traffic, lookup+check+pin, CONNECT and plain
+  http), `rate_limit.py` (sliding window, `group_for`), `audit.py` (`redact` + `scrub_text`).
+  `webpage.pinned_request` + `new_page_client()` (no keep-alive: pinned pools only see IPs).
+  `BrowserAgent(resolver=...)` is the single test hook (fake (scheme, host, port) → Target).
+  `policy.is_yes` = whole short message; `PendingAction.expired` (5 min). docs/SECURITY.md.
+- `app/scheduler/` – `when.py` (`parse_when(text, now)` → (moment, Repeat); `describe`;
+  `next_occurrence`), `reminders.py` (`ReminderService`, SQLite `reminders` table in UTC,
+  injectable `clock`), `runner.py` (`ReminderScheduler.tick/poke`, `NotificationHub`; delivered
+  only if a tab received it). Tools set_reminder (1), list_reminders (0), cancel_reminder (2,
+  by words). `/reminders` API; WS pushes `{"type": "reminder"}`; Reminders panel.
 - `app/search/` – `SearchProvider` (DuckDuckGo via ddgs / SearXNG), `WebSearchService` (cache,
   rate limit, retry, dedupe), `webpage.py` (`fetch_page` + `check_public_url` SSRF guard,
   `html_to_text`). Tools `web_search`, `read_webpage` (level 0, in AGENT_TOOLS). Tests use
@@ -116,8 +129,8 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 5 | Tue 2026-09-29 | 11–13: speech-to-text, text-to-speech, wake word | ✅ Done (owner verified mic + spoken replies in Chrome) |
 | 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | ✅ Done |
 | 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | ✅ Done (Wed 2026-09-30, same day as session 6, owner's request) |
-| 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | ⏭ Next |
-| 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | |
+| 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | ✅ Done (Thu 2026-10-01) |
+| 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | ⏭ Next |
 | 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
 | 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | |
 | 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
@@ -175,7 +188,17 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   "dark theme", whole-screen asked. qwen3 keeps copying permission messages from history →
   history stores a note + both forms flagged. Vision swap: 29 s first (10 s cached), qwen3
   reload ~10 s. The owner's Notepad has ~20 personal tabs incl. .env – never read them.
-- Phase 18–19 notes: scheduler must persist reminders in SQLite and survive restarts; reminders
-  deliver via WS/UI (and optional TTS); no recurring task may run tools ≥ 2 without a fresh
-  confirmation. Security phase: DNS rebinding (pin resolved IP in read_webpage/browser),
-  rate limits per endpoint, review audit/redaction, auth token for API (local-only today).
+- Session 8 done (Phases 18–19, commits f544067, 615982a): 618 tests (101 in tests/security).
+  Verified live: reminder in 1 min delivered after 4 s, one due while ARTHUR was off arrived
+  after restart, cancel by words; Host evil.example → 421, cross-site → 403, flood → 429, page
+  fine under CSP, python.org via proxy 2 s, localtest.me refused, "ok, what is this?" confirms
+  nothing. Found: is_yes prefix bug, pooled connection reuse across names with pinning, model
+  cancelling the wrong reminder (renumbered list). pip-audit: oauthlib pinned >=4.0.0; chromadb
+  server advisories don't apply (embedded only) – re-run the audit when Chroma updates.
+  Don't use patch scripts with backslashes in bash heredocs (escaping broke repeatedly) –
+  use the Edit tool or write the script to a file.
+- Phase 20–22 notes: metrics (request/LLM/tool latency, tokens, errors) at /metrics;
+  Prometheus/Grafana normally run in Docker (not installed) – plan for a no-Docker path or ask.
+  Test suite: fix the load-sensitive tests/integration/test_voice_live.py::
+  test_spoken_sentence_is_transcribed (fails ~1 in 5 full runs when the CPU is busy), add
+  coverage. Locust: load-test with a fake LLM, not the real model.
