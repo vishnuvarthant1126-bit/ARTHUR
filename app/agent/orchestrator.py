@@ -59,6 +59,9 @@ log = get_logger(__name__)
 
 # Tools the agent may choose by itself. save_memory is deliberately missing:
 # the memory policy says only an explicit "remember ..." from the user saves.
+# A confirmation question is only valid for this long. After that "yes" is refused.
+PENDING_MAX_AGE_SECONDS = 300
+
 AGENT_TOOLS = frozenset(
     {
         "calculator",
@@ -403,6 +406,9 @@ class Orchestrator:
     async def _resolve_pending(self, conversation: Conversation, user_text: str) -> str | None:
         """Handle a reply to a confirmation question. None = not a yes/no; carry on normally."""
         pending, conversation.pending = conversation.pending, None
+        if policy.is_yes(user_text) and pending.expired(PENDING_MAX_AGE_SECONDS):
+            # A "yes" long after the question might be meant for something else entirely.
+            return "That request has expired (I asked a while ago). Please ask me again."
         if policy.is_yes(user_text):
             if pending.kind == "delete_memory" and self.memory:
                 await self.memory.delete_memory(pending.target_id)

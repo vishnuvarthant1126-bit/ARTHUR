@@ -50,6 +50,7 @@ def create_tool_registry(
     retriever: DocumentRetriever | None = None,
     search: WebSearchService | None = None,
     web_fetch_max_bytes: int = 2 * 1024 * 1024,
+    page_client: httpx.AsyncClient | None = None,  # see webpage.new_page_client
     workspace: Workspace | None = None,
     browser: BrowserAgent | None = None,
     desktop: DesktopController | None = None,
@@ -74,7 +75,7 @@ def create_tool_registry(
         registry.register(ListDocumentsTool(documents))
     if search is not None:
         registry.register(WebSearchTool(search))
-        registry.register(ReadWebpageTool(http_client, web_fetch_max_bytes))
+        registry.register(ReadWebpageTool(page_client or http_client, web_fetch_max_bytes))
     if workspace is not None:
         registry.register(FindFilesTool(workspace))
         registry.register(ListFolderTool(workspace))

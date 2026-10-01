@@ -25,6 +25,10 @@ class PendingAction:
     target_id: str  # memory id, or tool name
     description: str  # what will happen, shown to the user
     payload: dict = field(default_factory=dict)  # e.g. the tool call's arguments
+    asked_at: float = field(default_factory=time.monotonic)  # a "yes" much later doesn't count
+
+    def expired(self, max_age_seconds: float) -> bool:
+        return time.monotonic() - self.asked_at > max_age_seconds
 
 
 @dataclass

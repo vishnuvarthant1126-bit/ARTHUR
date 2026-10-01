@@ -3,30 +3,36 @@
 SSRF (Server-Side Request Forgery) protection: if ARTHUR fetched *any* URL, a
 malicious page or prompt could make it open http://192.168.1.1/admin (your
 router), http://localhost:11434 (your own Ollama) or a cloud metadata address.
-So before connecting - and again for every redirect - we resolve the host name
-and refuse anything that isn't a public internet address.
+So before connecting - and again for every redirect - we resolve the host name,
+refuse anything that isn't a public internet address, and then connect to exactly
+the address we checked (see `pinned_request`; the rules live in app/security/network.py).
 
 Other limits: only http/https, at most 3 redirects, at most `max_bytes`
 downloaded, only HTML or plain text, 10 s timeout. The page's text is returned
 as untrusted data.
 """
 
-import asyncio
-import ipaddress
 import re
-import socket
+from collections.abc import Awaitable, Callable
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 from pydantic import BaseModel
 
+from app.security.network import LookupFailed, Target, UnsafeUrlError, resolve_public
+
+__all__ = [
+    "FetchError",
+    "PageText",
+    "UnsafeUrlError",
+    "check_public_url",
+    "fetch_page",
+    "new_page_client",
+]
+
 MAX_REDIRECTS = 3
 ALLOWED_TYPES = ("text/html", "text/plain", "application/xhtml+xml")
-
-
-class UnsafeUrlError(Exception):
-    """The URL points somewhere ARTHUR must not go."""
 
 
 class FetchError(Exception):
@@ -40,40 +46,68 @@ class PageText(BaseModel):
     truncated: bool
 
 
+Resolver = Callable[[str], Awaitable[Target]]
+
+
+def new_page_client(user_agent: str = "ARTHUR/0.1 (personal assistant)") -> httpx.AsyncClient:
+    """The HTTP client for reading web pages: it never keeps connections open.
+
+    With pinned requests the connection pool only sees IP addresses. A kept-alive
+    connection that was TLS-verified for site A could otherwise be reused for site B on
+    the same address, skipping B's certificate check (found in a live test).
+    """
+    return httpx.AsyncClient(
+        headers={"User-Agent": user_agent}, limits=httpx.Limits(max_keepalive_connections=0)
+    )
+
+
 async def check_public_url(url: str) -> None:
     """Raise UnsafeUrlError unless the URL is http(s) and resolves only to public IPs."""
-    parts = urlsplit(url)
-    if parts.scheme not in ("http", "https"):
-        raise UnsafeUrlError(f"Only http and https links are allowed (got '{parts.scheme}:').")
-    host = parts.hostname
-    if not host:
-        raise UnsafeUrlError("The link has no host name.")
-    if parts.username or parts.password:
-        raise UnsafeUrlError("Links with embedded usernames or passwords are not allowed.")
-    if host.lower() == "localhost" or host.lower().endswith((".localhost", ".local", ".internal")):
-        raise UnsafeUrlError("Local addresses are not allowed.")
-
     try:
-        infos = await asyncio.get_running_loop().getaddrinfo(
-            host, parts.port or (443 if parts.scheme == "https" else 80), type=socket.SOCK_STREAM
-        )
-    except socket.gaierror as exc:
-        raise FetchError(f"Couldn't find the website '{host}'.") from exc
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if not ip.is_global or ip.is_multicast:
-            raise UnsafeUrlError(
-                f"'{host}' points to a private or local network address - blocked for safety."
-            )
+        await resolve_public(url)
+    except LookupFailed as exc:
+        raise FetchError(str(exc)) from exc
+
+
+def pinned_request(url: str, target: Target) -> tuple[str, dict[str, str], dict[str, str]]:
+    """Build a request that connects to the CHECKED address, not to whatever the name
+    resolves to a moment later (DNS rebinding).
+
+    The URL carries the IP address; the Host header and the TLS name (SNI, also used to
+    verify the certificate) still carry the real host name, so the website works normally.
+    """
+    parts = urlsplit(url)
+    address = f"[{target.ip}]" if ":" in target.ip else target.ip
+    default_port = 443 if target.scheme == "https" else 80
+    port = "" if target.port == default_port else f":{target.port}"
+    pinned = urlunsplit((target.scheme, address + port, parts.path or "/", parts.query, ""))
+    extensions = {"sni_hostname": target.host} if target.scheme == "https" else {}
+    return pinned, {"Host": target.host + port}, extensions
 
 
 async def fetch_page(
-    url: str, client: httpx.AsyncClient, *, max_bytes: int = 2 * 1024 * 1024, max_chars: int = 6000
+    url: str,
+    client: httpx.AsyncClient,
+    *,
+    max_bytes: int = 2 * 1024 * 1024,
+    max_chars: int = 6000,
+    resolver: Resolver = resolve_public,
 ) -> PageText:
     for _ in range(MAX_REDIRECTS + 1):
-        await check_public_url(url)
         try:
-            async with client.stream("GET", url, follow_redirects=False, timeout=10.0) as response:
+            target = await resolver(url)  # looked up once, checked...
+        except LookupFailed as exc:
+            raise FetchError(str(exc)) from exc
+        pinned, headers, extensions = pinned_request(url, target)  # ...and used as is
+        try:
+            async with client.stream(
+                "GET",
+                pinned,
+                headers=headers,
+                extensions=extensions,
+                follow_redirects=False,
+                timeout=10.0,
+            ) as response:
                 if response.is_redirect:
                     location = response.headers.get("location", "")
                     url = urljoin(url, location)  # check the new target on the next loop

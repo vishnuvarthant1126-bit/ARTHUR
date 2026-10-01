@@ -35,14 +35,33 @@ class AuditEntry(BaseModel):
     request_id: str | None
 
 
+# Secrets hiding inside ordinary text values (e.g. the `text` of a refused type_text call).
+_SECRET_PHRASE = re.compile(
+    r"\b(password|passcode|passphrase|pin|otp|api[ _-]?key|token|secret)\b(\s*(?:is|:|=)\s*)\S+",
+    re.IGNORECASE,
+)
+_CARD_NUMBER = re.compile(r"\b(?:\d[ -]?){12,19}\b")
+_KEY_SHAPED = re.compile(r"\b(?:sk|pk|ghp|gho|xox[abprs])[-_][A-Za-z0-9_-]{12,}")
+
+
+def scrub_text(value: str) -> str:
+    """Mask secrets inside free text, keeping the rest readable for the audit trail."""
+    value = _SECRET_PHRASE.sub(r"\1\2***", value)
+    value = _CARD_NUMBER.sub("****", value)
+    return _KEY_SHAPED.sub("***", value)
+
+
 def redact(arguments: Any) -> Any:
-    """Replace values of secret-looking keys with '***', recursively."""
+    """Mask secrets, recursively: whole values of secret-looking keys, and secrets
+    found inside any other text value."""
     if isinstance(arguments, dict):
         return {
             k: "***" if _SECRET_KEYS.search(str(k)) else redact(v) for k, v in arguments.items()
         }
     if isinstance(arguments, list):
         return [redact(v) for v in arguments]
+    if isinstance(arguments, str):
+        return scrub_text(arguments)
     return arguments
 
 

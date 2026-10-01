@@ -63,6 +63,7 @@ from app.api.routes.chat import MessageIn
 from app.llm.base import LLMError
 from app.observability.logging import get_logger
 from app.scheduler.runner import NotificationHub, ReminderScheduler
+from app.security.network import host_allowed
 
 router = APIRouter()
 log = get_logger(__name__)
@@ -104,10 +105,14 @@ def origin_allowed(websocket: WebSocket) -> bool:
     Browsers always send an Origin header, so we require it to match our own host.
     Non-browser clients (scripts, tests) send no Origin and are allowed.
     """
+    host = websocket.headers.get("host")
+    extra = getattr(websocket.app.state, "allowed_hosts", frozenset())
+    if not host_allowed(host, extra):
+        return False  # DNS rebinding: a foreign name pointed at 127.0.0.1
     origin = websocket.headers.get("origin")
     if origin is None:
         return True
-    return urlsplit(origin).netloc == websocket.headers.get("host")
+    return urlsplit(origin).netloc == host
 
 
 # ---------- one connected browser tab ----------
@@ -171,6 +176,14 @@ class ChatSession:
             case ChatIn():
                 if self.busy:
                     await self._send_error("busy", "ARTHUR is still answering. Stop it first.")
+                    return
+                limiter = getattr(self.ws.app.state, "rate_limiter", None)
+                client = self.ws.client.host if self.ws.client else "unknown"
+                wait = limiter.check(client, "chat") if limiter else None
+                if wait is not None:
+                    await self._send_error(
+                        "rate_limited", f"Too many messages - try again in {round(wait)} seconds."
+                    )
                     return
                 # Run the reply as a background task so we keep listening for "stop".
                 self.reply_task = asyncio.create_task(self._reply(message.message))

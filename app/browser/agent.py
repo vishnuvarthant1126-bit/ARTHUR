@@ -4,6 +4,9 @@
 - Downloads disabled; service workers blocked.
 - EVERY request the page makes (page, images, scripts, redirects) goes through
   `_guard`, which refuses private/local addresses (SSRF protection, as in Phase 10).
+- EVERY connection Chromium opens goes through ARTHUR's own egress proxy
+  (app/security/egress_proxy.py), which looks the name up itself and connects only to
+  the checked address - so a name can't change its answer between check and use.
 - After each action ARTHUR takes a *snapshot*: page text plus numbered links,
   buttons and fields, so the model can say "click [3]" instead of guessing.
 
@@ -17,13 +20,18 @@ import asyncio
 import contextlib
 import sys
 import threading
-from collections.abc import Awaitable, Callable
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel
 
 from app.observability.logging import get_logger
-from app.search.webpage import FetchError, UnsafeUrlError, check_public_url
+from app.security.egress_proxy import EgressProxy, HostResolver
+from app.security.network import (
+    LookupFailed,
+    UnsafeUrlError,
+    resolve_public,
+    resolve_public_host,
+)
 
 log = get_logger(__name__)
 
@@ -87,19 +95,20 @@ class PageSnapshot(BaseModel):
     elements: list[dict]
 
 
-UrlChecker = Callable[[str], Awaitable[None]]
-
-
 class BrowserAgent:
     def __init__(
         self,
         *,
         headless: bool = True,
-        url_checker: UrlChecker = check_public_url,
+        resolver: HostResolver | None = None,
         timeout_ms: int = 15_000,
     ) -> None:
         self.headless = headless
-        self.url_checker = url_checker  # tests swap this for a fake
+        # None = real DNS, public addresses only. Tests pass a fake (scheme, host, port) rule.
+        self.resolver = resolver
+        # ALL of Chromium's traffic goes through this proxy, which looks names up itself
+        # and connects only to the checked address (closes the DNS-rebinding gap).
+        self.proxy = EgressProxy(resolver or resolve_public_host)
         self.timeout_ms = timeout_ms
         self.blocked_requests: list[str] = []
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -176,7 +185,17 @@ class BrowserAgent:
 
         self._pw = await async_playwright().start()
         try:
-            self._browser = await self._pw.chromium.launch(headless=self.headless)
+            if self.proxy.port is None:
+                await self.proxy.start()
+            self._browser = await self._pw.chromium.launch(
+                headless=self.headless,
+                # "<-loopback>": even localhost addresses go through the proxy (and are refused)
+                proxy={"server": f"http://127.0.0.1:{self.proxy.port}", "bypass": "<-loopback>"},
+                args=[
+                    "--disable-quic",  # QUIC is UDP and would not use the proxy
+                    "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+                ],
+            )
         except Exception as exc:
             raise BrowserError(
                 "ARTHUR's browser isn't installed. Run: python -m playwright install chromium"
@@ -210,9 +229,15 @@ class BrowserAgent:
         key = f"{parts.scheme}://{parts.netloc}".lower()
         if key not in self._host_checks:  # one DNS check per host, not per image
             try:
-                await self.url_checker(url)
+                if self.resolver is None:
+                    await resolve_public(url)
+                else:
+                    default_port = 443 if parts.scheme == "https" else 80
+                    await self.resolver(
+                        parts.scheme, parts.hostname or "", parts.port or default_port
+                    )
                 self._host_checks[key] = None
-            except (UnsafeUrlError, FetchError) as exc:
+            except (UnsafeUrlError, LookupFailed, ValueError) as exc:
                 self._host_checks[key] = str(exc)
         return self._host_checks[key]
 
@@ -247,7 +272,8 @@ class BrowserAgent:
     async def _navigate(self, action) -> None:
         from playwright.async_api import Error as PlaywrightError
 
-        blocked_before = len(self.blocked_requests)
+        proxy_blocked_before = len(self.proxy.blocked)
+        blocked_before = len(self.blocked_requests) + proxy_blocked_before
         try:
             await action()
             # Give JavaScript-heavy pages a moment to settle, but don't wait forever.
@@ -255,16 +281,21 @@ class BrowserAgent:
                 await self._page.wait_for_load_state("networkidle", timeout=3000)
             # A click that navigates somewhere blocked doesn't raise - it lands on an error page.
             if self._page.url.startswith("chrome-error://"):
-                blocked = len(self.blocked_requests) > blocked_before
+                blocked = len(self.blocked_requests) + len(self.proxy.blocked) > blocked_before
                 await self._page.go_back(wait_until="domcontentloaded")
                 if blocked:
                     raise BrowserError(
                         "Blocked for safety: that leads to a private or local address."
                     )
                 raise BrowserError("That page could not be loaded.")
+            # A plain-http page refused by the proxy arrives as an ordinary "403" page.
+            if self._page.url in self.proxy.blocked[proxy_blocked_before:]:
+                with contextlib.suppress(PlaywrightError):
+                    await self._page.go_back(wait_until="domcontentloaded")
+                raise BrowserError("Blocked for safety: that leads to a private or local address.")
         except PlaywrightError as exc:
             message = str(exc).splitlines()[0]
-            if "ERR_BLOCKED_BY_CLIENT" in message:
+            if "ERR_BLOCKED_BY_CLIENT" in message or "ERR_TUNNEL_CONNECTION_FAILED" in message:
                 raise BrowserError(
                     "Blocked for safety: that leads to a private or local address."
                 ) from exc
@@ -296,3 +327,5 @@ class BrowserAgent:
             with contextlib.suppress(Exception):
                 await self._pw.stop()
         self._pw = self._browser = self._context = self._page = None
+        await self.proxy.stop()
+        self.proxy.port = None

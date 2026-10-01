@@ -27,7 +27,9 @@ def isolated_settings(tmp_path, monkeypatch):
 def test_real_app_starts_and_serves(isolated_settings):
     from app.main import create_app
 
-    with TestClient(create_app()) as client:  # "with" runs the real startup and shutdown
+    with TestClient(
+        create_app(), base_url="http://127.0.0.1:8000"
+    ) as client:  # "with" runs the real startup and shutdown
         assert client.get("/health").status_code == 200
         assert client.get("/").status_code == 200
         names = {t["name"] for t in client.get("/tools").json()}

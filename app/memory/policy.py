@@ -44,7 +44,12 @@ _SENSITIVE = re.compile(
     re.IGNORECASE,
 )
 
-_YES = re.compile(r"^\s*(?:yes|y|yeah|yep|sure|confirm|ok|okay|do it|go ahead)\b", re.I)
+# A confirmation must be the WHOLE message and nothing else: "ok, what is this?" or
+# "yes but not the second one" must never approve a pending action.
+_YES_START = {"yes", "y", "yeah", "yep", "yup", "sure", "ok", "okay", "confirm", "confirmed",
+              "go", "do", "proceed", "absolutely", "definitely", "alright"}  # fmt: skip
+_YES_FILLER = {"please", "it", "that", "this", "go", "ahead", "do", "now", "thanks", "thank",
+               "you", "arthur", "yes", "ok", "okay", "sure", "proceed", "confirm"}  # fmt: skip
 _NO = re.compile(r"^\s*(?:no|n|nope|cancel|keep it|don'?t|stop)\b", re.I)
 
 
@@ -81,7 +86,11 @@ def contains_sensitive_data(text: str) -> bool:
 
 
 def is_yes(text: str) -> bool:
-    return bool(_YES.match(text))
+    """True only for a short, pure confirmation: "yes", "ok do it", "yes please, go ahead"."""
+    words = re.findall(r"[a-z']+", text.lower())
+    if not words or len(words) > 5 or re.search(r"[?]", text):
+        return False
+    return words[0] in _YES_START and all(w in _YES_FILLER for w in words[1:])
 
 
 def is_no(text: str) -> bool:

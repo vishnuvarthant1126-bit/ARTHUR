@@ -13,7 +13,7 @@ import pytest
 
 from app.browser.agent import BrowserAgent, BrowserError
 from app.browser.risk import click_level, type_level
-from app.search.webpage import UnsafeUrlError
+from app.security.network import Target, UnsafeUrlError
 from app.security.permissions import PermissionPolicy
 from app.tools.base import PermissionLevel, ToolContext
 from app.tools.browser_tools import (
@@ -139,11 +139,15 @@ def site():
 
 @pytest.fixture
 async def browser(site):
-    async def only_the_fixture_site(url: str) -> None:
-        if not url.startswith(site):
-            raise UnsafeUrlError("private address")
+    site_port = int(site.rsplit(":", 1)[1])
 
-    agent = BrowserAgent(url_checker=only_the_fixture_site)
+    async def only_the_fixture_site(scheme: str, host: str, port: int) -> Target:
+        """The test "internet": the fixture server, also reachable under the NAME shop.test."""
+        if (host, port) in (("127.0.0.1", site_port), ("shop.test", 80)):
+            return Target(scheme, host, "127.0.0.1", site_port)
+        raise UnsafeUrlError("private address")
+
+    agent = BrowserAgent(resolver=only_the_fixture_site)
     yield agent
     await agent.close()
 
@@ -241,6 +245,33 @@ async def test_typing_into_a_link_is_refused_with_a_hint(browser, site):
     assert wrong.status == "error"  # refused before any confirmation question
     assert "not a text field" in wrong.error
     assert "Search" in wrong.error
+
+
+@needs_chromium
+async def test_all_browser_traffic_goes_through_arthurs_proxy(browser):
+    """shop.test exists in no DNS. The page loads only because Chromium asks ARTHUR's
+    proxy to connect, and the proxy uses the address ARTHUR checked ("pinning")."""
+    page = await browser.open("http://shop.test/about")
+    assert page.title == "About"
+    assert browser.proxy.connections >= 1
+
+
+@needs_chromium
+async def test_dns_rebinding_is_stopped_by_the_proxy(browser, site):
+    """The attack: a name answers "public" when ARTHUR checks it, then "private" for the
+    real connection. Here the second lookup (the proxy's) gets the private answer."""
+    answers = iter(["public"])
+
+    async def rebinding(scheme: str, host: str, port: int) -> Target:
+        if host == "evil.test" and next(answers, "private") == "public":
+            return Target(scheme, host, "93.184.215.14", port)  # passes the first check
+        raise UnsafeUrlError("'evil.test' points to a private address")
+
+    browser.resolver = browser.proxy.resolver = rebinding
+    with pytest.raises(BrowserError, match="Blocked for safety|could not be loaded"):
+        await browser.open("http://evil.test/")
+    assert any("evil.test" in target for target in browser.proxy.blocked)
+    assert browser.proxy.connections == 0  # nothing was ever connected
 
 
 async def test_real_checker_refuses_localhost():

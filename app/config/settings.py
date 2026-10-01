@@ -118,6 +118,13 @@ class Settings(BaseSettings):
     # Short: qwen3 + the vision model don't fit in 8 GB together, so give the GPU back soon.
     vision_keep_alive: str = "2m"
 
+    # --- Security (Phase 19) ---
+    # ARTHUR only answers requests addressed to localhost / 127.0.0.1. Add other names
+    # (semicolon-separated) ONLY if you reach ARTHUR through them on purpose.
+    allowed_hosts: str = ""
+    rate_limit_enabled: bool = True
+    rate_limit_chat_per_minute: int = 30
+
     # --- Reminders (Phase 18): how often the scheduler looks for due reminders ---
     reminder_check_seconds: float = 5.0
 
@@ -144,6 +151,10 @@ class Settings(BaseSettings):
             Path(p.strip()).expanduser() for p in self.allowed_directories.split(";") if p.strip()
         ]
         return folders or [self.files_save_dir.parent]
+
+    @property
+    def extra_hosts(self) -> frozenset[str]:
+        return frozenset(h.strip().lower() for h in self.allowed_hosts.split(";") if h.strip())
 
     @property
     def blocked_tools(self) -> set[str]:

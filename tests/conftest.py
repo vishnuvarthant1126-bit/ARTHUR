@@ -295,6 +295,7 @@ def memory() -> MemoryManager:
 def _app_with(llm: LLMProvider):
     configure_logging("WARNING")
     app = create_app()
+    app.state.allowed_hosts = frozenset({"test", "testserver"})  # the test clients' names
     memory_manager, db = make_memory()
     documents, retriever = make_documents(db, Path(tempfile.mkdtemp(prefix="arthur-test-")))
     audit = AuditLog(db)

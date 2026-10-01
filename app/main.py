@@ -40,8 +40,10 @@ from app.scheduler.reminders import ReminderService
 from app.scheduler.runner import NotificationHub, ReminderScheduler
 from app.search.providers import create_search_provider
 from app.search.service import WebSearchService
+from app.search.webpage import new_page_client
 from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
+from app.security.rate_limit import RateLimiter
 from app.tools.defaults import create_tool_registry
 from app.tools.registry import ToolRegistry
 from app.vision.provider import OllamaVision
@@ -118,6 +120,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     retriever = DocumentRetriever(document_vectors, embeddings)
     audit = AuditLog(db)
     http_client = httpx.AsyncClient(headers={"User-Agent": "ARTHUR/0.1 (personal assistant)"})
+    page_client = new_page_client()
     search = WebSearchService(
         create_search_provider(
             settings.search_provider, searxng_url=settings.searxng_url, client=http_client
@@ -165,6 +168,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         retriever=retriever,
         search=search,
         web_fetch_max_bytes=settings.web_fetch_max_kb * 1024,
+        page_client=page_client,
         workspace=workspace,
         browser=browser,
         desktop=desktop,
@@ -228,6 +232,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if vision is not None:
         await vision.aclose()
     await http_client.aclose()
+    await page_client.aclose()
     await embeddings.aclose()
     await llm.aclose()
     db.close()
@@ -250,6 +255,12 @@ def create_app() -> FastAPI:
         description="Personal Multimodal AI Agent",
         version="0.2.0",
         lifespan=lifespan,
+    )
+    settings = get_settings()
+    # Front-door checks (see app/api/middleware.py); set here so they also apply in tests.
+    app.state.allowed_hosts = settings.extra_hosts
+    app.state.rate_limiter = RateLimiter(
+        {"chat": settings.rate_limit_chat_per_minute}, enabled=settings.rate_limit_enabled
     )
     app.add_middleware(RequestContextMiddleware)
     register_exception_handlers(app)
