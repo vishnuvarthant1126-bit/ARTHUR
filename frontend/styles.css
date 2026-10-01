@@ -235,6 +235,15 @@ body[data-state="streaming"] .core span { animation-duration: .9s; background: v
 .status[data-state="speaking"] .dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1s infinite; }
 body[data-state="speaking"] .core span { animation-duration: 1s; }
 .docs-status.error { color: var(--err); }
+.reminder-form { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.reminder-form input {
+  background: var(--bg-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 9px; font: inherit;
+}
+.reminder-form input:focus { outline: none; border-color: var(--accent); }
+.reminder-form .upload-button { margin-top: 2px; }
+#reminders-toggle[aria-expanded="true"] { color: var(--text); border-color: var(--accent); }
+.msg.reminder .bubble { border: 1px solid var(--accent); }
 
 @media (max-width: 560px) {
   .brand h1 { letter-spacing: .18em; }

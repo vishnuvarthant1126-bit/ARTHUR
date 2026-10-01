@@ -1,5 +1,7 @@
 """Build the registry with ARTHUR's built-in tools."""
 
+from collections.abc import Callable
+
 import httpx
 
 from app.browser.agent import BrowserAgent
@@ -8,6 +10,7 @@ from app.files.workspace import Workspace
 from app.memory.manager import MemoryManager
 from app.rag.documents import DocumentService
 from app.rag.retrieval import DocumentRetriever
+from app.scheduler.reminders import ReminderService
 from app.search.service import WebSearchService
 from app.security.audit import AuditLog
 from app.security.permissions import PermissionPolicy
@@ -29,6 +32,7 @@ from app.tools.document_search import DocumentSearchTool, ListDocumentsTool
 from app.tools.file_tools import FindFilesTool, ListFolderTool, ReadFileTool, SaveFileTool
 from app.tools.memory_tools import DeleteMemoryTool, SaveMemoryTool, SearchMemoryTool
 from app.tools.registry import ToolRegistry
+from app.tools.reminder_tools import CancelReminderTool, ListRemindersTool, SetReminderTool
 from app.tools.time_tool import CurrentTimeTool
 from app.tools.vision_tools import DescribeImageTool, LookAtScreenTool
 from app.tools.weather import WeatherTool
@@ -50,6 +54,8 @@ def create_tool_registry(
     browser: BrowserAgent | None = None,
     desktop: DesktopController | None = None,
     vision: VisionProvider | None = None,
+    reminders: ReminderService | None = None,
+    on_reminder_change: Callable[[], None] = lambda: None,
     default_timeout_seconds: float = 10.0,
     memory_min_score: float = 0.55,
     document_min_score: float = 0.58,
@@ -89,4 +95,8 @@ def create_tool_registry(
         registry.register(DescribeImageTool(workspace, vision))
     if vision is not None and desktop is not None:
         registry.register(LookAtScreenTool(desktop, vision))
+    if reminders is not None:
+        registry.register(SetReminderTool(reminders, on_reminder_change))
+        registry.register(ListRemindersTool(reminders))
+        registry.register(CancelReminderTool(reminders))
     return registry

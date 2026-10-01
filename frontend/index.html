@@ -22,6 +22,7 @@
         </div>
         <button id="voice-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="voice-panel" title="Voice settings">Voice</button>
         <button id="docs-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="docs-panel">Docs</button>
+        <button id="reminders-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="reminders-panel">Reminders</button>
         <button id="memory-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="memory-panel">Memory</button>
         <button id="clear" class="ghost" type="button" title="Clear conversation">Clear</button>
       </div>
@@ -79,6 +80,24 @@
       </div>
       <ul id="memory-list" class="memory-list"></ul>
       <p id="memory-empty" class="subtle memory-empty">Nothing yet. Try: “Remember that my main project is called ARTHUR.”</p>
+    </aside>
+
+    <aside id="reminders-panel" class="memory-panel" hidden aria-label="Reminders">
+      <div class="memory-head">
+        <div>
+          <h2>Reminders</h2>
+          <p class="subtle">Saved on this computer; they survive restarts. Or just say “remind me at 5pm to…”.</p>
+        </div>
+        <button id="reminders-close" class="ghost" type="button" aria-label="Close reminders panel">✕</button>
+      </div>
+      <form id="reminder-form" class="reminder-form" autocomplete="off">
+        <input id="reminder-text" type="text" maxlength="300" placeholder="Remind me to…" aria-label="Reminder text" required>
+        <input id="reminder-when" type="text" maxlength="100" placeholder="5pm · in 20 minutes · tomorrow 9am" aria-label="When" required>
+        <button class="upload-button" type="submit">Add reminder</button>
+      </form>
+      <p id="reminders-status" class="subtle docs-status" role="status" aria-live="polite"></p>
+      <ul id="reminders-list" class="memory-list"></ul>
+      <p id="reminders-empty" class="subtle memory-empty">No upcoming reminders.</p>
     </aside>
 
     <main id="log" class="log" aria-live="polite">

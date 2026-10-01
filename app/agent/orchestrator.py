@@ -85,6 +85,9 @@ AGENT_TOOLS = frozenset(
         "press_key",
         "describe_image",
         "look_at_screen",
+        "set_reminder",
+        "list_reminders",
+        "cancel_reminder",
     }
 )
 

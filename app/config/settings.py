@@ -118,6 +118,9 @@ class Settings(BaseSettings):
     # Short: qwen3 + the vision model don't fit in 8 GB together, so give the GPU back soon.
     vision_keep_alive: str = "2m"
 
+    # --- Reminders (Phase 18): how often the scheduler looks for due reminders ---
+    reminder_check_seconds: float = 5.0
+
     # --- Agent loop: hard limits so a confused model can never loop forever ---
     agent_max_steps: int = 8
     agent_max_seconds: float = 120.0

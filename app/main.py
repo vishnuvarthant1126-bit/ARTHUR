@@ -18,7 +18,7 @@ from app.agent.orchestrator import Orchestrator
 from app.api import websocket
 from app.api.errors import register_exception_handlers
 from app.api.middleware import RequestContextMiddleware
-from app.api.routes import chat, health, memory, tools, vision, voice
+from app.api.routes import chat, health, memory, reminders, tools, vision, voice
 from app.api.routes import documents as documents_routes
 from app.browser.agent import BrowserAgent
 from app.computer.apps import allowed_apps
@@ -36,6 +36,8 @@ from app.observability.logging import configure_logging, get_logger
 from app.rag.documents import DocumentService
 from app.rag.embeddings import create_embedding_provider
 from app.rag.retrieval import DocumentRetriever
+from app.scheduler.reminders import ReminderService
+from app.scheduler.runner import NotificationHub, ReminderScheduler
 from app.search.providers import create_search_provider
 from app.search.service import WebSearchService
 from app.security.audit import AuditLog
@@ -141,6 +143,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.documents = documents
     app.state.retriever = retriever
     app.state.audit = audit
+    # Reminders (Phase 18): saved in SQLite, delivered to open tabs by the scheduler loop.
+    reminder_service = ReminderService(db)
+    hub = NotificationHub()
+    scheduler = ReminderScheduler(
+        reminder_service, hub, interval_seconds=settings.reminder_check_seconds
+    )
+    app.state.reminders = reminder_service
+    app.state.hub = hub
+    app.state.scheduler = scheduler
     app.state.vision = vision
     app.state.tools = create_tool_registry(
         policy=PermissionPolicy(
@@ -158,6 +169,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         browser=browser,
         desktop=desktop,
         vision=vision,
+        reminders=reminder_service,
+        on_reminder_change=scheduler.poke,
         default_timeout_seconds=settings.tools_default_timeout_seconds,
         memory_min_score=settings.memory_min_score,
         document_min_score=settings.rag_min_score,
@@ -204,7 +217,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         documents=len(await documents.list_all()),
         tools=[t.name for t in app.state.tools.all()],
     )
+    scheduler.start()
     yield
+    await scheduler.stop()
     warm_up.cancel()
     if browser is not None:
         await browser.close()
@@ -245,6 +260,7 @@ def create_app() -> FastAPI:
     app.include_router(tools.router)
     app.include_router(voice.router)
     app.include_router(vision.router)
+    app.include_router(reminders.router)
     app.include_router(websocket.router)
     # Mounted last: API routes above win; everything else is served from frontend/.
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

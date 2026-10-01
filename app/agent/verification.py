@@ -12,7 +12,8 @@ _ACTION_CLAIM = re.compile(
     r"\b(?:I(?:'ve| have| just| successfully)?|has been|have been|was|were|is now|are now)\s+"
     r"(?:successfully\s+|now\s+)?"
     r"(?:deleted|removed|erased|forgotten|saved|stored|sent|created|updated|changed|"
-    r"booked|purchased|bought|submitted|scheduled|moved|renamed)\b",
+    r"booked|purchased|bought|submitted|scheduled|moved|renamed|cancelled|canceled|"
+    r"set (?:a|the|your|that) reminder)\b",
     re.IGNORECASE,
 )
 

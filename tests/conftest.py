@@ -38,6 +38,8 @@ from app.observability.logging import configure_logging
 from app.rag.documents import DocumentService
 from app.rag.embeddings import EmbeddingProvider
 from app.rag.retrieval import DocumentRetriever
+from app.scheduler.reminders import ReminderService
+from app.scheduler.runner import NotificationHub, ReminderScheduler
 from app.search.base import SearchProvider, SearchResult
 from app.search.service import WebSearchService
 from app.security.audit import AuditLog
@@ -303,6 +305,9 @@ def _app_with(llm: LLMProvider):
     app.state.retriever = retriever
     app.state.stt = FakeSTT()
     app.state.vision = FakeVision()
+    app.state.reminders = ReminderService(db)
+    app.state.hub = NotificationHub()
+    app.state.scheduler = ReminderScheduler(app.state.reminders, app.state.hub)  # not started
     app.state.audit = audit
     app.state.tools = create_tool_registry(
         policy=PermissionPolicy(),
@@ -312,6 +317,7 @@ def _app_with(llm: LLMProvider):
         documents=documents,
         retriever=retriever,
         search=WebSearchService(FakeSearchProvider(), retry_delay=0),
+        reminders=app.state.reminders,
         memory_min_score=TEST_SETTINGS.memory_min_score,
         document_min_score=0.2,
     )

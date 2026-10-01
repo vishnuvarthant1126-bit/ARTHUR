@@ -14,6 +14,9 @@ const els = {
   voiceVolumeValue: $("voice-volume-value"), voiceTest: $("voice-test"),
   docsToggle: $("docs-toggle"), docsPanel: $("docs-panel"), docsClose: $("docs-close"),
   docsInput: $("docs-input"), docsStatus: $("docs-status"), docsList: $("docs-list"), docsEmpty: $("docs-empty"),
+  remindersToggle: $("reminders-toggle"), remindersPanel: $("reminders-panel"), remindersClose: $("reminders-close"),
+  reminderForm: $("reminder-form"), reminderText: $("reminder-text"), reminderWhen: $("reminder-when"),
+  remindersStatus: $("reminders-status"), remindersList: $("reminders-list"), remindersEmpty: $("reminders-empty"),
 };
 
 const state = {
@@ -128,6 +131,9 @@ function handleEvent(event) {
       if (state.busy) failReply(event.message);
       else addError(event.message);
       break;
+    case "reminder":
+      showReminder(event);
+      break;
   }
 }
 
@@ -187,6 +193,7 @@ function finishReply(info) {
   const reply = state.reply;
   if (!info.stopped) speakStreamed("", { final: true }); // say the last, unfinished sentence
   if (!els.memoryPanel.hidden) loadMemories(); // a reply may have saved/forgotten something
+  if (!els.remindersPanel.hidden) loadReminders();
   if (reply) {
     reply.bubble.classList.remove("cursor");
     if (!reply.text) reply.bubble.textContent = info.stopped ? "(stopped)" : "(no response)";
@@ -698,7 +705,7 @@ async function loadVoices() {
 }
 
 function toggleVoicePanel(open = els.voicePanel.hidden) {
-  if (open) { toggleMemoryPanel(false); toggleDocsPanel(false); loadVoices(); }
+  if (open) { toggleMemoryPanel(false); toggleDocsPanel(false); toggleRemindersPanel(false); loadVoices(); }
   els.voicePanel.hidden = !open;
   els.voiceToggle.setAttribute("aria-expanded", String(open));
 }
@@ -721,7 +728,7 @@ function updateSpeechSetting(key, value) {
 
 // ---------- memory panel ----------
 function toggleMemoryPanel(open = els.memoryPanel.hidden) {
-  if (open) { toggleDocsPanel(false); toggleVoicePanel(false); } // one panel at a time
+  if (open) { toggleDocsPanel(false); toggleVoicePanel(false); toggleRemindersPanel(false); } // one panel at a time
   els.memoryPanel.hidden = !open;
   els.memoryToggle.setAttribute("aria-expanded", String(open));
   if (open) loadMemories();
@@ -729,7 +736,7 @@ function toggleMemoryPanel(open = els.memoryPanel.hidden) {
 
 // ---------- documents panel ----------
 function toggleDocsPanel(open = els.docsPanel.hidden) {
-  if (open) { toggleMemoryPanel(false); toggleVoicePanel(false); }
+  if (open) { toggleMemoryPanel(false); toggleVoicePanel(false); toggleRemindersPanel(false); }
   els.docsPanel.hidden = !open;
   els.docsToggle.setAttribute("aria-expanded", String(open));
   if (open) loadDocuments();
@@ -849,6 +856,119 @@ async function deleteMemory(memory) {
   loadMemories();
 }
 
+// ---------- reminders ----------
+// The scheduler pushes {"type": "reminder"} when one is due - possibly mid-answer.
+function showReminder(event) {
+  els.empty.hidden = true;
+  const { row, bubble } = addMessage("assistant", "");
+  row.classList.add("reminder");
+  const late = event.late ? ` (was due ${event.due})` : "";
+  // textContent only: reminder text is stored user/model text and must never inject HTML.
+  const label = document.createElement("strong");
+  label.textContent = "⏰ Reminder: ";
+  bubble.append(label, document.createTextNode(event.text + late));
+  // Keep an answer that is being streamed at the bottom, below the reminder.
+  if (state.reply) els.log.append(state.reply.bubble.closest(".msg"));
+  chime();
+  if (speech.settings.mode !== "never") enqueueSpeech(`Reminder: ${event.text}.`);
+  document.title = "⏰ ARTHUR";
+  window.addEventListener("focus", () => { document.title = "ARTHUR"; }, { once: true });
+  if (!els.remindersPanel.hidden) loadReminders();
+  scrollToBottom();
+}
+
+function chime() {
+  try {
+    const audio = new (window.AudioContext || window.webkitAudioContext)();
+    const tone = audio.createOscillator();
+    const gain = audio.createGain();
+    tone.frequency.value = 880;
+    gain.gain.setValueAtTime(0.08 * speech.settings.volume, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.6);
+    tone.connect(gain).connect(audio.destination);
+    tone.start();
+    tone.stop(audio.currentTime + 0.6);
+    tone.onended = () => audio.close();
+  } catch { /* no sound is fine */ }
+}
+
+function toggleRemindersPanel(open = els.remindersPanel.hidden) {
+  if (open) { toggleMemoryPanel(false); toggleDocsPanel(false); toggleVoicePanel(false); }
+  els.remindersPanel.hidden = !open;
+  els.remindersToggle.setAttribute("aria-expanded", String(open));
+  if (open) loadReminders();
+}
+
+function remindersStatus(text, isError = false) {
+  els.remindersStatus.textContent = text;
+  els.remindersStatus.classList.toggle("error", isError);
+}
+
+async function loadReminders() {
+  try {
+    const res = await fetch("/reminders");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    renderReminders((await res.json()).upcoming);
+  } catch {
+    els.remindersList.replaceChildren();
+    els.remindersEmpty.hidden = false;
+    els.remindersEmpty.textContent = "Couldn't load reminders.";
+  }
+}
+
+function renderReminders(reminders) {
+  els.remindersList.replaceChildren(
+    ...reminders.map((r) => {
+      const item = document.createElement("li");
+      const text = document.createElement("div");
+      const what = document.createElement("div");
+      what.className = "fact";
+      what.textContent = r.text;
+      const when = document.createElement("span");
+      when.className = "tag";
+      when.textContent = r.due;
+      text.append(what, when);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "✕";
+      remove.title = "Cancel this reminder";
+      remove.setAttribute("aria-label", `Cancel reminder: ${r.text}`);
+      remove.addEventListener("click", () => cancelReminder(r));
+      item.append(text, remove);
+      return item;
+    })
+  );
+  els.remindersEmpty.hidden = reminders.length > 0;
+  els.remindersEmpty.textContent = "No upcoming reminders.";
+}
+
+async function addReminder() {
+  const body = { text: els.reminderText.value.trim(), when: els.reminderWhen.value.trim() };
+  if (!body.text || !body.when) return;
+  try {
+    const res = await fetch("/reminders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(typeof data.detail === "string" ? data.detail : data.message || "Couldn't add it.");
+    }
+    remindersStatus(`Set for ${data.due}.`);
+    els.reminderForm.reset();
+    loadReminders();
+  } catch (error) {
+    remindersStatus(error.message, true);
+  }
+}
+
+async function cancelReminder(reminder) {
+  if (!confirm(`Cancel this reminder?\n\n${reminder.text}\n${reminder.due}`)) return;
+  await fetch(`/reminders/${reminder.id}`, { method: "DELETE" });
+  loadReminders();
+}
+
 // ---------- tiny, safe Markdown renderer ----------
 // Everything is HTML-escaped FIRST, so model output can never inject scripts.
 // Only a small, fixed set of our own tags is added afterwards.
@@ -965,11 +1085,15 @@ els.memoryClose.addEventListener("click", () => toggleMemoryPanel(false));
 els.docsToggle.addEventListener("click", () => toggleDocsPanel());
 els.docsClose.addEventListener("click", () => toggleDocsPanel(false));
 els.docsInput.addEventListener("change", () => uploadDocuments([...els.docsInput.files]));
+els.remindersToggle.addEventListener("click", () => toggleRemindersPanel());
+els.remindersClose.addEventListener("click", () => toggleRemindersPanel(false));
+els.reminderForm.addEventListener("submit", (e) => { e.preventDefault(); addReminder(); });
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   toggleMemoryPanel(false);
   toggleDocsPanel(false);
   toggleVoicePanel(false);
+  toggleRemindersPanel(false);
   stopSpeaking();
 });
 document.querySelectorAll(".chip").forEach((chip) =>

@@ -32,6 +32,9 @@ Protocol (every frame is one JSON object with a "type"):
     {"type": "error",   "error_type": "llm_unavailable", "message": "..."}
     {"type": "cleared"}
     {"type": "pong"}
+    {"type": "reminder", "id": 3, "text": "call mum", "due": "today at 5:00 pm",
+                         "due_at": "2026-10-01T17:00+08:00", "late": false, "repeat": "none"}
+                         pushed at any time, also in the middle of an answer
 """
 
 import asyncio
@@ -59,6 +62,7 @@ from app.api.errors import classify_llm_error
 from app.api.routes.chat import MessageIn
 from app.llm.base import LLMError
 from app.observability.logging import get_logger
+from app.scheduler.runner import NotificationHub, ReminderScheduler
 
 router = APIRouter()
 log = get_logger(__name__)
@@ -110,10 +114,19 @@ def origin_allowed(websocket: WebSocket) -> bool:
 
 
 class ChatSession:
-    def __init__(self, websocket: WebSocket, orchestrator: Orchestrator, session_id: str) -> None:
+    def __init__(
+        self,
+        websocket: WebSocket,
+        orchestrator: Orchestrator,
+        session_id: str,
+        hub: NotificationHub | None = None,
+        scheduler: ReminderScheduler | None = None,
+    ) -> None:
         self.ws = websocket
         self.orchestrator = orchestrator
         self.session_id = session_id
+        self.hub = hub
+        self.scheduler = scheduler
         self.reply_task: asyncio.Task | None = None
 
     async def run(self) -> None:
@@ -122,14 +135,25 @@ class ChatSession:
             for m in self.orchestrator.history(self.session_id)
         ]
         await self._send({"type": "session", "session_id": self.session_id, "history": history})
+        if self.hub is not None:
+            self.hub.subscribe(self._push)  # this tab now receives reminders
+        if self.scheduler is not None:
+            self.scheduler.poke()  # deliver anything that became due while no tab was open
         try:
             while True:
                 await self._handle(await self.ws.receive_text())
         except WebSocketDisconnect:
             log.info("ws_disconnected")
         finally:
+            if self.hub is not None:
+                self.hub.unsubscribe(self._push)
             if self.reply_task:
                 self.reply_task.cancel()  # stop generating for a closed tab
+
+    async def _push(self, event: dict) -> None:
+        """A notification from the scheduler. Unlike _send, a closed tab raises here,
+        so the reminder is not counted as delivered."""
+        await self.ws.send_json(event)
 
     @property
     def busy(self) -> bool:
@@ -260,4 +284,11 @@ async def chat_socket(websocket: WebSocket) -> None:
     structlog.contextvars.bind_contextvars(session_id=session_id[:8])
     await websocket.accept()
     log.info("ws_connected")
-    await ChatSession(websocket, websocket.app.state.orchestrator, session_id).run()
+    state = websocket.app.state
+    await ChatSession(
+        websocket,
+        state.orchestrator,
+        session_id,
+        hub=getattr(state, "hub", None),
+        scheduler=getattr(state, "scheduler", None),
+    ).run()

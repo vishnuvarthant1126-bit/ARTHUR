@@ -60,3 +60,18 @@ class AuditRecord(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[float] = mapped_column(Float, default=0.0)
     request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class ReminderRecord(Base):
+    """One reminder. `due_at` is stored in UTC (SQLite keeps no time zone)."""
+
+    __tablename__ = "reminders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    text: Mapped[str] = mapped_column(Text)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    repeat: Mapped[str] = mapped_column(String(16), default="none")  # none|daily|weekdays|weekly
+    status: Mapped[str] = mapped_column(String(16), default="scheduled", index=True)
+    # scheduled -> delivered | cancelled   (a repeating reminder stays "scheduled")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
