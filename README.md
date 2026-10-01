@@ -3,7 +3,9 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 19 – reminders that survive restarts ("remind me at 5pm…"); a reviewed
+> Status: Phase 22 – measures itself (metrics, a built-in stats page), 90 % test coverage
+> with a gate, load-tested (see [docs/LOAD_TESTS.md](docs/LOAD_TESTS.md)); reminders that
+> survive restarts ("remind me at 5pm…"); a reviewed
 > security model with a test for every defence ([docs/SECURITY.md](docs/SECURITY.md));
 > uses Notepad, Calculator and File Explorer (every click/keystroke
 > confirmed by you); looks at pictures and app windows with a local vision model;
@@ -196,8 +198,21 @@ every reply ─► honesty check: claims an action no tool performed? → visibl
 Level-2 tools stop the loop and ask the user; the model can never confirm on its own.
 `save_memory` is not offered to the agent (only an explicit "remember…" saves).
 
+## Observability
+`GET /metrics` publishes ARTHUR's numbers in the Prometheus text format: requests and
+response times per route, model calls (time, time to first words, tokens), tool calls, safety
+refusals, reminders. Labels are route templates and tool names only - never message text.
+**http://127.0.0.1:8000/dashboard.html** ("Stats" in the header) shows them live without any
+extra software. `deploy/` holds Prometheus + Grafana config for Docker (not run yet).
+
 ## Test
 ```powershell
-pytest              # unit tests + live Ollama tests (skipped if Ollama is off)
-ruff check .        # lint
+pytest                # everything safe to run (~55 s); live tests skip if Ollama is off
+pytest --cov          # + coverage (90 %; fails under 88 %)
+pytest tests/security # the attack tests
+ruff check .          # lint
 ```
+See [docs/TESTING.md](docs/TESTING.md) for the layers and the opt-in real-desktop tests, and
+[docs/LOAD_TESTS.md](docs/LOAD_TESTS.md) for the load tests: ARTHUR's own code handles about
+400 requests per second on this laptop; the real model answers about one question per second,
+so the GPU is the limit.

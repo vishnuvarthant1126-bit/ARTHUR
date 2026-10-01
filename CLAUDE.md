@@ -34,7 +34,8 @@ learning and portfolio project. The owner is a beginner/intermediate developer.
 ```powershell
 .venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload        # UI at http://127.0.0.1:8000, docs at /docs
-pytest                               # unit + live Ollama tests (skipped if Ollama is off)
+pytest                               # unit + security + live tests (skipped if Ollama is off)
+pytest --cov                         # coverage gate 88 % (see docs/TESTING.md)
 ruff check . ; ruff format --check .
 ```
 
@@ -96,10 +97,23 @@ ruff check . ; ruff format --check .
   orchestrator `_for_history` stores permission questions as a neutral note.
 - `app/computer/` – `apps.py` (pure per-app rules: `WindowInfo`, `AppSpec.matches/problem`,
   key allow-lists), `desktop.py` (`DesktopController`: pywinauto UIA on ONE COM worker thread,
-  own Notepad tabs tracked by UIA runtime_id, preferred window, chunked typing with focus/tab/
-  stop checks, PrintWindow screenshots, `workspace_rules`), `risk.py` (key/text levels,
-  send_keys escaping). Tools open_app/read_window/click_control/type_text/press_key(shortcut).
-  Tests use a FakeDesktop – never the real screen unless ARTHUR_DESKTOP_TESTS=1.
+  own Notepad tabs tracked by UIA runtime_id, preferred window, PrintWindow screenshots,
+  `workspace_rules`), `risk.py` (key/text levels). **NO KEYSTROKES, EVER** (send_keys leaked
+  into the Claude chat in session 9): Notepad = Windows messages to the edit control's handle
+  (`NOTEPAD_KEYS`, EM_REPLACESEL...), Calculator = UIA button invokes (`CALCULATOR_BUTTONS`),
+  Explorer = shell COM (f5/alt+up/delete to Recycle Bin, `selection()`). A test forbids
+  send_keys/pyautogui in app/. Tools open_app/read_window/click_control/type_text/
+  press_key(shortcut). Tests use a FakeDesktop; real desktop only with ARTHUR_DESKTOP_TESTS=1
+  (no keystrokes, safe while the owner works). Never run raw input experiments on the live desktop.
+- `app/observability/metrics.py` – `Metrics` (own Prometheus registry on `app.state.metrics`;
+  labels = route templates / registered tool names only), `summary()` for /dashboard.html;
+  `app/llm/metered.py` `MeteredProvider`; `/metrics`, `/metrics/summary`; middleware counts
+  requests (also crashes as 500) and refusals. `deploy/` (Prometheus, Grafana, compose) is
+  UNTESTED until Docker exists; `scripts/make_grafana_dashboard.py` regenerates the dashboard.
+- `app/database/database.py` – ONE process-wide RLock around every session (SQLite writer
+  starvation → "database is locked" under load). `app/llm/echo.py` (LLM_PROVIDER=echo) and
+  `HashEmbeddings` (EMBEDDING_PROVIDER=hash) for load tests: `scripts/run_load_server.py`
+  (:8001, temp data) + `tests/load/locustfile.py`. docs/TESTING.md, docs/LOAD_TESTS.md.
 - `app/vision/provider.py` – `OllamaVision` (qwen2.5vl:7b, keep_alive 2m), `prepare_image`.
   Tools describe_image (0), look_at_screen (1 window / 2 whole screen); `POST /vision/describe`.
   `FakeVision` in tests/conftest.py (also on the test app's state).
@@ -130,8 +144,8 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 6 | Wed 2026-09-30 | 14–15: restricted file tools, Playwright browser agent | ✅ Done |
 | 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | ✅ Done (Wed 2026-09-30, same day as session 6, owner's request) |
 | 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | ✅ Done (Thu 2026-10-01) |
-| 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | ⏭ Next |
-| 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | |
+| 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | ✅ Done (Thu 2026-10-01, same day as session 8, owner's request) |
+| 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | ⏭ Next |
 | 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | |
 | 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
 
@@ -197,8 +211,17 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   server advisories don't apply (embedded only) – re-run the audit when Chroma updates.
   Don't use patch scripts with backslashes in bash heredocs (escaping broke repeatedly) –
   use the Edit tool or write the script to a file.
-- Phase 20–22 notes: metrics (request/LLM/tool latency, tokens, errors) at /metrics;
-  Prometheus/Grafana normally run in Docker (not installed) – plan for a no-Docker path or ask.
-  Test suite: fix the load-sensitive tests/integration/test_voice_live.py::
-  test_spoken_sentence_is_transcribed (fails ~1 in 5 full runs when the CPU is busy), add
-  coverage. Locust: load-test with a fake LLM, not the real model.
+- Session 9 done (Phases 20–22, commits f136bb8, fa1ccb5, ed9ea4a): 671 tests, coverage 90 %
+  (gate 88; desktop.py 24 % normally, 89 % with opt-in). Measured: 200 users 155 req/s p95
+  120 ms; ceiling ~400–450 req/s; real model 1.0/1.3/2.0 s per answer at 1/2/4 concurrent
+  (GPU is the limit). Found: keystroke leak (redesigned, see app/computer), SQLite lock
+  starvation, 500s missing from metrics, rich tracebacks printing locals, save_file asking
+  for impossible saves, reports folder never created, SearXNG limit order. The flaky voice
+  test was NOT reproduced (10 full + 80 single runs); its input is now deterministic and it
+  reports what it heard. Kill a background server with netstat + taskkill //PID.
+- Phase 23–24 notes: Docker Desktop must be installed by the owner first (ask). Compose:
+  ARTHUR + Prometheus + Grafana (+ optional SearXNG); verify deploy/ files for real; the
+  container reaches host Ollama via host.docker.internal (ALLOWED_HOSTS!); desktop control,
+  browser and voice models are host features – decide what runs in the container. Windows-only
+  parts (pywinauto) need a platform marker. Performance: time to first token, model keep-alive,
+  Whisper/Piper warm-up, DB lock contention, maybe profiling the chat path.
