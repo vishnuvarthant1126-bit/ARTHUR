@@ -12,6 +12,7 @@ import contextlib
 from collections.abc import Awaitable, Callable
 
 from app.observability.logging import get_logger
+from app.observability.metrics import Metrics
 from app.scheduler.reminders import Reminder, ReminderService
 from app.scheduler.when import describe
 
@@ -51,10 +52,16 @@ class NotificationHub:
 
 class ReminderScheduler:
     def __init__(
-        self, service: ReminderService, hub: NotificationHub, *, interval_seconds: float = 5.0
+        self,
+        service: ReminderService,
+        hub: NotificationHub,
+        *,
+        interval_seconds: float = 5.0,
+        metrics: Metrics | None = None,
     ) -> None:
         self.service = service
         self.hub = hub
+        self.metrics = metrics
         self.interval_seconds = interval_seconds
         self._wake = asyncio.Event()
         self._task: asyncio.Task | None = None
@@ -88,7 +95,10 @@ class ReminderScheduler:
             return 0  # nobody to tell - keep them due
         delivered = 0
         for reminder in await asyncio.to_thread(self.service.due):
-            if await self.hub.broadcast(self._message(reminder)):
+            message = self._message(reminder)
+            if await self.hub.broadcast(message):
+                if self.metrics:
+                    self.metrics.reminders_delivered.labels(str(message["late"]).lower()).inc()
                 await asyncio.to_thread(self.service.mark_delivered, reminder.id)
                 delivered += 1
                 log.info("reminder_delivered", id=reminder.id, repeat=reminder.repeat.value)

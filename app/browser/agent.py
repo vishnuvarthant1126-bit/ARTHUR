@@ -20,6 +20,7 @@ import asyncio
 import contextlib
 import sys
 import threading
+from collections.abc import Callable
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel
@@ -102,13 +103,15 @@ class BrowserAgent:
         headless: bool = True,
         resolver: HostResolver | None = None,
         timeout_ms: int = 15_000,
+        on_block: Callable[[], None] = lambda: None,
     ) -> None:
+        self.on_block = on_block  # a request was refused (counted in the metrics)
         self.headless = headless
         # None = real DNS, public addresses only. Tests pass a fake (scheme, host, port) rule.
         self.resolver = resolver
         # ALL of Chromium's traffic goes through this proxy, which looks names up itself
         # and connects only to the checked address (closes the DNS-rebinding gap).
-        self.proxy = EgressProxy(resolver or resolve_public_host)
+        self.proxy = EgressProxy(resolver or resolve_public_host, on_block)
         self.timeout_ms = timeout_ms
         self.blocked_requests: list[str] = []
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -217,6 +220,7 @@ class BrowserAgent:
         problem = await self._check_host(url)
         if problem:
             self.blocked_requests.append(url)
+            self.on_block()
             log.warning("browser_request_blocked", url=url[:200], reason=problem)
             await route.abort("blockedbyclient")
         else:

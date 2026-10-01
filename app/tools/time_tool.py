@@ -12,8 +12,8 @@ class TimeInput(BaseModel):
     timezone: str | None = Field(
         default=None,
         max_length=64,
-        description="IANA time zone like 'Asia/Singapore' or 'Europe/London'. "
-        "Omit for the user's local time.",
+        description="Leave this out for the user's own local time (the normal case). Set it "
+        "ONLY when the user names another place, e.g. 'Asia/Tokyo' for 'time in Tokyo'.",
     )
 
 

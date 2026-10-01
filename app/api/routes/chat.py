@@ -5,7 +5,7 @@ remembers the conversation. Omit it to start a new one.
 """
 
 import structlog
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 
 from app.api.dependencies import SESSION_ID_PATTERN, OrchestratorDep, new_session_id
@@ -48,10 +48,18 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(body: ChatRequest, orchestrator: OrchestratorDep) -> ChatResponse:
+async def chat(body: ChatRequest, orchestrator: OrchestratorDep, request: Request) -> ChatResponse:
     session_id = body.session_id or new_session_id()
     request_id = structlog.contextvars.get_contextvars().get("request_id")
-    result = await orchestrator.respond(session_id, body.message, request_id)
+    metrics = getattr(request.app.state, "metrics", None)
+    try:
+        result = await orchestrator.respond(session_id, body.message, request_id)
+    except Exception:
+        if metrics is not None:
+            metrics.chat_turns.labels("http", "error").inc()
+        raise
+    if metrics is not None:
+        metrics.chat_turns.labels("http", "ok").inc()
     log.info(
         "chat_completed",
         model=result.model,

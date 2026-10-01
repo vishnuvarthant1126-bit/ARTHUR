@@ -20,6 +20,7 @@ from app.api.errors import register_exception_handlers
 from app.api.middleware import RequestContextMiddleware
 from app.api.routes import chat, health, memory, reminders, tools, vision, voice
 from app.api.routes import documents as documents_routes
+from app.api.routes import metrics as metrics_routes
 from app.browser.agent import BrowserAgent
 from app.computer.apps import allowed_apps
 from app.computer.desktop import DesktopController, workspace_rules
@@ -28,11 +29,13 @@ from app.database.database import Database
 from app.files.workspace import Workspace
 from app.llm.base import LLMProvider
 from app.llm.factory import create_llm_provider
+from app.llm.metered import MeteredProvider
 from app.memory.long_term import MemoryRepository
 from app.memory.manager import MemoryManager
 from app.memory.short_term import ConversationStore
 from app.memory.vector_store import ChromaVectorStore
 from app.observability.logging import configure_logging, get_logger
+from app.observability.metrics import Metrics
 from app.rag.documents import DocumentService
 from app.rag.embeddings import create_embedding_provider
 from app.rag.retrieval import DocumentRetriever
@@ -96,7 +99,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     db = Database(settings.resolve(settings.database_path))
     db.create_tables()
 
-    llm = create_llm_provider(settings)
+    metrics: Metrics = app.state.metrics
+    llm = MeteredProvider(create_llm_provider(settings), metrics)  # times every model call
     embeddings = create_embedding_provider(
         settings.embedding_provider, settings.ollama_base_url, settings.embedding_model
     )
@@ -130,7 +134,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
 
     # Starts lazily (first browser_open), so it costs nothing until used.
-    browser = BrowserAgent(headless=settings.browser_headless) if settings.browser_enabled else None
+    browser = (
+        BrowserAgent(
+            headless=settings.browser_headless,
+            on_block=metrics.security_blocks.labels("egress").inc,
+        )
+        if settings.browser_enabled
+        else None
+    )
     workspace = Workspace(settings.file_roots, settings.files_save_dir)
     desktop = build_desktop(settings, workspace)
     vision = (
@@ -150,7 +161,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     reminder_service = ReminderService(db)
     hub = NotificationHub()
     scheduler = ReminderScheduler(
-        reminder_service, hub, interval_seconds=settings.reminder_check_seconds
+        reminder_service,
+        hub,
+        interval_seconds=settings.reminder_check_seconds,
+        metrics=metrics,
     )
     app.state.reminders = reminder_service
     app.state.hub = hub
@@ -175,6 +189,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         vision=vision,
         reminders=reminder_service,
         on_reminder_change=scheduler.poke,
+        metrics=metrics,
         default_timeout_seconds=settings.tools_default_timeout_seconds,
         memory_min_score=settings.memory_min_score,
         document_min_score=settings.rag_min_score,
@@ -259,6 +274,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     # Front-door checks (see app/api/middleware.py); set here so they also apply in tests.
     app.state.allowed_hosts = settings.extra_hosts
+    app.state.metrics = Metrics()
     app.state.rate_limiter = RateLimiter(
         {"chat": settings.rate_limit_chat_per_minute}, enabled=settings.rate_limit_enabled
     )
@@ -272,6 +288,7 @@ def create_app() -> FastAPI:
     app.include_router(voice.router)
     app.include_router(vision.router)
     app.include_router(reminders.router)
+    app.include_router(metrics_routes.router)
     app.include_router(websocket.router)
     # Mounted last: API routes above win; everything else is served from frontend/.
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

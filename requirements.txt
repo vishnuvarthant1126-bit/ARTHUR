@@ -29,3 +29,5 @@ pywinauto>=0.6.9; sys_platform == "win32"   # Windows UI Automation
 Pillow>=10.0                 # screenshots and images
 # --- Security pins (Phase 19): indirect dependencies with known advisories ---
 oauthlib>=4.0.0              # via chromadb -> kubernetes; CVE-2026-49265
+# --- Observability (Phase 20) ---
+prometheus-client>=0.21      # metrics in the Prometheus text format (GET /metrics)

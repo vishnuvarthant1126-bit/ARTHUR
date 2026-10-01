@@ -1,0 +1,442 @@
+{
+  "uid": "arthur-overview",
+  "title": "ARTHUR",
+  "tags": [
+    "arthur"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Messages answered / min",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (channel, outcome) (rate(arthur_chat_turns_total[5m])) * 60",
+          "legendFormat": "{{channel}} {{outcome}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Open tabs",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "arthur_ws_connections",
+          "legendFormat": "tabs",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Model call time",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(arthur_llm_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "typical (p50)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(arthur_llm_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "slow (p95)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Time to first words (p50)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(arthur_llm_first_token_seconds_bucket[5m])))",
+          "legendFormat": "first token",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Model calls / min by outcome",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(arthur_llm_requests_total[5m])) * 60",
+          "legendFormat": "{{outcome}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Tokens generated / min",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (kind) (rate(arthur_llm_tokens_total[5m])) * 60",
+          "legendFormat": "{{kind}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Tool calls / min",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (tool) (rate(arthur_tool_calls_total[5m])) * 60",
+          "legendFormat": "{{tool}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Tool time (p95)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, tool) (rate(arthur_tool_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{tool}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "HTTP requests / s by address",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route) (rate(arthur_http_requests_total[5m]))",
+          "legendFormat": "{{route}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "HTTP time (p95) by address",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(arthur_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{route}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Refused by safety rules (total)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (reason) (arthur_security_blocks_total)",
+          "legendFormat": "{{reason}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Reminders delivered (total)",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (late) (arthur_reminders_delivered_total)",
+          "legendFormat": "late={{late}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Uptime",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "arthur-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "arthur_uptime_seconds",
+          "legendFormat": "uptime",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "arthur-prometheus"
+          }
+        }
+      ]
+    }
+  ]
+}

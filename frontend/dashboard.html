@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ARTHUR – Stats</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="dash">
+    <header class="dash-head">
+      <div>
+        <h1>ARTHUR <span class="subtle">stats</span></h1>
+        <p class="subtle">Counts and timings since ARTHUR started. No message text is ever recorded here.</p>
+      </div>
+      <div class="dash-actions">
+        <span id="updated" class="subtle" role="status" aria-live="polite">Loading…</span>
+        <button id="pause" class="ghost" type="button" aria-pressed="false">Pause</button>
+        <a class="ghost link-button" href="/">Back to chat</a>
+      </div>
+    </header>
+
+    <section aria-labelledby="overview-title">
+      <h2 id="overview-title">Overview</h2>
+      <div id="overview" class="tiles"></div>
+    </section>
+
+    <section aria-labelledby="model-title">
+      <h2 id="model-title">Language model</h2>
+      <p class="subtle section-note">p95 = 95 % of calls were faster than this. “First words” = how long until an answer starts to appear.</p>
+      <div id="model" class="tiles"></div>
+      <p id="model-empty" class="subtle" hidden>No model calls yet. Ask ARTHUR something.</p>
+    </section>
+
+    <section aria-labelledby="tools-title">
+      <h2 id="tools-title">Tools</h2>
+      <table id="tools" class="data">
+        <thead>
+          <tr>
+            <th scope="col">Tool</th>
+            <th scope="col" class="bar-col">Calls</th>
+            <th scope="col" class="num">OK</th>
+            <th scope="col" class="num">Failed</th>
+            <th scope="col" class="num">Asked you</th>
+            <th scope="col" class="num">Refused</th>
+            <th scope="col" class="num">Typical</th>
+            <th scope="col" class="num">p95</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="tools-empty" class="subtle" hidden>No tools used yet.</p>
+    </section>
+
+    <section aria-labelledby="safety-title">
+      <h2 id="safety-title">Refused by safety rules</h2>
+      <div id="safety" class="tiles"></div>
+    </section>
+
+    <section aria-labelledby="routes-title">
+      <h2 id="routes-title">Requests</h2>
+      <table id="routes" class="data">
+        <thead>
+          <tr>
+            <th scope="col">Address</th>
+            <th scope="col" class="bar-col">Requests</th>
+            <th scope="col" class="num">Server errors</th>
+            <th scope="col" class="num">Typical</th>
+            <th scope="col" class="num">p95</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <p class="subtle foot">Raw numbers for Prometheus: <a href="/metrics">/metrics</a></p>
+  </div>
+  <script src="dashboard.js"></script>
+</body>
+</html>

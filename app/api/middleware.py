@@ -88,16 +88,19 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             request_id=request_id, method=request.method, path=path
         )
         state = request.app.state
+        metrics = getattr(state, "metrics", None)
 
         host = request.headers.get("host")
         if not host_allowed(host, getattr(state, "allowed_hosts", frozenset())):
             log.warning("host_rejected", host=(host or "")[:100])
+            _count_block(metrics, "wrong_host")
             return _refuse(421, "wrong_host", "ARTHUR only answers on localhost.", request_id)
 
         if request.method not in SAFE_METHODS and not same_origin(
             request.headers.get("origin"), host
         ):
             log.warning("cross_origin_request_blocked", origin=request.headers.get("origin"))
+            _count_block(metrics, "cross_origin")
             return _refuse(403, "forbidden", "Cross-site request blocked.", request_id)
 
         limiter = getattr(state, "rate_limiter", None)
@@ -107,6 +110,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             wait = limiter.check(client, group)
             if wait is not None:
                 log.warning("rate_limited", group=group)
+                _count_block(metrics, "rate_limited")
                 return _refuse(
                     429,
                     "rate_limited",
@@ -122,9 +126,30 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             response.headers[name] = value
         if not path.startswith(_DOCS_PATHS):
             response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
+        duration = time.perf_counter() - start
+        if metrics is not None and not path.startswith("/metrics"):  # don't measure measuring
+            route = _route_label(request, response.status_code)
+            metrics.http_requests.labels(request.method, route, str(response.status_code)).inc()
+            metrics.http_duration.labels(route).observe(duration)
         log.info(
             "request_completed",
             status=response.status_code,
-            duration_ms=round((time.perf_counter() - start) * 1000, 1),
+            duration_ms=round(duration * 1000, 1),
         )
         return response
+
+
+def _count_block(metrics, reason: str) -> None:
+    if metrics is not None:
+        metrics.security_blocks.labels(reason).inc()
+
+
+def _route_label(request: Request, status: int) -> str:
+    """The route TEMPLATE ("/memories/{memory_id}"), never the raw path: raw paths contain
+    ids and anything a client types, which would create unlimited metric series."""
+    route = request.scope.get("route")
+    path = getattr(route, "path", None)
+    if path:
+        return path
+    # No API route matched: either one of the page's own files, or a path that doesn't exist.
+    return "unmatched" if status == 404 else "static"

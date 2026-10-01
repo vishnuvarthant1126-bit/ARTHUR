@@ -35,8 +35,13 @@ def port_allowed(port: int) -> bool:
 
 
 class EgressProxy:
-    def __init__(self, resolver: HostResolver = resolve_public_host) -> None:
+    def __init__(
+        self,
+        resolver: HostResolver = resolve_public_host,
+        on_block: Callable[[], None] = lambda: None,
+    ) -> None:
         self.resolver = resolver
+        self.on_block = on_block  # e.g. count it in the metrics
         self.blocked: list[str] = []  # "host:port" of refused connections (for tests/logs)
         self.connections = 0
         self.port: int | None = None
@@ -85,6 +90,7 @@ class EgressProxy:
             checked = await self.resolver(scheme, host, port)
         except (UnsafeUrlError, LookupFailed, ValueError) as exc:
             self.blocked.append(target)
+            self.on_block()
             log.warning("egress_blocked", target=target[:200], reason=str(exc))
             await _reply(writer, 403, "Blocked by ARTHUR")
             return

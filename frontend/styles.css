@@ -251,3 +251,4 @@ body[data-state="speaking"] .core span { animation-duration: 1s; }
   .msg-body { max-width: 100%; }
   .msg.arthur .core, .msg.error .core { display: none; }
 }
+.link-button { text-decoration: none; display: inline-block; }

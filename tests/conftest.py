@@ -319,6 +319,7 @@ def _app_with(llm: LLMProvider):
         retriever=retriever,
         search=WebSearchService(FakeSearchProvider(), retry_delay=0),
         reminders=app.state.reminders,
+        metrics=app.state.metrics,
         memory_min_score=TEST_SETTINGS.memory_min_score,
         document_min_score=0.2,
     )

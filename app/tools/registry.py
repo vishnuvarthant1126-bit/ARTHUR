@@ -18,6 +18,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.observability.logging import get_logger
+from app.observability.metrics import Metrics
 from app.security.audit import AuditLog
 from app.security.permissions import Decision, PermissionPolicy
 from app.tools.base import Tool, ToolContext, ToolError, ToolResult
@@ -31,9 +32,11 @@ class ToolRegistry:
         policy: PermissionPolicy,
         audit: AuditLog | None = None,
         default_timeout_seconds: float = 10.0,
+        metrics: Metrics | None = None,
     ) -> None:
         self.policy = policy
         self.audit = audit
+        self.metrics = metrics
         self.default_timeout_seconds = default_timeout_seconds
         self._tools: dict[str, Tool] = {}
 
@@ -165,6 +168,12 @@ class ToolRegistry:
             "tool_call", tool=name, status=status, decision=decision,
             level=level, duration_ms=duration_ms, error=error,
         )  # fmt: skip
+        if self.metrics:
+            # A model can invent tool names - they must not become labels (unbounded series).
+            label = name if name in self._tools else "unknown"
+            self.metrics.tool_calls.labels(label, status).inc()
+            if status in ("ok", "error") and decision == "allowed":
+                self.metrics.tool_duration.labels(label).observe(duration_ms / 1000)
         if self.audit:
             try:
                 await asyncio.to_thread(

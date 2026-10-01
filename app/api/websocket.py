@@ -140,6 +140,9 @@ class ChatSession:
             for m in self.orchestrator.history(self.session_id)
         ]
         await self._send({"type": "session", "session_id": self.session_id, "history": history})
+        metrics = getattr(self.ws.app.state, "metrics", None)
+        if metrics is not None:
+            metrics.ws_connections.inc()
         if self.hub is not None:
             self.hub.subscribe(self._push)  # this tab now receives reminders
         if self.scheduler is not None:
@@ -150,6 +153,8 @@ class ChatSession:
         except WebSocketDisconnect:
             log.info("ws_disconnected")
         finally:
+            if metrics is not None:
+                metrics.ws_connections.dec()
             if self.hub is not None:
                 self.hub.unsubscribe(self._push)
             if self.reply_task:
@@ -247,11 +252,14 @@ class ChatSession:
             _, error_type = classify_llm_error(exc)
             log.warning("llm_error", error_type=error_type, detail=str(exc))
             await self._send_error(error_type, str(exc))
+            self._count_turn("error")
             return
         except Exception:
             log.exception("ws_reply_failed")
             await self._send_error("internal_error", "Something went wrong inside ARTHUR.")
+            self._count_turn("error")
             return
+        self._count_turn("stopped" if stopped else "ok")
 
         latency_ms = round((time.perf_counter() - start) * 1000, 1)
         log.info(
@@ -272,6 +280,11 @@ class ChatSession:
                 "request_id": request_id,
             }
         )
+
+    def _count_turn(self, outcome: str) -> None:
+        metrics = getattr(self.ws.app.state, "metrics", None)
+        if metrics is not None:
+            metrics.chat_turns.labels("ws", outcome).inc()
 
     async def _send(self, event: dict) -> None:
         # If the tab already closed there is nobody left to tell - ignore the failure.

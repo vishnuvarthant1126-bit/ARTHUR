@@ -8,6 +8,7 @@ from app.browser.agent import BrowserAgent
 from app.computer.desktop import DesktopController
 from app.files.workspace import Workspace
 from app.memory.manager import MemoryManager
+from app.observability.metrics import Metrics
 from app.rag.documents import DocumentService
 from app.rag.retrieval import DocumentRetriever
 from app.scheduler.reminders import ReminderService
@@ -57,11 +58,12 @@ def create_tool_registry(
     vision: VisionProvider | None = None,
     reminders: ReminderService | None = None,
     on_reminder_change: Callable[[], None] = lambda: None,
+    metrics: Metrics | None = None,
     default_timeout_seconds: float = 10.0,
     memory_min_score: float = 0.55,
     document_min_score: float = 0.58,
 ) -> ToolRegistry:
-    registry = ToolRegistry(policy, audit, default_timeout_seconds)
+    registry = ToolRegistry(policy, audit, default_timeout_seconds, metrics)
     registry.register(CalculatorTool())
     registry.register(CurrentTimeTool())
     registry.register(WeatherTool(http_client))
