@@ -27,7 +27,8 @@ learning and portfolio project. The owner is a beginner/intermediate developer.
 - Windows 11, PowerShell. Project: `C:\Users\User\Projects\arthur`.
 - Python 3.12 venv at `.venv` (system default Python is 3.14 – don't use it; ML wheels lag).
 - Ollama with `qwen3:8b` (chat) and `nomic-embed-text` (embeddings). RTX 5060 Laptop, 8 GB VRAM, 16 GB RAM.
-- Docker Desktop NOT installed yet (user must install; needed from Phase 23).
+- Docker Desktop NOT installed yet (user must install). Phase 23 files exist but were never
+  run – when Docker is there, do the checklist in docs/DOCKER.md (short session "10b").
 - GitHub remote not set up yet (user must create the repo and push).
 
 ## Commands
@@ -117,6 +118,19 @@ ruff check . ; ruff format --check .
 - `app/vision/provider.py` – `OllamaVision` (qwen2.5vl:7b, keep_alive 2m), `prepare_image`.
   Tools describe_image (0), look_at_screen (1 window / 2 whole screen); `POST /vision/describe`.
   `FakeVision` in tests/conftest.py (also on the test app's state).
+- Performance (Phase 24, docs/PERFORMANCE.md): the system prompt is STATIC (prompt cache);
+  memories/passages go in `prompts.context_block` with the newest user message – never put
+  changing text in the system prompt. `Orchestrator.tools_tokens` is part of the budget,
+  `Conversation.window` trims in steps, `Orchestrator.warm_up` (LLM_WARM_UP) loads chat model
+  then embeddings. `StreamStats` → `MeteredProvider` (prompt tokens/read/load/speed).
+  Always `127.0.0.1`, not `localhost` (`app/utils/net.py`). Profile with
+  `scripts/profile_chat.py` against a server WITHOUT `--reload` (port 8002).
+- Docker (Phase 23, docs/DOCKER.md, NOT RUN): `docker/Dockerfile` (copies only app/ +
+  frontend/, non-root), root `docker-compose.yml` (arthur + prometheus + grafana, searxng
+  profile; ports 127.0.0.1 only; ALLOWED_HOSTS=arthur; data in volume `arthur-data`; Ollama
+  on the host), `deploy/prometheus/prometheus.yml` (container) / `prometheus.host.yml`
+  (monitoring-only compose). `tests/unit/test_docker_files.py` enforces these statically –
+  new Compose env names must be real Settings fields; no top-level Windows-only imports.
 - `app/tools/` – `Tool` base (name, description, input_model, permission_level, timeout, run),
   `ToolRegistry.execute` (lookup → permission → validate → confirm → timeout → audit),
   tools: calculator (AST, no eval), current_time, weather (Open-Meteo), memory tools.
@@ -145,8 +159,9 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | ✅ Done (Wed 2026-09-30, same day as session 6, owner's request) |
 | 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | ✅ Done (Thu 2026-10-01) |
 | 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | ✅ Done (Thu 2026-10-01, same day as session 8, owner's request) |
-| 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance (Docker Desktop must be installed first) | ⏭ Next |
-| 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | |
+| 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance | ✅ Done (Fri 2026-10-02): Phase 24 fully; Phase 23 written + statically tested, NOT run (no Docker) |
+| 10b | when Docker Desktop is installed | first real Docker run: checklist in docs/DOCKER.md | waiting for the owner |
+| 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | ⏭ Next |
 | 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
 
 ## Docs
@@ -219,9 +234,15 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   for impossible saves, reports folder never created, SearXNG limit order. The flaky voice
   test was NOT reproduced (10 full + 80 single runs); its input is now deterministic and it
   reports what it heard. Kill a background server with netstat + taskkill //PID.
-- Phase 23–24 notes: Docker Desktop must be installed by the owner first (ask). Compose:
-  ARTHUR + Prometheus + Grafana (+ optional SearXNG); verify deploy/ files for real; the
-  container reaches host Ollama via host.docker.internal (ALLOWED_HOSTS!); desktop control,
-  browser and voice models are host features – decide what runs in the container. Windows-only
-  parts (pywinauto) need a platform marker. Performance: time to first token, model keep-alive,
-  Whisper/Piper warm-up, DB lock contention, maybe profiling the chat path.
+- Session 10 done (Phases 24 + 23, commits 5541e2f, 58239f3): 715 tests, coverage 91 %.
+  Measured: first message 11–13 s → 0.6 s, small talk 0.4–0.8 s, tool question 1.2 s, long
+  chats 3.6 → 1.6 s. Found: localhost IPv6 penalty (2 s per connection), context in the
+  system prompt breaking the cache, tool schemas missing from the budget, planner false
+  alarms on long prose; slim_schema gave NO gain with Ollama (said so). The real flaky test
+  was the duplicate-upload test (PDF creation time to the second), not the voice test.
+  Docker: nothing built or started; image tags checked on Docker Hub only.
+- Phase 25–27 notes: UI work must keep the CSP (no inline scripts/styles, no external
+  deps) and the safe Markdown renderer; verify in the browser pane, mic needs Chrome.
+  Multimodal input: /vision/describe and describe_image exist – build on them (image in
+  chat, drag and drop). New prompt text must not go into the system prompt per message
+  (cache). Advanced agent features: summarise trimmed history is a known gap.

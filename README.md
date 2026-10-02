@@ -3,7 +3,9 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 22 – measures itself (metrics, a built-in stats page), 90 % test coverage
+> Status: Phase 24 – fast answers (0.4–1.3 s for most messages, see
+> [docs/PERFORMANCE.md](docs/PERFORMANCE.md)); Docker files written but not run yet
+> ([docs/DOCKER.md](docs/DOCKER.md)); measures itself (metrics, a built-in stats page), 90 % test coverage
 > with a gate, load-tested (see [docs/LOAD_TESTS.md](docs/LOAD_TESTS.md)); reminders that
 > survive restarts ("remind me at 5pm…"); a reviewed
 > security model with a test for every defence ([docs/SECURITY.md](docs/SECURITY.md));
@@ -19,7 +21,7 @@ planning, browser/computer control, with a permission-based security model.
 ## Requirements
 - Python 3.12
 - [Ollama](https://ollama.com) with `qwen3:8b` and `nomic-embed-text` pulled
-- Git; Docker Desktop (from Phase 23)
+- Git; Docker Desktop (optional, only for [docs/DOCKER.md](docs/DOCKER.md))
 
 ## Quick start (Windows PowerShell)
 ```powershell
@@ -203,12 +205,26 @@ Level-2 tools stop the loop and ask the user; the model can never confirm on its
 response times per route, model calls (time, time to first words, tokens), tool calls, safety
 refusals, reminders. Labels are route templates and tool names only - never message text.
 **http://127.0.0.1:8000/dashboard.html** ("Stats" in the header) shows them live without any
-extra software. `deploy/` holds Prometheus + Grafana config for Docker (not run yet).
+extra software. Prometheus + Grafana come with the Docker setup below.
+
+## Performance
+Measured, then fixed (see [docs/PERFORMANCE.md](docs/PERFORMANCE.md)): first message after
+a start 11–13 s → 0.6 s, small talk 0.4–0.8 s, tool questions ~1.2 s, long conversations
+3.6 → 1.6 s per message. The main ideas: keep the unchanging part of the prompt first so the
+model's prompt cache works, load the models at start-up, use `127.0.0.1` instead of
+`localhost`. Measure yourself with `python scripts/profile_chat.py --pause 8`.
+
+## Docker (written, not run yet)
+`docker compose up -d --build` is meant to start ARTHUR, Prometheus and Grafana, with every
+port on 127.0.0.1 only and Ollama staying on Windows for the GPU. **No image has been built
+yet** (Docker Desktop is not installed on the development machine); 28 tests check the
+files without Docker. [docs/DOCKER.md](docs/DOCKER.md) explains the setup, what was and was
+not checked, and the first-run checklist.
 
 ## Test
 ```powershell
 pytest                # everything safe to run (~55 s); live tests skip if Ollama is off
-pytest --cov          # + coverage (90 %; fails under 88 %)
+pytest --cov          # + coverage (91 %; fails under 88 %)
 pytest tests/security # the attack tests
 ruff check .          # lint
 ```
