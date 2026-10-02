@@ -21,7 +21,7 @@ from collections.abc import Iterable
 from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest
 
 # Bucket edges in seconds. Web requests are fast; the language model is slow.
-HTTP_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60)
+HTTP_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 7.5, 10, 15, 20, 30, 60)
 LLM_BUCKETS = (0.25, 0.5, 1, 2, 3, 5, 8, 13, 21, 34, 60, 120)
 TOOL_BUCKETS = (0.005, 0.025, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 200)
 
@@ -78,6 +78,41 @@ class Metrics:
             "arthur_llm_tokens_total",
             "Tokens (kind: prompt, completion; streamed answers are counted in chunks)",
             ["model", "kind"],
+            registry=r,
+        )
+
+        self.llm_prompt_tokens = Histogram(
+            "arthur_llm_prompt_tokens",
+            "Size of the prompt the model had to read (system text + tools + history)",
+            ["model"],
+            buckets=(250, 500, 1000, 2000, 3000, 4000, 5000, 6000, 8000, 16000),
+            registry=r,
+        )
+        self.llm_prompt_read = Histogram(
+            "arthur_llm_prompt_read_seconds",
+            "Time the model spent reading the prompt (near zero when it was cached)",
+            ["model"],
+            buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 4, 8, 16),
+            registry=r,
+        )
+        self.llm_load = Histogram(
+            "arthur_llm_load_seconds",
+            "Time spent loading the model into the GPU (near zero when already loaded)",
+            ["model"],
+            buckets=(0.05, 0.25, 1, 2, 5, 10, 20, 40),
+            registry=r,
+        )
+        self.llm_speed = Gauge(
+            "arthur_llm_tokens_per_second",
+            "Writing speed of the last answer",
+            ["model"],
+            registry=r,
+        )
+        self.chat_stage = Histogram(
+            "arthur_chat_stage_seconds",
+            "Time per stage of a chat turn before the model starts (stage: recall, plan)",
+            ["stage"],
+            buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10),
             registry=r,
         )
 
@@ -170,6 +205,14 @@ class Metrics:
                     ),
                     **samples.latency("arthur_llm_request_duration_seconds", model=model),
                     "first_token": samples.latency("arthur_llm_first_token_seconds", model=model),
+                    "prompt_read": samples.latency("arthur_llm_prompt_read_seconds", model=model),
+                    "load": samples.latency("arthur_llm_load_seconds", model=model),
+                    "prompt_tokens_typical": _from_ms(
+                        samples.latency("arthur_llm_prompt_tokens", model=model)["p50_ms"]
+                    ),
+                    "tokens_per_second": round(
+                        samples.total("arthur_llm_tokens_per_second", model=model), 1
+                    ),
                 }
             )
         return {
@@ -183,6 +226,10 @@ class Metrics:
             "routes": sorted(routes, key=lambda r: -r["requests"]),
             "tools": sorted(tools, key=lambda t: -t["calls"]),
             "models": models,
+            "stages": {
+                stage: samples.latency("arthur_chat_stage_seconds", stage=stage)
+                for stage in samples.label_values("arthur_chat_stage_seconds_count", "stage")
+            },
             "security_blocks": {
                 labels["reason"]: int(value)
                 for labels, value in samples.items("arthur_security_blocks_total")
@@ -228,6 +275,11 @@ class _Samples:
             "p50_ms": _quantile(buckets, 0.50),
             "p95_ms": _quantile(buckets, 0.95),
         }
+
+
+def _from_ms(value: float | None) -> int | None:
+    """`latency()` reports in milliseconds; for a histogram of counts undo the x1000."""
+    return None if value is None else round(value / 1000)
 
 
 def _quantile(buckets: list[tuple[float, float]], q: float) -> float | None:

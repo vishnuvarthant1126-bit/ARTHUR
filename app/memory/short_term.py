@@ -38,6 +38,7 @@ class Conversation:
     messages: list[Message] = field(default_factory=list)
     last_active: float = field(default_factory=time.monotonic)
     pending: PendingAction | None = None
+    window_start: int = 0  # index of the oldest message the model is still shown
 
     def add_exchange(self, user_text: str, assistant_text: str) -> None:
         """Save one user message and ARTHUR's reply, as a pair."""
@@ -45,8 +46,38 @@ class Conversation:
         self.messages.append(Message(role=Role.ASSISTANT, content=assistant_text))
         # Hard cap so one endless conversation can't eat all the RAM.
         if len(self.messages) > self.max_stored_messages:
-            del self.messages[: len(self.messages) - self.max_stored_messages]
+            removed = len(self.messages) - self.max_stored_messages
+            del self.messages[:removed]
+            self.window_start = max(self.window_start - removed, 0)
         self.touch()
+
+    def window(self, token_budget: int, max_messages: int, keep: float = 0.6) -> list[Message]:
+        """The part of the conversation shown to the model: `messages[window_start:]`.
+
+        Unlike `recent()`, the start does not creep forward one message per turn. While the
+        visible part still fits, the start stays put - so the beginning of the prompt is
+        identical to last time and the model's cache stays valid. Only when it no longer
+        fits does the start jump ahead, far enough (down to `keep` x the limits) to leave
+        room for several more turns. Measured in Phase 24: without this, every turn of a
+        long conversation cost an extra 1.8 s of re-reading.
+        """
+        if token_budget <= 0 or not max_messages:
+            return []
+        costs = [estimate_message_tokens(m) for m in self.messages]
+        total = len(self.messages)
+
+        def fits(start: int, tokens: float, count: float) -> bool:
+            return sum(costs[start:]) <= tokens and total - start <= count
+
+        start = min(self.window_start, total)
+        if not fits(start, token_budget, max_messages):
+            while start < total and not fits(start, token_budget * keep, max_messages * keep):
+                start += 1
+        # History must start with a user turn; a lone assistant reply confuses models.
+        while start < total and self.messages[start].role != Role.USER:
+            start += 1
+        self.window_start = start
+        return self.messages[start:]
 
     def recent(self, token_budget: int, max_messages: int) -> list[Message]:
         """Newest messages that fit in `token_budget`, returned oldest-first.
@@ -71,6 +102,7 @@ class Conversation:
 
     def clear(self) -> None:
         self.messages.clear()
+        self.window_start = 0
         self.pending = None
         self.touch()
 

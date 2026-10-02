@@ -90,6 +90,45 @@ class Tool[InputT: BaseModel](ABC):
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": self.input_model.model_json_schema(),
+                "parameters": slim_schema(self.input_model.model_json_schema()),
             },
         }
+
+
+_NOISE = {"title", "minLength", "maxLength", "$defs"}
+
+
+def slim_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Shorten a Pydantic JSON schema for the model.
+
+    Every tool description is sent with every request and the model has to read it. The
+    model needs names, types, descriptions and choices - not a "title" per field, length
+    limits (ARTHUR validates the arguments itself anyway) or the roundabout way JSON
+    Schema spells "optional". This only changes what the MODEL is shown.
+    """
+    definitions = schema.get("$defs", {})
+
+    def clean(node: Any, inside_properties: bool = False) -> Any:
+        if isinstance(node, list):
+            return [clean(item) for item in node]
+        if not isinstance(node, dict):
+            return node
+        if inside_properties:  # keys are parameter NAMES here (one may be called "title")
+            return {name: clean(value) for name, value in node.items()}
+        if "$ref" in node:  # e.g. an enum defined once under $defs: put it in place
+            target = definitions.get(node["$ref"].rsplit("/", 1)[-1], {})
+            node = {**target, **{k: v for k, v in node.items() if k != "$ref"}}
+        options = node.get("anyOf")
+        if options and {"type": "null"} in options:  # "string or nothing" -> just "string"
+            others = [option for option in options if option != {"type": "null"}]
+            if len(others) == 1:
+                node = {**others[0], **{k: v for k, v in node.items() if k != "anyOf"}}
+                if node.get("default") is None:
+                    node.pop("default", None)
+        return {
+            key: clean(value, inside_properties=key == "properties")
+            for key, value in node.items()
+            if key not in _NOISE
+        }
+
+    return clean(schema)

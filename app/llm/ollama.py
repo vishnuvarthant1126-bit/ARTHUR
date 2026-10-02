@@ -15,7 +15,7 @@ from uuid import uuid4
 import httpx
 from pydantic import ValidationError
 
-from app.llm._http import status_error, translate_http_errors
+from app.llm._http import KEEP_ALIVE, status_error, translate_http_errors
 from app.llm.base import (
     LLMProvider,
     LLMResponse,
@@ -23,6 +23,7 @@ from app.llm.base import (
     Message,
     Role,
     StreamEvent,
+    StreamStats,
     T,
     TextDelta,
     ToolCall,
@@ -50,7 +51,9 @@ class OllamaProvider(LLMProvider):
         # One shared client = connection pooling (reuses TCP connections).
         # connect timeout is short: if Ollama isn't running we want to know fast.
         self._client = client or httpx.AsyncClient(
-            base_url=base_url, timeout=httpx.Timeout(timeout_seconds, connect=5.0)
+            base_url=base_url,
+            timeout=httpx.Timeout(timeout_seconds, connect=5.0),
+            limits=KEEP_ALIVE,
         )
 
     # ---------- public API ----------
@@ -91,6 +94,7 @@ class OllamaProvider(LLMProvider):
     ) -> AsyncIterator[StreamEvent]:
         payload = self._payload(messages, stream=True, temperature=temperature, tools=tools)
         calls: list[ToolCall] = []
+        stats: StreamStats | None = None
         with self._errors():
             async with self._client.stream("POST", "/api/chat", json=payload) as response:
                 if response.status_code >= 400:
@@ -108,9 +112,12 @@ class OllamaProvider(LLMProvider):
                         yield TextDelta(text=token)
                     calls.extend(_parse_tool_calls(message.get("tool_calls")))
                     if chunk.get("done"):
+                        stats = _stats(chunk)
                         break
         if calls:
             yield ToolCallsRequested(calls=calls)
+        if stats is not None:
+            yield stats
 
     async def generate_structured(self, messages: list[Message], schema: type[T]) -> T:
         # Ollama's `format` accepts a JSON Schema and constrains the output to it.
@@ -182,6 +189,17 @@ class OllamaProvider(LLMProvider):
                 f"Model '{self.model}' is not installed. Run: ollama pull {self.model}"
             )
         return status_error("Ollama", response)
+
+
+def _stats(chunk: dict[str, Any]) -> StreamStats:
+    """Ollama reports durations in nanoseconds in the final chunk of a stream."""
+    return StreamStats(
+        prompt_tokens=chunk.get("prompt_eval_count") or 0,
+        completion_tokens=chunk.get("eval_count") or 0,
+        load_seconds=(chunk.get("load_duration") or 0) / 1e9,
+        prompt_seconds=(chunk.get("prompt_eval_duration") or 0) / 1e9,
+        generation_seconds=(chunk.get("eval_duration") or 0) / 1e9,
+    )
 
 
 def _to_ollama(message: Message) -> dict[str, Any]:

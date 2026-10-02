@@ -7,6 +7,11 @@ import httpx
 
 from app.llm.base import LLMResponseError, LLMTimeoutError, LLMUnavailableError
 
+# Keep connections to a model server open for minutes, not httpx's default 5 seconds: a
+# person pauses longer than that between messages, and every new connection costs time
+# (measured in Phase 24: ~0.3 s each, twice per message).
+KEEP_ALIVE = httpx.Limits(max_keepalive_connections=10, keepalive_expiry=300.0)
+
 # Status codes worth retrying: rate limited, or a temporary server-side problem.
 RETRYABLE_STATUS = {429, 502, 503, 504}
 

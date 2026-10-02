@@ -166,10 +166,19 @@ def make_memory() -> tuple[MemoryManager, Database]:
 
 
 def make_pdf(*pages: str) -> bytes:
-    """A small real PDF with one text page per argument."""
+    """A small real PDF with one text page per argument.
+
+    The creation date is fixed. By default the PDF contains the current time to the
+    second, so "the same PDF" made a moment later had different bytes - and the
+    duplicate-upload test failed whenever its two uploads fell into different seconds
+    (about 1 full run in 5-10; the long-hunted flaky test, found in Session 10).
+    """
+    from datetime import UTC, datetime
+
     from fpdf import FPDF
 
     pdf = FPDF()
+    pdf.set_creation_date(datetime(2026, 1, 1, tzinfo=UTC))
     for text in pages:
         pdf.add_page()
         pdf.set_font("Helvetica", size=11)
@@ -324,7 +333,7 @@ def _app_with(llm: LLMProvider):
         document_min_score=0.2,
     )
     app.state.orchestrator = build_orchestrator(
-        llm, TEST_SETTINGS, memory_manager, app.state.tools, retriever
+        llm, TEST_SETTINGS, memory_manager, app.state.tools, retriever, app.state.metrics
     )
     return app
 

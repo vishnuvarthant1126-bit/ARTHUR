@@ -18,6 +18,7 @@ from app.observability.logging import get_logger
 log = get_logger(__name__)
 
 MAX_PLAN_STEPS = 6
+LONG_MESSAGE_WORDS = 60
 
 _MULTI_PART = re.compile(
     r"\b(?:and then|then|after that|afterwards|compare|comparison|difference|versus|vs\.?|"
@@ -27,11 +28,17 @@ _MULTI_PART = re.compile(
 
 
 def looks_complex(text: str) -> bool:
-    """Cheap first filter: multi-part wording in a message of reasonable length."""
-    if len(text.split()) < 8:
+    """Cheap first filter: multi-part wording in a message of reasonable length.
+
+    A "yes" here costs a planning call to the model (measured: ~1.2 s), so false alarms
+    matter. Several "and"s only count in a short message: in long pasted text (notes, an
+    email) they are just prose, not a list of tasks.
+    """
+    words = len(text.split())
+    if words < 8:
         return False
     signals = len(_MULTI_PART.findall(text))
-    signals += text.lower().count(" and ") >= 2
+    signals += words <= LONG_MESSAGE_WORDS and text.lower().count(" and ") >= 2
     signals += text.count("?") >= 2
     return signals >= 1
 

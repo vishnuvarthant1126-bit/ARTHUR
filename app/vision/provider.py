@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 
 import httpx
 
+from app.llm._http import KEEP_ALIVE
 from app.observability.logging import get_logger
 
 log = get_logger(__name__)
@@ -62,7 +63,9 @@ class OllamaVision(VisionProvider):
         self.model = model
         self.keep_alive = keep_alive
         self._client = client or httpx.AsyncClient(
-            base_url=base_url, timeout=httpx.Timeout(timeout_seconds, connect=5.0)
+            base_url=base_url,
+            timeout=httpx.Timeout(timeout_seconds, connect=5.0),
+            limits=KEEP_ALIVE,
         )
 
     async def describe(self, image: bytes, question: str) -> str:

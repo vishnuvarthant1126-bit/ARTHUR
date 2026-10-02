@@ -58,7 +58,21 @@ class ToolCallsRequested(BaseModel):
     calls: list[ToolCall]
 
 
-StreamEvent = TextDelta | ToolCallsRequested
+class StreamStats(BaseModel):
+    """The provider's own measurements for one call, sent as the last stream event.
+
+    They answer "where did the time go?": loading the model into the GPU, reading the
+    prompt (`prompt_tokens` in `prompt_seconds`), or writing the answer.
+    """
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    load_seconds: float = 0.0
+    prompt_seconds: float = 0.0
+    generation_seconds: float = 0.0
+
+
+StreamEvent = TextDelta | ToolCallsRequested | StreamStats
 
 
 # --- Errors: provider-specific failures are translated into these ---

@@ -64,6 +64,7 @@ def build_orchestrator(
     memory: MemoryManager | None = None,
     tools: ToolRegistry | None = None,
     retriever: DocumentRetriever | None = None,
+    metrics: Metrics | None = None,
 ) -> Orchestrator:
     conversations = ConversationStore(
         max_sessions=settings.memory_max_sessions,
@@ -87,6 +88,7 @@ def build_orchestrator(
         retriever=retriever,
         rag_top_k=settings.rag_top_k,
         rag_min_score=settings.rag_min_score,
+        metrics=metrics,
     )
 
 
@@ -102,7 +104,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     metrics: Metrics = app.state.metrics
     llm = MeteredProvider(create_llm_provider(settings), metrics)  # times every model call
     embeddings = create_embedding_provider(
-        settings.embedding_provider, settings.ollama_base_url, settings.embedding_model
+        settings.embedding_provider,
+        settings.ollama_base_url,
+        settings.embedding_model,
+        keep_alive=settings.ollama_keep_alive,
     )
     memory_manager = MemoryManager(
         MemoryRepository(db),
@@ -195,7 +200,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         document_min_score=settings.rag_min_score,
     )
     app.state.orchestrator = build_orchestrator(
-        llm, settings, memory_manager, app.state.tools, retriever
+        llm, settings, memory_manager, app.state.tools, retriever, metrics
     )
     app.state.stt = WhisperSTT(
         settings.whisper_model,
@@ -224,6 +229,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         *(asyncio.to_thread(m.warm_up) for m in speech_models if settings.voice_warm_up),
         return_exceptions=True,  # a missing voice model must not crash startup
     )
+    # The same for the language models: load them and cache the standing prompt now, so the
+    # first message doesn't wait ~11 s (see Orchestrator.warm_up).
+    model_warm_up = (
+        asyncio.create_task(app.state.orchestrator.warm_up(), name="arthur-model-warm-up")
+        if settings.llm_warm_up
+        else None
+    )
 
     log.info(
         "arthur_started",
@@ -239,6 +251,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
     await scheduler.stop()
     warm_up.cancel()
+    if model_warm_up is not None:
+        model_warm_up.cancel()
     if browser is not None:
         await browser.close()
     if desktop is not None:

@@ -106,8 +106,23 @@ function drawModel(s) {
       tile("Typical call", typical, typicalUnit, "half were faster (p50)"),
       tile("Slow call", slow, slowUnit, "95 % were faster (p95)"),
       tile("First words", first, firstUnit, "typical, streamed answers"),
-      tile("Text generated", compact(m.completion_tokens), "tokens", "approximate"),
+      tile("Text generated", compact(m.completion_tokens), "tokens"),
     );
+    // Where the time goes (Phase 24): how much the model must read, and how long that takes.
+    const [read, readUnit] = duration(m.prompt_read.p50_ms);
+    const [readSlow, readSlowUnit] = duration(m.prompt_read.p95_ms);
+    const [load, loadUnit] = duration(m.load.p95_ms);
+    tiles.push(
+      tile("Prompt size", compact(m.prompt_tokens_typical), "tokens", "instructions + tools + chat"),
+      tile("Reading the prompt", read, readUnit, `typical; slow ${readSlow} ${readSlowUnit} (not cached)`),
+      tile("Loading the model", load, loadUnit, "slowest cases (after a long pause)"),
+      tile("Writing speed", m.tokens_per_second ? String(Math.round(m.tokens_per_second)) : "–", "tokens/s", "last answer"),
+    );
+  }
+  const stageNames = { recall: "Memory + document lookup", plan: "Planning (multi-step requests)" };
+  for (const [stage, timing] of Object.entries(s.stages || {})) {
+    const [typical, unit] = duration(timing.p50_ms);
+    tiles.push(tile(stageNames[stage] || stage, typical, unit, "typical, before the model starts"));
   }
   $("model").replaceChildren(...tiles);
   $("model-empty").hidden = s.models.length > 0;

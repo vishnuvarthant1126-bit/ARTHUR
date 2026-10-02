@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 
 import httpx
 
-from app.llm._http import status_error, translate_http_errors
+from app.llm._http import KEEP_ALIVE, status_error, translate_http_errors
 from app.llm.base import LLMResponseError
 
 
@@ -42,11 +42,20 @@ class OllamaEmbeddings(EmbeddingProvider):
     DOCUMENT_PREFIX = "search_document: "
     QUERY_PREFIX = "search_query: "
 
-    def __init__(self, base_url: str, model: str, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        client: httpx.AsyncClient | None = None,
+        keep_alive: str | None = None,
+    ) -> None:
         self.model = model
         self._base_url = base_url
+        # How long Ollama keeps the embedding model loaded. Its own default is 5 minutes,
+        # after which the next question waits ~2 s for a reload (measured in Phase 24).
+        self._keep_alive = keep_alive
         self._client = client or httpx.AsyncClient(
-            base_url=base_url, timeout=httpx.Timeout(60.0, connect=5.0)
+            base_url=base_url, timeout=httpx.Timeout(60.0, connect=5.0), limits=KEEP_ALIVE
         )
         self._use_prefixes = model.startswith("nomic-embed")
 
@@ -62,10 +71,11 @@ class OllamaEmbeddings(EmbeddingProvider):
         await self._client.aclose()
 
     async def _embed(self, inputs: list[str]) -> list[list[float]]:
+        payload: dict = {"model": self.model, "input": inputs}
+        if self._keep_alive:
+            payload["keep_alive"] = self._keep_alive
         with translate_http_errors("Ollama embeddings", self._base_url):
-            response = await self._client.post(
-                "/api/embed", json={"model": self.model, "input": inputs}
-            )
+            response = await self._client.post("/api/embed", json=payload)
         if response.status_code == 404:
             raise LLMResponseError(
                 f"Embedding model '{self.model}' is not installed. Run: ollama pull {self.model}"
@@ -101,10 +111,12 @@ class HashEmbeddings(EmbeddingProvider):
         return self._vector(text)
 
 
-def create_embedding_provider(name: str, base_url: str, model: str) -> EmbeddingProvider:
+def create_embedding_provider(
+    name: str, base_url: str, model: str, keep_alive: str | None = None
+) -> EmbeddingProvider:
     match name.lower():
         case "ollama":
-            return OllamaEmbeddings(base_url=base_url, model=model)
+            return OllamaEmbeddings(base_url=base_url, model=model, keep_alive=keep_alive)
         case "hash":
             return HashEmbeddings()
         case other:

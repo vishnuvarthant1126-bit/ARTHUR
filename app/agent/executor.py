@@ -31,7 +31,15 @@ from app.agent.state import (
     ToolEndEvent,
     ToolStartEvent,
 )
-from app.llm.base import LLMError, LLMProvider, Message, Role, TextDelta, ToolCall
+from app.llm.base import (
+    LLMError,
+    LLMProvider,
+    Message,
+    Role,
+    TextDelta,
+    ToolCall,
+    ToolCallsRequested,
+)
 from app.observability.logging import get_logger
 from app.tools.base import ToolContext, ToolResult
 from app.tools.registry import ToolRegistry
@@ -84,8 +92,9 @@ class ToolLoop:
                 if isinstance(event, TextDelta):
                     text_parts.append(event.text)
                     yield TextEvent(text=event.text)
-                else:
+                elif isinstance(event, ToolCallsRequested):
                     calls.extend(event.calls)
+                # (StreamStats and any future event types are not the agent's business)
 
             if not calls:
                 log.info("agent_finished", steps=step)

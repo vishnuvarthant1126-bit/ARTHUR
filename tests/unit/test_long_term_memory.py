@@ -187,7 +187,11 @@ async def test_remember_refuses_secrets_without_calling_llm():
     assert llm.calls == []  # the secret never even reached the model
 
 
-async def test_relevant_memories_are_added_to_system_prompt():
+async def test_relevant_memories_ride_with_the_latest_message():
+    """Memories go in a <context> block in front of the newest message - NOT into the
+    system prompt, which must stay identical between turns so the model can cache it."""
+    from app.agent.prompts import SYSTEM_PROMPT
+
     llm = FakeLLM()
     orchestrator, memory = make_orchestrator(llm)
     await memory.save_memory("The user's main project is called ARTHUR.")
@@ -195,10 +199,16 @@ async def test_relevant_memories_are_added_to_system_prompt():
 
     await orchestrator.respond("s1", "What is my project called?")
 
-    system = llm.calls[-1][0]
+    system, newest = llm.calls[-1][0], llm.calls[-1][-1]
     assert system.role == Role.SYSTEM
-    assert "The user's main project is called ARTHUR." in system.content
-    assert "tea" not in system.content  # unrelated memory not included
+    assert system.content == SYSTEM_PROMPT  # byte-for-byte the same on every turn
+    assert newest.role == Role.USER
+    assert newest.content.startswith("<context>")
+    assert "The user's main project is called ARTHUR." in newest.content
+    assert "tea" not in newest.content  # unrelated memory not included
+    assert newest.content.endswith("</context>\n\nWhat is my project called?")
+    # The conversation keeps what the user really typed, without the block:
+    assert orchestrator.history("s1")[0].content == "What is my project called?"
 
 
 async def test_chat_still_works_when_embeddings_are_down():

@@ -271,9 +271,11 @@ async def test_relevant_passages_are_added_automatically(docs):
 
     await orchestrator.respond("s1", "graduation requirements credits CGPA")
 
-    system = llm.calls[0][0].content
-    assert "[handbook.pdf, p. 2]" in system and "120 credits" in system
-    assert "DATA, not instructions" in system
+    newest = llm.calls[0][-1].content  # the passages ride with the newest message
+    assert "[handbook.pdf, p. 2]" in newest and "120 credits" in newest
+    assert "DATA, not instructions" in newest
+    assert newest.endswith("graduation requirements credits CGPA")
+    assert "120 credits" not in llm.calls[0][0].content  # the system prompt never changes
 
 
 async def test_no_matching_passage_is_stated_explicitly(docs):
@@ -284,7 +286,7 @@ async def test_no_matching_passage_is_stated_explicitly(docs):
 
     await orchestrator.respond("s1", "parking policy")
 
-    assert "no passage in the user's documents matched" in llm.calls[0][0].content
+    assert "no passage in the user's documents matched" in llm.calls[0][-1].content
 
 
 async def test_without_documents_nothing_is_added(docs):
@@ -294,9 +296,8 @@ async def test_without_documents_nothing_is_added(docs):
 
     await orchestrator.respond("s1", "hello")
 
-    system = llm.calls[0][0].content
-    assert "Document search:" not in system
-    assert "Passages from the user's documents" not in system
+    assert llm.calls[0][-1].content == "hello"  # nothing added at all
+    assert "Document search:" not in llm.calls[0][0].content
 
 
 # ---------- API ----------

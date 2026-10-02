@@ -12,6 +12,8 @@ from typing import Literal
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.utils.net import prefer_ipv4_loopback
+
 # The folder containing app/, so relative paths work no matter where you start the server.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -39,12 +41,18 @@ class Settings(BaseSettings):
     # Part of the window kept free for the reply itself.
     llm_reply_reserve_tokens: int = 1024
 
-    ollama_base_url: str = "http://localhost:11434"
+    # 127.0.0.1, not "localhost": on Windows "localhost" is tried over IPv6 first and every
+    # new connection waits for that to fail (see app/utils/net.py). An old .env that still
+    # says localhost is corrected automatically by the validator below.
+    ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3:8b"
     # How long Ollama keeps the model in GPU memory after the last request. Ollama's own
     # default (5 min) means a ~10 s reload for the first question after a pause.
     # Longer = faster answers, but the GPU memory (~6 GB) stays reserved. "-1" = forever.
     ollama_keep_alive: str = "30m"
+    # Load the models and cache the standing prompt when ARTHUR starts (in the background),
+    # so the first message is fast. Costs GPU memory from the start instead of on first use.
+    llm_warm_up: bool = True
 
     # LLM_PROVIDER=echo: a stand-in model for load tests and offline demos (app/llm/echo.py).
     echo_delay_seconds: float = 0.0  # how long each "answer" takes
@@ -178,6 +186,11 @@ class Settings(BaseSettings):
     def empty_is_none(cls, value: object) -> object:
         """`KEY=` (blank) in .env means "not set"."""
         return value or None
+
+    @field_validator("ollama_base_url", "openai_compat_base_url", "searxng_url")
+    @classmethod
+    def no_slow_localhost(cls, value: str | None) -> str | None:
+        return prefer_ipv4_loopback(value) if value else value
 
     @field_validator("files_save_dir", mode="before")
     @classmethod

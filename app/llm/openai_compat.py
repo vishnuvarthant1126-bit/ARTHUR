@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
-from app.llm._http import status_error, translate_http_errors
+from app.llm._http import KEEP_ALIVE, status_error, translate_http_errors
 from app.llm.base import LLMProvider, LLMResponse, LLMResponseError, Message, Role, T, ToolCall
 
 LABEL = "OpenAI-compatible API"
@@ -39,6 +39,7 @@ class OpenAICompatProvider(LLMProvider):
             base_url=base_url,
             headers=headers,
             timeout=httpx.Timeout(timeout_seconds, connect=5.0),
+            limits=KEEP_ALIVE,
             transport=transport,
         )
 

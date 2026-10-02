@@ -17,6 +17,7 @@ confirmation) so the UI can show what ARTHUR is doing.
 """
 
 import asyncio
+import json
 import re
 import time
 from collections.abc import AsyncIterator
@@ -25,12 +26,7 @@ from pydantic import BaseModel, Field
 
 from app.agent.executor import AgentLimits, PlanExecutor, PlanLimits, ToolLoop
 from app.agent.planner import Plan, Planner, looks_complex
-from app.agent.prompts import (
-    SYNTHESIS_PROMPT,
-    SYSTEM_PROMPT,
-    document_section,
-    memory_section,
-)
+from app.agent.prompts import SYNTHESIS_PROMPT, SYSTEM_PROMPT, context_block
 from app.agent.state import (
     AgentEvent,
     ConfirmationEvent,
@@ -50,10 +46,11 @@ from app.memory import policy
 from app.memory.manager import MemoryManager, MemorySearchResult
 from app.memory.short_term import Conversation, ConversationStore, PendingAction
 from app.observability.logging import get_logger
+from app.observability.metrics import Metrics
 from app.rag.retrieval import DocumentHit, DocumentRetriever
 from app.tools.base import PermissionLevel, ToolContext
 from app.tools.registry import ToolRegistry
-from app.utils.tokens import estimate_message_tokens
+from app.utils.tokens import estimate_message_tokens, estimate_tokens
 
 log = get_logger(__name__)
 
@@ -124,8 +121,10 @@ class Orchestrator:
         retriever: DocumentRetriever | None = None,
         rag_top_k: int = 5,
         rag_min_score: float = 0.58,
+        metrics: Metrics | None = None,
     ) -> None:
         self.llm = llm
+        self.metrics = metrics
         self.conversations = conversations
         self.memory = memory
         self.tools = tools
@@ -146,6 +145,11 @@ class Orchestrator:
             self.plan_executor = PlanExecutor(
                 llm, tools, tool_names=set(agent_tools), limits=plan_limits
             )
+        # The tool descriptions travel with EVERY request and take room in the context
+        # window (about 3,000 tokens for 27 tools) - they must be part of the budget.
+        self.tools_tokens = (
+            estimate_tokens(json.dumps(tools.llm_schemas(set(agent_tools)))) if tools else 0
+        )
         self.context_tokens = context_tokens
         self.reply_reserve_tokens = reply_reserve_tokens
         self.max_history_messages = max_history_messages
@@ -198,23 +202,61 @@ class Orchestrator:
         memories: list[MemorySearchResult] | None = None,
         passages: list[DocumentHit] | None = None,
     ) -> list[Message]:
-        system_text = SYSTEM_PROMPT + memory_section([m.memory.content for m in memories or []])
-        if passages is not None:  # None = the user has no documents at all
-            system_text += document_section([(p.citation, p.text) for p in passages])
-        system = Message(role=Role.SYSTEM, content=system_text)
-        user = Message(role=Role.USER, content=user_text)
-        # Budget for history = window - room for the reply - the fixed parts.
+        """The prompt, ordered so that as much as possible stays identical between turns:
+
+            system text (never changes) -> [tool descriptions] -> history -> this message
+
+        The model re-reads only what differs from the previous request, so everything that
+        changes per message - memories, document passages - rides with the newest message
+        at the very end (see prompts.context_block).
+        """
+        system = Message(role=Role.SYSTEM, content=SYSTEM_PROMPT)
+        context = context_block(
+            [m.memory.content for m in memories or []],
+            # None = the user has no documents at all
+            None if passages is None else [(p.citation, p.text) for p in passages],
+        )
+        user = Message(role=Role.USER, content=context + user_text)
+        # Budget for history = window - room for the reply - everything else in the prompt.
         budget = (
             self.context_tokens
             - self.reply_reserve_tokens
             - estimate_message_tokens(system)
+            - self.tools_tokens
             - estimate_message_tokens(user)
         )
-        history = conversation.recent(max(budget, 0), self.max_history_messages)
+        history = conversation.window(max(budget, 0), self.max_history_messages)
         dropped = len(conversation.messages) - len(history)
         if dropped > 0:
             log.info("history_trimmed", kept=len(history), dropped=dropped)
         return [system, *history, user]
+
+    async def warm_up(self) -> None:
+        """Get the models ready before the first message (run in the background at start).
+
+        Measured without it: the first message waited ~11 s - loading the chat model into
+        the GPU (~7 s), loading the embedding model (~2 s) and reading the ~4,000-token
+        prompt (~1.2 s). This sends one tiny request with the REAL system prompt and tool
+        descriptions, so the models are loaded and that prompt is already cached.
+        Failures are only logged: ARTHUR must start even when Ollama isn't running yet.
+        """
+        started = time.perf_counter()
+        try:
+            messages = [
+                Message(role=Role.SYSTEM, content=SYSTEM_PROMPT),
+                Message(role=Role.USER, content="Reply with the single word: ready"),
+            ]
+            tools = self.loop.registry.llm_schemas(self.loop.tool_names) if self.loop else None
+            async for _ in self.llm.stream_chat(messages, tools=tools):
+                pass
+            # The small embedding model AFTER the big chat model: loaded first, it was
+            # pushed out of the GPU again when the chat model arrived (measured).
+            if self.memory is not None:
+                await self.memory.embeddings.embed_query("warm up")
+        except Exception as exc:
+            log.warning("model_warm_up_failed", error=str(exc)[:200])
+            return
+        log.info("models_warmed_up", seconds=round(time.perf_counter() - started, 1))
 
     def history(self, session_id: str) -> list[Message]:
         if session_id not in self.conversations:
@@ -242,7 +284,10 @@ class Orchestrator:
         context = ToolContext(request_id=request_id, session_id=conversation.session_id)
         work = self.loop.run(prepared, context)
         if self.planner and looks_complex(user_text):
+            started = time.perf_counter()
             plan = await self.planner.make_plan(user_text)
+            if self.metrics is not None:  # an extra model call before the answer starts
+                self.metrics.chat_stage.labels("plan").observe(time.perf_counter() - started)
             if plan:
                 work = self._run_plan(plan, prepared, user_text, context)
         async for event in self._supervise(work, conversation):
@@ -319,9 +364,12 @@ class Orchestrator:
                 case policy.MemoryIntent.FORGET:
                     return await self._forget(conversation, user_text)
 
+        started = time.perf_counter()
         memories, passages = await asyncio.gather(
             self._recall(user_text), self._recall_documents(user_text)
         )
+        if self.metrics is not None:
+            self.metrics.chat_stage.labels("recall").observe(time.perf_counter() - started)
         return self.build_messages(conversation, user_text, memories, passages)
 
     async def _recall_documents(self, user_text: str) -> list[DocumentHit] | None:
