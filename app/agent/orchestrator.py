@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 
 from app.agent.executor import AgentLimits, PlanExecutor, PlanLimits, ToolLoop
 from app.agent.planner import Plan, Planner, looks_complex
-from app.agent.prompts import SYNTHESIS_PROMPT, SYSTEM_PROMPT, context_block
+from app.agent.prompts import SYNTHESIS_PROMPT, SYSTEM_PROMPT, context_block, system_prompt
 from app.agent.state import (
     AgentEvent,
     ConfirmationEvent,
@@ -101,6 +101,12 @@ class AgentReply(BaseModel):
     tools_used: list[ToolEndEvent] = Field(default_factory=list)
 
 
+EMPTY_ANSWER = (
+    "I couldn't produce an answer to that. It may need something that isn't available "
+    "in this installation - please try asking in a different way."
+)
+
+
 class Orchestrator:
     def __init__(
         self,
@@ -149,6 +155,10 @@ class Orchestrator:
         # window (about 3,000 tokens for 27 tools) - they must be part of the budget.
         self.tools_tokens = (
             estimate_tokens(json.dumps(tools.llm_schemas(set(agent_tools)))) if tools else 0
+        )
+        # Fixed for the life of the process (prompt cache); names what this install lacks.
+        self.system_prompt = (
+            system_prompt({t.name for t in tools.all()} & agent_tools) if tools else SYSTEM_PROMPT
         )
         self.context_tokens = context_tokens
         self.reply_reserve_tokens = reply_reserve_tokens
@@ -210,7 +220,7 @@ class Orchestrator:
         changes per message - memories, document passages - rides with the newest message
         at the very end (see prompts.context_block).
         """
-        system = Message(role=Role.SYSTEM, content=SYSTEM_PROMPT)
+        system = Message(role=Role.SYSTEM, content=self.system_prompt)
         context = context_block(
             [m.memory.content for m in memories or []],
             # None = the user has no documents at all
@@ -243,7 +253,7 @@ class Orchestrator:
         started = time.perf_counter()
         try:
             messages = [
-                Message(role=Role.SYSTEM, content=SYSTEM_PROMPT),
+                Message(role=Role.SYSTEM, content=self.system_prompt),
                 Message(role=Role.USER, content="Reply with the single word: ready"),
             ]
             tools = self.loop.registry.llm_schemas(self.loop.tool_names) if self.loop else None
@@ -343,7 +353,11 @@ class Orchestrator:
                 )
 
         text = "".join(answer)
-        if not asked and fakes_permission_request(text):
+        if not asked and not text.strip():
+            # The model sent neither words nor a tool call. Silence looks like a crash.
+            log.warning("empty_answer")
+            yield TextEvent(text=EMPTY_ANSWER)
+        elif not asked and fakes_permission_request(text):
             log.warning("fake_permission_request")
             yield TextEvent(text=FAKE_PERMISSION_NOTE)
         elif not acted and claims_action(text):

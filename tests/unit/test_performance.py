@@ -9,8 +9,8 @@ import json
 import httpx
 from pydantic import BaseModel, Field
 
-from app.agent.orchestrator import Orchestrator
-from app.agent.prompts import SYSTEM_PROMPT, context_block
+from app.agent.orchestrator import EMPTY_ANSWER, Orchestrator
+from app.agent.prompts import OPTIONAL_PARTS, SYSTEM_PROMPT, context_block, system_prompt
 from app.config.settings import Settings
 from app.llm.base import Message, Role, StreamStats, TextDelta
 from app.llm.metered import MeteredProvider
@@ -93,9 +93,18 @@ def test_system_prompt_is_identical_and_tools_are_part_of_the_budget():
 
     a = with_tools.build_messages(conversation_of(30), "hello")
     b = without.build_messages(conversation_of(30), "hello")
-    assert a[0].content == b[0].content == SYSTEM_PROMPT
+    assert b[0].content == SYSTEM_PROMPT
+    # With tools the prompt also names what this installation lacks - fixed at start-up,
+    # so it is still the same text on every request.
+    assert a[0].content == with_tools.system_prompt
+    assert with_tools.build_messages(conversation_of(3), "other")[0].content == a[0].content
     assert a[-1].content == b[-1].content == "hello"
-    # The same window with tools leaves less room for history:
+    # The same window and system text, but with tools, leaves less room for history:
+    # (one calculator is ~80 tokens - less than one exchange; real installs have ~27 tools)
+    without.system_prompt = with_tools.system_prompt
+    with_tools.tools_tokens = 800
+    a = with_tools.build_messages(conversation_of(30), "hello")
+    b = without.build_messages(conversation_of(30), "hello")
     assert sum(map(estimate_message_tokens, a[1:-1])) < sum(map(estimate_message_tokens, b[1:-1]))
 
 
@@ -309,7 +318,9 @@ async def test_warm_up_sends_the_real_standing_prompt():
 
     await orchestrator.warm_up()
 
-    assert llm.calls[0][0].content == SYSTEM_PROMPT
+    # the very same text build_messages sends (cache!), incl. the "not available" note
+    sent = orchestrator.build_messages(Conversation("warm-check"), "hi")[0].content
+    assert llm.calls[0][0].content == sent == orchestrator.system_prompt
     assert [t["function"]["name"] for t in llm.tools_offered[0]] == ["calculator"]
     assert memory.embeddings.calls == 1  # the embedding model was loaded too
     assert orchestrator.history("any-session") == []  # no conversation was touched
@@ -319,3 +330,41 @@ async def test_warm_up_sends_the_real_standing_prompt():
         FakeLLM(error=LLMUnavailableError("Ollama is not running")), ConversationStore()
     )
     await broken.warm_up()
+
+
+# ---------- found on the first Docker run ----------
+
+
+def test_every_optional_part_is_really_in_the_system_prompt():
+    # system_prompt() swaps text by exact match - an edited prompt must not silently stop matching.
+    for _, text, _ in OPTIONAL_PARTS:
+        assert SYSTEM_PROMPT.count(text) == 1
+
+
+def test_system_prompt_only_changes_when_a_feature_is_missing():
+    everything = {tool for tool, _, _ in OPTIONAL_PARTS} | {"calculator"}
+    assert system_prompt(everything) == SYSTEM_PROMPT  # the normal Windows install: unchanged
+
+    in_docker = system_prompt({"calculator", "describe_image"})
+    for gone in ("open_app", "browser_open", "browser_click", "look_at_screen", "read_window"):
+        assert gone not in in_docker
+    assert "CANNOT open or control desktop apps" in in_docker
+    assert "NO browser of your own" in in_docker
+    assert "describe_image" in in_docker and "calculator:" in in_docker
+
+    only_browser_missing = system_prompt(everything - {"browser_open"})
+    assert "open_app" in only_browser_missing and "browser_open" not in only_browser_missing
+
+
+async def test_an_empty_model_answer_becomes_a_visible_message():
+    registry = ToolRegistry(PermissionPolicy(), None)
+    registry.register(CalculatorTool())
+    orchestrator = Orchestrator(
+        FakeLLM(script=[""]),
+        ConversationStore(),
+        tools=registry,
+        agent_tools=frozenset({"calculator"}),
+        planning=False,
+    )
+    reply = await orchestrator.respond("empty-answer-1", "Open Notepad")
+    assert reply.content == EMPTY_ANSWER

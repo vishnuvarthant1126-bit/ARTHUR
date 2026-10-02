@@ -27,8 +27,9 @@ learning and portfolio project. The owner is a beginner/intermediate developer.
 - Windows 11, PowerShell. Project: `C:\Users\User\Projects\arthur`.
 - Python 3.12 venv at `.venv` (system default Python is 3.14 – don't use it; ML wheels lag).
 - Ollama with `qwen3:8b` (chat) and `nomic-embed-text` (embeddings). RTX 5060 Laptop, 8 GB VRAM, 16 GB RAM.
-- Docker Desktop NOT installed yet (user must install). Phase 23 files exist but were never
-  run – when Docker is there, do the checklist in docs/DOCKER.md (short session "10b").
+- Docker Desktop 29.8 installed (2 Oct 2026). `docker compose up -d --build` runs ARTHUR on
+  :8000 with `restart: unless-stopped` – it then BLOCKS port 8000 for uvicorn; check
+  `docker ps` and `docker compose down` before starting the dev server. `.env` has TZ.
 - GitHub remote not set up yet (user must create the repo and push).
 
 ## Commands
@@ -109,8 +110,8 @@ ruff check . ; ruff format --check .
 - `app/observability/metrics.py` – `Metrics` (own Prometheus registry on `app.state.metrics`;
   labels = route templates / registered tool names only), `summary()` for /dashboard.html;
   `app/llm/metered.py` `MeteredProvider`; `/metrics`, `/metrics/summary`; middleware counts
-  requests (also crashes as 500) and refusals. `deploy/` (Prometheus, Grafana, compose) is
-  UNTESTED until Docker exists; `scripts/make_grafana_dashboard.py` regenerates the dashboard.
+  requests (also crashes as 500) and refusals. `deploy/` (Prometheus, Grafana, compose) was
+  verified in Docker; `scripts/make_grafana_dashboard.py` regenerates the dashboard.
 - `app/database/database.py` – ONE process-wide RLock around every session (SQLite writer
   starvation → "database is locked" under load). `app/llm/echo.py` (LLM_PROVIDER=echo) and
   `HashEmbeddings` (EMBEDDING_PROVIDER=hash) for load tests: `scripts/run_load_server.py`
@@ -125,12 +126,17 @@ ruff check . ; ruff format --check .
   then embeddings. `StreamStats` → `MeteredProvider` (prompt tokens/read/load/speed).
   Always `127.0.0.1`, not `localhost` (`app/utils/net.py`). Profile with
   `scripts/profile_chat.py` against a server WITHOUT `--reload` (port 8002).
-- Docker (Phase 23, docs/DOCKER.md, NOT RUN): `docker/Dockerfile` (copies only app/ +
+- Docker (Phase 23, docs/DOCKER.md, verified; browser build + SearXNG NOT run): `docker/Dockerfile` (copies only app/ +
   frontend/, non-root), root `docker-compose.yml` (arthur + prometheus + grafana, searxng
   profile; ports 127.0.0.1 only; ALLOWED_HOSTS=arthur; data in volume `arthur-data`; Ollama
   on the host), `deploy/prometheus/prometheus.yml` (container) / `prometheus.host.yml`
   (monitoring-only compose). `tests/unit/test_docker_files.py` enforces these statically –
   new Compose env names must be real Settings fields; no top-level Windows-only imports.
+- `prompts.system_prompt(tool_names)` → `Orchestrator.system_prompt` (built once): parts of
+  SYSTEM_PROMPT about missing features (`OPTIONAL_PARTS`: desktop, browser, screen) are
+  REPLACED by "not available" text – appending a note did not work with qwen3. Editing those
+  prompt parts means editing the matching constant (a test checks they still match).
+  `EMPTY_ANSWER` replaces a silent model reply. `av<19` is pinned (faster-whisper 1.2).
 - `app/tools/` – `Tool` base (name, description, input_model, permission_level, timeout, run),
   `ToolRegistry.execute` (lookup → permission → validate → confirm → timeout → audit),
   tools: calculator (AST, no eval), current_time, weather (Open-Meteo), memory tools.
@@ -159,8 +165,8 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 7 | Thu 2026-10-01 | 16–17: controlled computer use, vision | ✅ Done (Wed 2026-09-30, same day as session 6, owner's request) |
 | 8 | Fri 2026-10-02 | 18–19: scheduler/reminders, full security system | ✅ Done (Thu 2026-10-01) |
 | 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | ✅ Done (Thu 2026-10-01, same day as session 8, owner's request) |
-| 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance | ✅ Done (Fri 2026-10-02): Phase 24 fully; Phase 23 written + statically tested, NOT run (no Docker) |
-| 10b | when Docker Desktop is installed | first real Docker run: checklist in docs/DOCKER.md | waiting for the owner |
+| 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance | ✅ Done (Fri 2026-10-02) |
+| 10b | Fri 2026-10-02 | first real Docker run (checklist in docs/DOCKER.md) | ✅ Done (same day, after the owner installed Docker) |
 | 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | ⏭ Next |
 | 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
 
@@ -241,6 +247,13 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   alarms on long prose; slim_schema gave NO gain with Ollama (said so). The real flaky test
   was the duplicate-upload test (PDF creation time to the second), not the voice test.
   Docker: nothing built or started; image tags checked on Docker Hub only.
+- Session 10b done (first Docker run): 718 tests. Verified live in containers: build 1.51 GB,
+  Ollama reached via host.docker.internal (Ollama on 127.0.0.1), chat/tools/search, memory
+  across rebuilds, save_file → Windows folder, reminders +08, voice, 421/403, LAN refused,
+  Prometheus UP, Grafana panels with data, monitoring-only compose, speed = Windows.
+  Found: PyAV 19 broke transcription (unpinned deps → `av<19`), blank answer for missing
+  tools (prompt now built from available tools + EMPTY_ANSWER). Open: browser build,
+  SearXNG, a lock file, red Uptime tile in Grafana. /chat session ids need 8+ characters.
 - Phase 25–27 notes: UI work must keep the CSP (no inline scripts/styles, no external
   deps) and the safe Markdown renderer; verify in the browser pane, mic needs Chrome.
   Multimodal input: /vision/describe and describe_image exist – build on them (image in

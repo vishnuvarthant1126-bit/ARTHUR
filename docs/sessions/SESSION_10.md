@@ -4,6 +4,8 @@ Docker Desktop is not installed yet, so the owner chose: **performance fully tod
 written and checked without running it**. That is why Phase 24 came first.
 Result: answers are 2–20× faster in the situations that were slow, and the Docker setup is
 ready to try. 715 tests passing, coverage 91 %.
+**Later the same day Docker Desktop was installed and the files were run for real - see
+"Session 10b" at the end.**
 Commits: `5541e2f` (performance), `58239f3` (Docker files).
 
 ---
@@ -101,3 +103,40 @@ Ollama, write permission on mounted folders, Chromium's sandbox inside the conta
 Session 11 – Phases 25–27: futuristic UI, multimodal input, advanced agent features.
 Whenever Docker Desktop is installed: run the checklist in `docs/DOCKER.md` (a short extra
 session, "10b").
+
+---
+
+## Session 10b – the first real Docker run (same day)
+
+The owner installed Docker Desktop, so the checklist was run. 718 tests passing.
+
+**What worked on the first try**
+- The image built (1.51 GB) and the container became healthy in ~20 s.
+- The container reached Ollama on Windows, although Ollama listens on 127.0.0.1 only.
+- Chat, tools, web search, file tools (save asked first; the file appeared on Windows),
+  reminders in local time, memory surviving restarts and rebuilds.
+- Ports closed to the Wi-Fi; wrong Host → 421; other website → 403.
+- Prometheus target UP; the Grafana dashboard showed data in every panel.
+- Speed identical to Windows (0.35–0.8 s small talk, ~1.1 s with a tool).
+
+**What running it found – and reading the files could not**
+1. *Voice broken in the container.* A dependency of the speech library (PyAV) had a new
+   major version a few days old; the container got 19, Windows had 18. Fixed: `av<19`.
+   Concept: **version pinning**. "At least version X" means every new install can get
+   different software than the one you tested.
+2. *Blank answers.* "Open Notepad" got an empty reply: the instructions described tools
+   that don't exist in a container. A note at the end of the instructions ("not
+   available") did not help - the model still followed the earlier text. Removing the
+   outdated parts did. Now the instructions are built once at start-up from the tools
+   that exist, and an empty answer is replaced by a visible message.
+   Concept: **a prompt must match reality**; contradicting text loses to earlier text.
+
+**Lesson:** the 28 static tests were all green before the first run, and two real bugs
+were still there. Static checks prove the files say what you intend; only running proves
+the thing works. Both are needed.
+
+**Still open:** browser build and SearXNG profile not run; no lock file with exact versions.
+
+**Interview line:** "My container config passed every static check and still had two bugs
+on the first run - an unpinned dependency and a prompt describing tools that weren't
+there. That's why I don't call something done until it has actually run."

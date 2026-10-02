@@ -1,6 +1,5 @@
-# ARTHUR in a container.  NOT BUILT YET - Docker Desktop isn't installed on the development
-# machine. Everything that can be checked without Docker is checked by
-# tests/unit/test_docker_files.py; the first real build is described in docs/DOCKER.md.
+# ARTHUR in a container. First built and run on 2 Oct 2026 (image 1.5 GB) - results in
+# docs/DOCKER.md. tests/unit/test_docker_files.py checks this file without Docker.
 #
 #   docker compose build            (from the project folder)
 #

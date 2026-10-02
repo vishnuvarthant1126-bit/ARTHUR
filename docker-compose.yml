@@ -1,8 +1,8 @@
 # ARTHUR + Prometheus + Grafana in containers.
 #
-# NOT RUN YET - Docker Desktop isn't installed on the development machine. The file is
-# checked without Docker by tests/unit/test_docker_files.py; docs/DOCKER.md has the
-# checklist for the first real run.
+# Run for real on 2 Oct 2026 (results in docs/DOCKER.md); the optional parts - browser
+# build and SearXNG - have NOT been run yet. tests/unit/test_docker_files.py checks this
+# file without Docker on every test run.
 #
 #   docker compose up -d --build        ARTHUR http://127.0.0.1:8000
 #                                        Grafana http://127.0.0.1:3000   Prometheus :9090

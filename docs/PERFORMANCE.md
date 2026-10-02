@@ -89,3 +89,10 @@ system text (never changes) → tool descriptions → conversation so far → ne
   pays the ~9 s load again. Set `OLLAMA_KEEP_ALIVE=-1` to keep them loaded for ever.
 - Numbers vary by ±0.2 s between runs; after a few idle seconds the GPU itself needs
   ~0.1–0.2 s to wake up, which shows as slightly higher "read" times with pauses.
+
+## In Docker (2 Oct 2026)
+The same profile against ARTHUR in a container (`--url http://127.0.0.1:8000`): small talk
+0.35–0.8 s, tool question 1.05–1.15 s - no measurable difference from Windows, because the
+time is spent in the model, which runs on the same GPU through Ollama either way. The
+prompt is smaller there (2,900 instead of ~4,000 tokens): the container has no desktop and
+browser tools. Memory: ARTHUR 930 MB, Grafana 290 MB, Prometheus 30 MB.

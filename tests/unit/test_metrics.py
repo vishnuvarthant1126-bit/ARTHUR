@@ -226,7 +226,7 @@ async def test_summary_of_an_idle_app_is_empty_not_broken():
         assert summary["chat_turns"] == {}
 
 
-# ---------- the Grafana dashboard file (can't be opened here: Docker isn't installed) ----------
+# ---------- the Grafana dashboard file (checked without starting Grafana) ----------
 
 
 def test_grafana_dashboard_only_charts_metrics_that_exist():

@@ -83,6 +83,67 @@ Honesty:
 - Never invent facts, sources, numbers or actions you did not perform.
 """
 
+# Parts of SYSTEM_PROMPT about features that can be missing (in Docker there is no Windows
+# desktop and no browser): (marker tool, text in SYSTEM_PROMPT, what to say instead).
+CALCULATOR_APP_HINT = (
+    "    (If the user asks for the Windows Calculator APP, use open_app and type_text for that.)\n"
+)
+BROWSER_PART = """\
+  - browser_open: ARTHUR's own browser, for pages that need JavaScript or clicking/typing.
+    It shows numbered elements; use browser_click / browser_type with those numbers and
+    browser_find_text to look for words on a long page. Never type passwords or card
+    details; buying, submitting, sending and signing in are confirmed by the user. If a page
+    shows a CAPTCHA or bot check, stop and tell the user - never try to get around it.
+"""
+NO_BROWSER = """\
+  - You have NO browser of your own in this installation: you cannot open, click or type
+    on web pages. Use web_search and read_webpage instead; if the user needs clicking or
+    typing on a page, answer in words that this is not available here.
+"""
+DESKTOP_PART = """\
+  - Desktop apps (only the allowed ones - Notepad, Calculator, File Explorer) - use them only
+    when the user asks for the APP ("in Notepad", "use the Calculator app"): open_app, then
+    read_window shows numbered controls; click_control / type_text / press_key act (the user
+    confirms each one). To know what an app shows NOW, call read_window - don't guess.
+    To SAVE a file use save_file, not Notepad. Never type passwords.
+"""
+NO_DESKTOP = """\
+  - You CANNOT open or control desktop apps (Notepad, Calculator, File Explorer) in this
+    installation. If the user asks for that, answer in words that app control is not
+    available here, and offer what you can do instead (calculator tool, save_file).
+"""
+IMAGES_PART = """\
+  - Images: describe_image for a picture file (find it with find_files first);
+    look_at_screen to see how an allowed app's window LOOKS. You cannot see images or the
+    screen any other way - never describe them without these tools.
+"""
+NO_SCREEN = """\
+  - Images: describe_image for a picture file (find it with find_files first). You cannot
+    see the screen or app windows in this installation - say so if asked, and never
+    describe a picture without describe_image.
+"""
+OPTIONAL_PARTS = [
+    ("open_app", CALCULATOR_APP_HINT, ""),
+    ("browser_open", BROWSER_PART, NO_BROWSER),
+    ("open_app", DESKTOP_PART, NO_DESKTOP),
+    ("look_at_screen", IMAGES_PART, NO_SCREEN),
+]
+
+
+def system_prompt(tool_names: set[str]) -> str:
+    """SYSTEM_PROMPT, with the parts about features this installation lacks swapped for an
+    honest "not available" line.
+
+    Told to "use open_app" while no such tool exists, the model answered with nothing at
+    all (found on the first Docker run; a note appended at the end was not enough). Built
+    ONCE at start-up, so the text is still identical on every request (prompt cache).
+    """
+    prompt = SYSTEM_PROMPT
+    for tool, text, instead in OPTIONAL_PARTS:
+        if tool not in tool_names:
+            prompt = prompt.replace(text, instead)
+    return prompt
+
 
 SYNTHESIS_PROMPT = """{request}
 

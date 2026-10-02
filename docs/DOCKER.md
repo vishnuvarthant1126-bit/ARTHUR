@@ -1,9 +1,9 @@
 # Docker (Phase 23)
 
-> **Status: written and checked on paper, not run yet.** Docker Desktop is not installed on
-> the development machine, so no image has been built and no container has been started.
-> What *was* checked (without Docker) is listed below; the first real run has its own
-> checklist at the end. Until then, treat every command on this page as "should work".
+> **Status: built and run on 2 Oct 2026** (Docker Desktop 29.8, Compose 5.5, Windows 11).
+> ARTHUR, Prometheus and Grafana work in containers; the results are in the table at the
+> end. **Not run yet:** the optional browser build (Chromium) and the optional SearXNG
+> search engine.
 
 ## The idea in simple words
 - An **image** is a packed box: Linux + Python + ARTHUR's code. Built once from a recipe
@@ -60,7 +60,7 @@ for a clean, repeatable setup - and for Grafana.
 - Versions of Prometheus, Grafana and SearXNG are fixed, so a later download cannot quietly
   bring different software.
 
-## What was checked without Docker
+## Checked on every test run (without Docker)
 `tests/unit/test_docker_files.py` (28 tests, part of the normal `pytest` run):
 valid YAML; every published port starts with `127.0.0.1:`; no privileged mode, host network
 or Docker socket; no secret values and no `env_file`; pinned image versions; every mounted
@@ -70,34 +70,26 @@ dashboard agree; the Dockerfile copies only code, ends as a non-root user and st
 server on the published port; no module needs Windows just to be imported; web page file
 names match exactly (Linux is case-sensitive).
 
-Also checked by hand: the image tags exist on Docker Hub (2 Oct 2026).
+These tests keep the promises true when the files are edited later. Whether the setup
+*works* was checked by running it - see "Results of the first run".
 
-**Not checked, because it needs Docker:** that the image builds, that all Python packages
-install on Linux, that the container reaches Ollama, file permissions on mounted folders,
-voice inside the container, Grafana showing data, SearXNG, Chromium.
+## Step 1 - Docker Desktop
+Installed on this PC (2 Oct 2026). On another PC: install "Docker Desktop for Windows"
+from docker.com (administrator rights, keep "Use WSL 2" ticked, restart), then check with
+`docker --version` and `docker compose version`. Docker Desktop uses a few GB of RAM while
+it runs - close it when you don't need it.
 
-## Step 1 - install Docker Desktop (only you can do this)
-1. Download "Docker Desktop for Windows" from docker.com and run the installer (needs
-   administrator rights). Keep "Use WSL 2" ticked.
-2. Restart the PC when asked. On first start Docker may install/update WSL and ask you to
-   accept its licence terms (free for personal use).
-3. Check in PowerShell:
-   ```powershell
-   docker --version
-   docker compose version
-   ```
-Docker Desktop uses a few GB of RAM while running; this laptop has 16 GB and the GPU model
-needs none of it, but close it when you don't use it.
-
-## Step 2 - first run
+## Step 2 - run
 ```powershell
 cd C:\Users\User\Projects\arthur
-# optional, in .env:   TZ=Asia/Singapore      (so reminders use your local time)
-docker compose up -d --build         # first build: several minutes
+# .env has TZ=Asia/Singapore, so reminders use your local time
+docker compose up -d --build         # first build ~4 minutes, later ones seconds
 docker compose ps                    # arthur should become "healthy"
 docker compose logs -f arthur
 ```
 Then open http://127.0.0.1:8000 (stop the normal `uvicorn` first - both want port 8000).
+The containers restart together with Docker Desktop until you run `docker compose down`,
+and while they run, port 8000 is taken - `uvicorn` on Windows will not start.
 
 The container has **its own, empty memory** (a Docker volume). Your memories and documents
 in `data/` on Windows are untouched and not visible inside.
@@ -112,29 +104,41 @@ Stop: `docker compose down`. Delete the container's data as well: `docker compos
 | Private search engine | `.env`: `ARTHUR_DOCKER_SEARCH=searxng` and `SEARXNG_SECRET=<long random text>`, then `docker compose --profile search up -d` |
 | Monitoring only (ARTHUR on Windows) | see the top of `deploy/docker-compose.observability.yml` |
 
-## First-run checklist (Session 10b)
-Work through this once Docker is installed; fix what fails and update this page.
+## Results of the first run (2 Oct 2026)
 
-1. `docker compose config` prints the merged file without errors.
-2. `docker compose build` finishes. Note the image size (`docker images arthur`).
-   *Risk:* a Python package without a Linux build.
-3. `docker compose up -d`; `docker compose ps` shows `arthur` as healthy.
-4. http://127.0.0.1:8000/health says `"reachable": true`.
-   *Risk:* the container cannot reach Ollama. Docker Desktop normally forwards
-   `host.docker.internal` to programs listening on 127.0.0.1. If not: set the Windows
-   environment variable `OLLAMA_HOST=0.0.0.0` and restart Ollama - but then Ollama is open to
-   the local network, so only on a trusted network (or add a firewall rule).
-5. Chat answers; first answer is fast (warm-up works through the container).
-6. "Remember that..." → `docker compose restart arthur` → still remembered (volume works).
-7. From another device on the Wi-Fi, `http://<PC address>:8000` does **not** open.
-8. http://127.0.0.1:9090/targets shows `arthur` as UP; Grafana (http://127.0.0.1:3000,
-   dashboard "ARTHUR") shows numbers after a few messages.
-9. File tools: save a note → it appears in `data\docker-files\reports` on Windows.
-   *Risk:* the `arthur` user may not write to the mounted folder.
-10. Voice: speak a message, hear the answer. *Risk:* `/voices` is read-only and `/models`
-    must be writable for a first download.
-11. A reminder "in 2 minutes" arrives; "at 5 pm" shows the right local time (TZ).
-12. Optional: browser build - *known risk:* Chromium's own sandbox usually needs extra
-    settings inside a container with `cap_drop: ALL`; SearXNG profile.
-13. Measure: time to first token and memory use inside the container vs. on Windows
-    (`scripts/profile_chat.py`, `docker stats`), and add the numbers to docs/PERFORMANCE.md.
+| # | Check | Result |
+|---|---|---|
+| 1 | `docker compose config` | OK; all ports resolve to `127.0.0.1` |
+| 2 | Build | OK on the first try; image **1.51 GB**; every Python package has a Linux build |
+| 3 | Start | `arthur` healthy after ~20 s; models warmed up through the container in 13 s |
+| 4 | Reaches Ollama on Windows | **Yes**, although Ollama listens on 127.0.0.1 only - no `OLLAMA_HOST` change needed |
+| 5 | Chat, tools | Answers, calculator, current time (+08), web search with sources |
+| 6 | Memory survives a restart | "Remember..." → restart and three rebuilds → still recalled (volume works) |
+| 7 | Not reachable from the network | The PC's Wi-Fi address refuses ports 8000, 3000 and 9090 |
+| 8 | Prometheus + Grafana | Target `arthur:8000` UP; the "ARTHUR" dashboard shows data in every panel |
+| 9 | File tools | Save asked for permission, then the note appeared in `data/docker-files/reports` on Windows; `/etc/passwd` refused |
+| 10 | Voice | Speech 0.15 s; transcription 1.4 s per sentence - **after a fix** (below) |
+| 11 | Reminders | "at 5 pm" = 5 pm Singapore time; one that came due with no tab open was delivered when the page opened, across rebuilds |
+| 12 | Front-door checks | Wrong Host → 421, other website → 403, same as on Windows |
+| 13 | Speed and memory | Same as on Windows: small talk 0.35–0.8 s, tool question ~1.1 s. Memory: ARTHUR 930 MB, Grafana 290 MB, Prometheus 30 MB |
+| 14 | Monitoring-only setup | Prometheus in Docker reached ARTHUR on Windows while it listened on 127.0.0.1 only |
+
+### What the run found (and no static check could)
+1. **Voice was broken in the container.** `requirements.txt` had no upper limits, so the
+   image got PyAV 19 (released days earlier) while Windows had 18. Version 19 removed an
+   option the speech library uses, and every clip failed with "Couldn't read this audio".
+   Fixed with `av<19`. The same would have hit a fresh install on Windows.
+2. **Blank answers.** Asked to "open Notepad", ARTHUR answered with nothing: its
+   instructions said "use open_app", but that tool does not exist in a container, and the
+   model went silent. Now the instructions are built once at start-up from the tools that
+   really exist (`prompts.system_prompt`) - the missing parts are replaced by "not available
+   here" - and an empty model answer becomes a visible message instead of silence.
+   This also covers `BROWSER_ENABLED=false` or `COMPUTER_USE_ENABLED=false` on Windows.
+
+### Still open
+- **Browser build** (`ARTHUR_DOCKER_BROWSER=true`): not run. Known risk: Chromium's own
+  sandbox usually needs extra settings in a container with `cap_drop: ALL`.
+- **SearXNG profile**: not run.
+- Versions in `requirements.txt` are mostly open-ended ("at least X"). A lock file with exact
+  versions would make the image fully repeatable - finding 1 shows why that matters.
+- Cosmetic: Grafana draws the "Uptime" tile in red.

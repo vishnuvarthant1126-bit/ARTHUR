@@ -1,5 +1,5 @@
 # Prometheus: fetch ARTHUR's numbers every 5 seconds and keep the history.
-# Used by docker-compose.yml (ARTHUR itself runs in a container).  NOT RUN YET.
+# Used by docker-compose.yml (ARTHUR itself runs in a container).
 global:
   scrape_interval: 5s
   evaluation_interval: 15s

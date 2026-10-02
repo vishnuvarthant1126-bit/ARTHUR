@@ -1,5 +1,5 @@
 # Monitoring only: ARTHUR keeps running on Windows (all features, including app control),
-# Prometheus + Grafana run in Docker.  NOT RUN YET - see docs/DOCKER.md.
+# Prometheus + Grafana run in Docker. Verified 2 Oct 2026 - see docs/DOCKER.md.
 # (For ARTHUR itself in a container use docker-compose.yml in the project folder.)
 #
 #   1. .env:  ALLOWED_HOSTS=host.docker.internal
@@ -7,10 +7,9 @@
 #   3. docker compose -f deploy/docker-compose.observability.yml up -d
 #   4. Grafana: http://127.0.0.1:3000  (dashboard "ARTHUR")   Prometheus: http://127.0.0.1:9090
 #
-# To verify on the first run: Docker Desktop normally passes host.docker.internal on to
-# programs that listen on 127.0.0.1. If Prometheus shows the target as "down", ARTHUR would
-# have to listen on more than 127.0.0.1 (--host 0.0.0.0). ARTHUR has no login, so do NOT do
-# that on a shared network - use the full docker-compose.yml or /dashboard.html instead.
+# ARTHUR keeps listening on 127.0.0.1 only: Docker Desktop passes host.docker.internal on
+# to it (verified - the target showed "up"). Never start ARTHUR with --host 0.0.0.0 for
+# this; it has no login.
 name: arthur-monitoring
 
 services:

@@ -4,7 +4,7 @@ A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
 > Status: Phase 24 – fast answers (0.4–1.3 s for most messages, see
-> [docs/PERFORMANCE.md](docs/PERFORMANCE.md)); Docker files written but not run yet
+> [docs/PERFORMANCE.md](docs/PERFORMANCE.md)); runs in Docker with Prometheus + Grafana
 > ([docs/DOCKER.md](docs/DOCKER.md)); measures itself (metrics, a built-in stats page), 90 % test coverage
 > with a gate, load-tested (see [docs/LOAD_TESTS.md](docs/LOAD_TESTS.md)); reminders that
 > survive restarts ("remind me at 5pm…"); a reviewed
@@ -214,12 +214,15 @@ a start 11–13 s → 0.6 s, small talk 0.4–0.8 s, tool questions ~1.2 s, long
 model's prompt cache works, load the models at start-up, use `127.0.0.1` instead of
 `localhost`. Measure yourself with `python scripts/profile_chat.py --pause 8`.
 
-## Docker (written, not run yet)
-`docker compose up -d --build` is meant to start ARTHUR, Prometheus and Grafana, with every
-port on 127.0.0.1 only and Ollama staying on Windows for the GPU. **No image has been built
-yet** (Docker Desktop is not installed on the development machine); 28 tests check the
-files without Docker. [docs/DOCKER.md](docs/DOCKER.md) explains the setup, what was and was
-not checked, and the first-run checklist.
+## Docker
+```powershell
+docker compose up -d --build     # ARTHUR :8000, Grafana :3000, Prometheus :9090
+```
+ARTHUR, Prometheus and Grafana in containers; every port on 127.0.0.1 only; Ollama stays on
+Windows for the GPU; the container has its own memory (a Docker volume). Desktop-app control
+is a Windows-only feature and is switched off there. Built and verified on 2 Oct 2026 - same
+answer times as on Windows. [docs/DOCKER.md](docs/DOCKER.md) has the results, the two bugs
+the first run found, and what is still untested (browser build, SearXNG).
 
 ## Test
 ```powershell

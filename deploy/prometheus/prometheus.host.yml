@@ -1,5 +1,5 @@
 # Prometheus for the "ARTHUR runs on Windows, only the monitoring runs in Docker" setup
-# (deploy/docker-compose.observability.yml).  NOT RUN YET.
+# (deploy/docker-compose.observability.yml).
 global:
   scrape_interval: 5s
   evaluation_interval: 15s

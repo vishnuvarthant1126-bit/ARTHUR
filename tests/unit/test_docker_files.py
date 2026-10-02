@@ -1,7 +1,7 @@
 """Phase 23: checks on the Docker files that need no Docker.
 
-Docker Desktop isn't installed on the development machine, so nothing here builds or
-starts a container. These tests read the files and check the promises they make:
+Nothing here builds or starts a container (that was done by hand, see docs/DOCKER.md), so
+the tests run everywhere. They read the files and check the promises they make:
 valid syntax, ports only on 127.0.0.1, no secrets, an unprivileged user, names and ports
 that agree between files, and code that can be imported on Linux.
 """
