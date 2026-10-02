@@ -52,7 +52,16 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}  # -> desc
 WRITABLE_EXTENSIONS = {".md", ".txt", ".csv"}
 
 
-def _system_roots() -> list[Path]:
+# The same idea in a Linux container (Phase 23). /app is ARTHUR itself: code and private data.
+LINUX_SYSTEM_ROOTS = (
+    "/app", "/bin", "/boot", "/dev", "/etc", "/lib", "/proc", "/root", "/run", "/sbin",
+    "/sys", "/usr", "/var",
+)  # fmt: skip
+
+
+def _system_roots(windows: bool | None = None) -> list[Path]:
+    if not (os.name == "nt" if windows is None else windows):
+        return [Path(c).resolve() for c in LINUX_SYSTEM_ROOTS]
     candidates = [
         os.environ.get("SYSTEMROOT", r"C:\Windows"),
         os.environ.get("PROGRAMFILES", r"C:\Program Files"),

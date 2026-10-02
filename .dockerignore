@@ -1,0 +1,36 @@
+# What Docker may NOT see when building the image. The Dockerfile copies only app/ and
+# frontend/, so this is the second lock on the same door.
+
+# Secrets
+.env
+.env.*
+!.env.example
+**/*.pem
+**/*.key
+
+# Private data, models, recordings
+data/
+logs/
+**/*.db
+**/*.sqlite3
+**/*.onnx
+**/*.gguf
+**/*.wav
+**/*.mp3
+
+# Not needed to run ARTHUR
+.git/
+.gitignore
+.venv/
+.claude/
+tests/
+scripts/
+docs/
+deploy/
+docker/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.md

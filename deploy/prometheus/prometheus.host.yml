@@ -1,0 +1,14 @@
+# Prometheus for the "ARTHUR runs on Windows, only the monitoring runs in Docker" setup
+# (deploy/docker-compose.observability.yml).  NOT RUN YET.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: arthur
+    metrics_path: /metrics
+    static_configs:
+      # From inside a Docker container the PC is reachable as host.docker.internal.
+      # ARTHUR's Host allow-list must contain that name: put
+      # ALLOWED_HOSTS=host.docker.internal in .env.
+      - targets: ["host.docker.internal:8000"]

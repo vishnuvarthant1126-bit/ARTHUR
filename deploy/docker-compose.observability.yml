@@ -1,19 +1,23 @@
-# Prometheus + Grafana for ARTHUR.  NOT TESTED YET - Docker Desktop isn't installed
-# on the development machine; this is checked in Session 10.
+# Monitoring only: ARTHUR keeps running on Windows (all features, including app control),
+# Prometheus + Grafana run in Docker.  NOT RUN YET - see docs/DOCKER.md.
+# (For ARTHUR itself in a container use docker-compose.yml in the project folder.)
 #
 #   1. .env:  ALLOWED_HOSTS=host.docker.internal
-#   2. Start ARTHUR:  uvicorn app.main:app --host 0.0.0.0   <- only together with the note below
+#   2. Start ARTHUR as usual:  uvicorn app.main:app
 #   3. docker compose -f deploy/docker-compose.observability.yml up -d
-#   4. Grafana: http://localhost:3000  (dashboard "ARTHUR")   Prometheus: http://localhost:9090
+#   4. Grafana: http://127.0.0.1:3000  (dashboard "ARTHUR")   Prometheus: http://127.0.0.1:9090
 #
-# Note on step 2: containers reach the host through a virtual network, so ARTHUR must
-# listen on more than 127.0.0.1 for Prometheus to scrape it. ARTHUR has no login - only do
-# this on a trusted network, or keep using the built-in /dashboard.html instead.
+# To verify on the first run: Docker Desktop normally passes host.docker.internal on to
+# programs that listen on 127.0.0.1. If Prometheus shows the target as "down", ARTHUR would
+# have to listen on more than 127.0.0.1 (--host 0.0.0.0). ARTHUR has no login, so do NOT do
+# that on a shared network - use the full docker-compose.yml or /dashboard.html instead.
+name: arthur-monitoring
+
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.15.0
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus.host.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"
@@ -21,7 +25,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.3
     depends_on: [prometheus]
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"

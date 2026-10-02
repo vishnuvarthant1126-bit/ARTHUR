@@ -1,5 +1,5 @@
 # Prometheus: fetch ARTHUR's numbers every 5 seconds and keep the history.
-# Used by deploy/docker-compose.observability.yml (Session 10, needs Docker Desktop).
+# Used by docker-compose.yml (ARTHUR itself runs in a container).  NOT RUN YET.
 global:
   scrape_interval: 5s
   evaluation_interval: 15s
@@ -8,7 +8,7 @@ scrape_configs:
   - job_name: arthur
     metrics_path: /metrics
     static_configs:
-      # ARTHUR runs on the Windows host; from inside a Docker container the host is
-      # reachable as host.docker.internal. ARTHUR's Host allow-list must contain that
-      # name: put ALLOWED_HOSTS=host.docker.internal in .env.
-      - targets: ["host.docker.internal:8000"]
+      # "arthur" is the service name in docker-compose.yml; inside Docker's private network
+      # service names work like host names. ARTHUR's Host allow-list must contain it
+      # (ALLOWED_HOSTS: arthur in docker-compose.yml).
+      - targets: ["arthur:8000"]

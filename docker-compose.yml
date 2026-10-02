@@ -1,0 +1,113 @@
+# ARTHUR + Prometheus + Grafana in containers.
+#
+# NOT RUN YET - Docker Desktop isn't installed on the development machine. The file is
+# checked without Docker by tests/unit/test_docker_files.py; docs/DOCKER.md has the
+# checklist for the first real run.
+#
+#   docker compose up -d --build        ARTHUR http://127.0.0.1:8000
+#                                        Grafana http://127.0.0.1:3000   Prometheus :9090
+#   docker compose logs -f arthur
+#   docker compose down                  (add -v to also delete the container's data)
+#
+# Rules this file keeps (and the tests enforce):
+#   * every published port is on 127.0.0.1 only - nothing is reachable from the network
+#   * no secrets in this file; your .env is never copied into the image or the container
+#   * ARTHUR runs as an ordinary user, with no extra Linux privileges
+#   * controlling Windows apps is off: a container cannot see your desktop
+#
+# `${NAME:-default}` reads NAME from your .env if it is there, else uses the default.
+name: arthur
+
+services:
+  arthur:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        INSTALL_BROWSER: ${ARTHUR_DOCKER_BROWSER:-false}
+    image: arthur:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # Ollama stays on Windows (it needs the GPU); this name means "the PC" from inside.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      VISION_MODEL: ${VISION_MODEL:-qwen2.5vl:7b}
+      # Prometheus asks for http://arthur:8000/metrics, so that name must be allowed.
+      ALLOWED_HOSTS: arthur
+      # Reminders ("at 5 pm") use the container's clock - put TZ=Asia/Singapore in .env.
+      TZ: ${TZ:-Etc/UTC}
+      # The container only sees the folders mounted below.
+      ALLOWED_DIRECTORIES: /files
+      FILES_SAVE_DIR: /files/reports
+      MODELS_PATH: /models
+      VOICES_PATH: /voices
+      WHISPER_DEVICE: cpu
+      # Host-only features.
+      COMPUTER_USE_ENABLED: "false"
+      BROWSER_ENABLED: ${ARTHUR_DOCKER_BROWSER:-false}
+      BROWSER_HEADLESS: "true"
+      # Only used with `--profile search` (see searxng below).
+      SEARCH_PROVIDER: ${ARTHUR_DOCKER_SEARCH:-duckduckgo}
+      SEARXNG_URL: http://searxng:8080
+    volumes:
+      # Memories, documents, reminders, audit log: a Docker volume (SQLite is slow and
+      # unreliable on a Windows folder shared into Linux). Separate from data/ on Windows.
+      - arthur-data:/app/data
+      # The folder ARTHUR's file tools may use.
+      - ${ARTHUR_DOCKER_FILES:-./data/docker-files}:/files
+      # Speech models: reuse the ones already downloaded on Windows.
+      - ./data/models:/models
+      - ./data/voices:/voices:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    restart: unless-stopped
+    depends_on: [arthur]
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    restart: unless-stopped
+    depends_on: [prometheus]
+    environment:
+      # Look without logging in; changing dashboards needs the admin login
+      # (admin / admin the first time - Grafana then asks for a new password).
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  # Optional private search engine:  docker compose --profile search up -d
+  # Needs in .env:  ARTHUR_DOCKER_SEARCH=searxng  and  SEARXNG_SECRET=<any long random text>
+  # (SearXNG refuses to start without a secret). No published port: only ARTHUR talks to it.
+  searxng:
+    image: searxng/searxng:2026.9.30-a9d990033
+    profiles: [search]
+    restart: unless-stopped
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-}
+    volumes:
+      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
+
+volumes:
+  arthur-data:
+  prometheus-data:
+  grafana-data:

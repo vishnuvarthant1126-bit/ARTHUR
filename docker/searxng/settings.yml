@@ -1,0 +1,13 @@
+# SearXNG for ARTHUR (optional, `docker compose --profile search up -d`).  NOT RUN YET.
+# Start from SearXNG's own defaults and change only what ARTHUR needs.
+use_default_settings: true
+
+server:
+  # No secret here on purpose: it comes from SEARXNG_SECRET in your .env.
+  limiter: false   # only ARTHUR can reach this service, and ARTHUR has its own limit
+
+search:
+  # ARTHUR asks for JSON; SearXNG answers 403 unless the format is listed.
+  formats:
+    - html
+    - json
