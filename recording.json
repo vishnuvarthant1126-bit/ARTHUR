@@ -1,0 +1,6803 @@
+{
+ "recorded": "2026-10-05",
+ "health": {
+  "status": "ok",
+  "llm": {
+   "provider": "ollama",
+   "model": "qwen3:8b",
+   "reachable": true
+  }
+ },
+ "status": {
+  "overall": "ok",
+  "uptime_seconds": 21,
+  "components": [
+   {
+    "name": "Language model",
+    "state": "ok",
+    "detail": "qwen3:8b"
+   },
+   {
+    "name": "Memory",
+    "state": "ok",
+    "detail": "0 facts"
+   },
+   {
+    "name": "Documents",
+    "state": "ok",
+    "detail": "0 documents"
+   },
+   {
+    "name": "Reminders",
+    "state": "ok",
+    "detail": "0 upcoming"
+   },
+   {
+    "name": "Voice",
+    "state": "ok",
+    "detail": "speech recognition ready · 2 voices"
+   },
+   {
+    "name": "Vision",
+    "state": "ok",
+    "detail": "qwen2.5vl:7b"
+   },
+   {
+    "name": "Browser",
+    "state": "ok",
+    "detail": "ARTHUR's own Chromium"
+   },
+   {
+    "name": "Desktop apps",
+    "state": "ok",
+    "detail": "asks before every action"
+   }
+  ]
+ },
+ "turns": [
+  {
+   "question": "Check my documents and find my latest resume.",
+   "events": [
+    {
+     "t": 4,
+     "event": {
+      "type": "status",
+      "state": "thinking",
+      "request_id": "32f2351d7297"
+     }
+    },
+    {
+     "t": 18189,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "find_files"
+     }
+    },
+    {
+     "t": 18192,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_f12ow6q1",
+      "name": "find_files",
+      "arguments": {
+       "query": "resume",
+       "file_types": [
+        "pdf",
+        "docx"
+       ],
+       "limit": 5
+      }
+     }
+    },
+    {
+     "t": 18199,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_f12ow6q1",
+      "name": "find_files",
+      "status": "ok",
+      "summary": "Sample_Resume_Alex_Tan_2026.pdf (+1 more)",
+      "duration_ms": 3.7
+     }
+    },
+    {
+     "t": 18201,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 19329,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "read_file"
+     }
+    },
+    {
+     "t": 19329,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_z3944p7y",
+      "name": "read_file",
+      "arguments": {
+       "max_chars": 10000,
+       "path": "C:\\Users\\User\\Documents\\ARTHUR\\samples\\Sample_Resume_Alex_Tan_2026.pdf"
+      }
+     }
+    },
+    {
+     "t": 19557,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_z3944p7y",
+      "name": "read_file",
+      "status": "ok",
+      "summary": "read 525 characters, 1 pages",
+      "duration_ms": 226.0
+     }
+    },
+    {
+     "t": 19559,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 19744,
+     "event": {
+      "type": "token",
+      "content": "Your"
+     }
+    },
+    {
+     "t": 19764,
+     "event": {
+      "type": "token",
+      "content": " latest"
+     }
+    },
+    {
+     "t": 19783,
+     "event": {
+      "type": "token",
+      "content": " resume"
+     }
+    },
+    {
+     "t": 19800,
+     "event": {
+      "type": "token",
+      "content": " is"
+     }
+    },
+    {
+     "t": 19818,
+     "event": {
+      "type": "token",
+      "content": " titled"
+     }
+    },
+    {
+     "t": 19836,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 19854,
+     "event": {
+      "type": "token",
+      "content": "Sample"
+     }
+    },
+    {
+     "t": 19871,
+     "event": {
+      "type": "token",
+      "content": "_"
+     }
+    },
+    {
+     "t": 19889,
+     "event": {
+      "type": "token",
+      "content": "Resume"
+     }
+    },
+    {
+     "t": 19906,
+     "event": {
+      "type": "token",
+      "content": "_A"
+     }
+    },
+    {
+     "t": 19924,
+     "event": {
+      "type": "token",
+      "content": "lex"
+     }
+    },
+    {
+     "t": 19942,
+     "event": {
+      "type": "token",
+      "content": "_T"
+     }
+    },
+    {
+     "t": 19959,
+     "event": {
+      "type": "token",
+      "content": "an"
+     }
+    },
+    {
+     "t": 19977,
+     "event": {
+      "type": "token",
+      "content": "_"
+     }
+    },
+    {
+     "t": 19995,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 20013,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 20031,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 20048,
+     "event": {
+      "type": "token",
+      "content": "6"
+     }
+    },
+    {
+     "t": 20066,
+     "event": {
+      "type": "token",
+      "content": ".pdf"
+     }
+    },
+    {
+     "t": 20084,
+     "event": {
+      "type": "token",
+      "content": "**"
+     }
+    },
+    {
+     "t": 20101,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 20119,
+     "event": {
+      "type": "token",
+      "content": " Here"
+     }
+    },
+    {
+     "t": 20136,
+     "event": {
+      "type": "token",
+      "content": "'s"
+     }
+    },
+    {
+     "t": 20154,
+     "event": {
+      "type": "token",
+      "content": " a"
+     }
+    },
+    {
+     "t": 20172,
+     "event": {
+      "type": "token",
+      "content": " summary"
+     }
+    },
+    {
+     "t": 20190,
+     "event": {
+      "type": "token",
+      "content": " of"
+     }
+    },
+    {
+     "t": 20207,
+     "event": {
+      "type": "token",
+      "content": " its"
+     }
+    },
+    {
+     "t": 20225,
+     "event": {
+      "type": "token",
+      "content": " content"
+     }
+    },
+    {
+     "t": 20243,
+     "event": {
+      "type": "token",
+      "content": ":\n\n"
+     }
+    },
+    {
+     "t": 20260,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 20277,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 20295,
+     "event": {
+      "type": "token",
+      "content": "Name"
+     }
+    },
+    {
+     "t": 20312,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 20330,
+     "event": {
+      "type": "token",
+      "content": " Alex"
+     }
+    },
+    {
+     "t": 20347,
+     "event": {
+      "type": "token",
+      "content": " Tan"
+     }
+    },
+    {
+     "t": 20364,
+     "event": {
+      "type": "token",
+      "content": "\n"
+     }
+    },
+    {
+     "t": 20382,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 20400,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 20417,
+     "event": {
+      "type": "token",
+      "content": "Contact"
+     }
+    },
+    {
+     "t": 20435,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 20452,
+     "event": {
+      "type": "token",
+      "content": " Not"
+     }
+    },
+    {
+     "t": 20470,
+     "event": {
+      "type": "token",
+      "content": " specified"
+     }
+    },
+    {
+     "t": 20487,
+     "event": {
+      "type": "token",
+      "content": "\n"
+     }
+    },
+    {
+     "t": 20505,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 20522,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 20540,
+     "event": {
+      "type": "token",
+      "content": "Technical"
+     }
+    },
+    {
+     "t": 20557,
+     "event": {
+      "type": "token",
+      "content": " Skills"
+     }
+    },
+    {
+     "t": 20575,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 20594,
+     "event": {
+      "type": "token",
+      "content": " Python"
+     }
+    },
+    {
+     "t": 20611,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 20628,
+     "event": {
+      "type": "token",
+      "content": " Fast"
+     }
+    },
+    {
+     "t": 20646,
+     "event": {
+      "type": "token",
+      "content": "API"
+     }
+    },
+    {
+     "t": 20663,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 20681,
+     "event": {
+      "type": "token",
+      "content": " Py"
+     }
+    },
+    {
+     "t": 20698,
+     "event": {
+      "type": "token",
+      "content": "T"
+     }
+    },
+    {
+     "t": 20716,
+     "event": {
+      "type": "token",
+      "content": "orch"
+     }
+    },
+    {
+     "t": 20735,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 20753,
+     "event": {
+      "type": "token",
+      "content": " L"
+     }
+    },
+    {
+     "t": 20769,
+     "event": {
+      "type": "token",
+      "content": "LM"
+     }
+    },
+    {
+     "t": 20786,
+     "event": {
+      "type": "token",
+      "content": " agents"
+     }
+    },
+    {
+     "t": 20804,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 20821,
+     "event": {
+      "type": "token",
+      "content": " R"
+     }
+    },
+    {
+     "t": 20839,
+     "event": {
+      "type": "token",
+      "content": "AG"
+     }
+    },
+    {
+     "t": 20857,
+     "event": {
+      "type": "token",
+      "content": " with"
+     }
+    },
+    {
+     "t": 20874,
+     "event": {
+      "type": "token",
+      "content": " Chrom"
+     }
+    },
+    {
+     "t": 20892,
+     "event": {
+      "type": "token",
+      "content": "a"
+     }
+    },
+    {
+     "t": 20909,
+     "event": {
+      "type": "token",
+      "content": "DB"
+     }
+    },
+    {
+     "t": 20927,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 20945,
+     "event": {
+      "type": "token",
+      "content": " Whisper"
+     }
+    },
+    {
+     "t": 20962,
+     "event": {
+      "type": "token",
+      "content": " speech"
+     }
+    },
+    {
+     "t": 20979,
+     "event": {
+      "type": "token",
+      "content": " recognition"
+     }
+    },
+    {
+     "t": 20997,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 21014,
+     "event": {
+      "type": "token",
+      "content": " Docker"
+     }
+    },
+    {
+     "t": 21032,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 21049,
+     "event": {
+      "type": "token",
+      "content": " PostgreSQL"
+     }
+    },
+    {
+     "t": 21067,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 21085,
+     "event": {
+      "type": "token",
+      "content": " Git"
+     }
+    },
+    {
+     "t": 21102,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 21120,
+     "event": {
+      "type": "token",
+      "content": " CI"
+     }
+    },
+    {
+     "t": 21137,
+     "event": {
+      "type": "token",
+      "content": "/"
+     }
+    },
+    {
+     "t": 21155,
+     "event": {
+      "type": "token",
+      "content": "CD"
+     }
+    },
+    {
+     "t": 21173,
+     "event": {
+      "type": "token",
+      "content": " with"
+     }
+    },
+    {
+     "t": 21191,
+     "event": {
+      "type": "token",
+      "content": " GitHub"
+     }
+    },
+    {
+     "t": 21209,
+     "event": {
+      "type": "token",
+      "content": " Actions"
+     }
+    },
+    {
+     "t": 21226,
+     "event": {
+      "type": "token",
+      "content": "\n"
+     }
+    },
+    {
+     "t": 21244,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 21261,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 21279,
+     "event": {
+      "type": "token",
+      "content": "Experience"
+     }
+    },
+    {
+     "t": 21297,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 21314,
+     "event": {
+      "type": "token",
+      "content": " Software"
+     }
+    },
+    {
+     "t": 21332,
+     "event": {
+      "type": "token",
+      "content": " Developer"
+     }
+    },
+    {
+     "t": 21349,
+     "event": {
+      "type": "token",
+      "content": " at"
+     }
+    },
+    {
+     "t": 21367,
+     "event": {
+      "type": "token",
+      "content": " a"
+     }
+    },
+    {
+     "t": 21385,
+     "event": {
+      "type": "token",
+      "content": " logistics"
+     }
+    },
+    {
+     "t": 21402,
+     "event": {
+      "type": "token",
+      "content": " start"
+     }
+    },
+    {
+     "t": 21420,
+     "event": {
+      "type": "token",
+      "content": "-up"
+     }
+    },
+    {
+     "t": 21437,
+     "event": {
+      "type": "token",
+      "content": " ("
+     }
+    },
+    {
+     "t": 21455,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 21473,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 21491,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 21509,
+     "event": {
+      "type": "token",
+      "content": "5"
+     }
+    },
+    {
+     "t": 21527,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 21544,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 21564,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 21583,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 21601,
+     "event": {
+      "type": "token",
+      "content": "6"
+     }
+    },
+    {
+     "t": 21619,
+     "event": {
+      "type": "token",
+      "content": ")"
+     }
+    },
+    {
+     "t": 21641,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 21654,
+     "event": {
+      "type": "token",
+      "content": " built"
+     }
+    },
+    {
+     "t": 21672,
+     "event": {
+      "type": "token",
+      "content": " an"
+     }
+    },
+    {
+     "t": 21690,
+     "event": {
+      "type": "token",
+      "content": " internal"
+     }
+    },
+    {
+     "t": 21708,
+     "event": {
+      "type": "token",
+      "content": " assistant"
+     }
+    },
+    {
+     "t": 21725,
+     "event": {
+      "type": "token",
+      "content": " that"
+     }
+    },
+    {
+     "t": 21743,
+     "event": {
+      "type": "token",
+      "content": " answers"
+     }
+    },
+    {
+     "t": 21761,
+     "event": {
+      "type": "token",
+      "content": " questions"
+     }
+    },
+    {
+     "t": 21778,
+     "event": {
+      "type": "token",
+      "content": " from"
+     }
+    },
+    {
+     "t": 21796,
+     "event": {
+      "type": "token",
+      "content": " company"
+     }
+    },
+    {
+     "t": 21817,
+     "event": {
+      "type": "token",
+      "content": " documents"
+     }
+    },
+    {
+     "t": 21832,
+     "event": {
+      "type": "token",
+      "content": " ("
+     }
+    },
+    {
+     "t": 21850,
+     "event": {
+      "type": "token",
+      "content": "R"
+     }
+    },
+    {
+     "t": 21868,
+     "event": {
+      "type": "token",
+      "content": "AG"
+     }
+    },
+    {
+     "t": 21886,
+     "event": {
+      "type": "token",
+      "content": "),"
+     }
+    },
+    {
+     "t": 21903,
+     "event": {
+      "type": "token",
+      "content": " cutting"
+     }
+    },
+    {
+     "t": 21921,
+     "event": {
+      "type": "token",
+      "content": " support"
+     }
+    },
+    {
+     "t": 21939,
+     "event": {
+      "type": "token",
+      "content": " tickets"
+     }
+    },
+    {
+     "t": 21957,
+     "event": {
+      "type": "token",
+      "content": " by"
+     }
+    },
+    {
+     "t": 21975,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 21992,
+     "event": {
+      "type": "token",
+      "content": "3"
+     }
+    },
+    {
+     "t": 22010,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 22028,
+     "event": {
+      "type": "token",
+      "content": "%\n"
+     }
+    },
+    {
+     "t": 22046,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 22064,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 22081,
+     "event": {
+      "type": "token",
+      "content": "Projects"
+     }
+    },
+    {
+     "t": 22099,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 22116,
+     "event": {
+      "type": "token",
+      "content": " AR"
+     }
+    },
+    {
+     "t": 22134,
+     "event": {
+      "type": "token",
+      "content": "TH"
+     }
+    },
+    {
+     "t": 22152,
+     "event": {
+      "type": "token",
+      "content": "UR"
+     }
+    },
+    {
+     "t": 22170,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 22189,
+     "event": {
+      "type": "token",
+      "content": " a"
+     }
+    },
+    {
+     "t": 22206,
+     "event": {
+      "type": "token",
+      "content": " local"
+     }
+    },
+    {
+     "t": 22224,
+     "event": {
+      "type": "token",
+      "content": " voice"
+     }
+    },
+    {
+     "t": 22241,
+     "event": {
+      "type": "token",
+      "content": " assistant"
+     }
+    },
+    {
+     "t": 22259,
+     "event": {
+      "type": "token",
+      "content": " with"
+     }
+    },
+    {
+     "t": 22277,
+     "event": {
+      "type": "token",
+      "content": " tool"
+     }
+    },
+    {
+     "t": 22294,
+     "event": {
+      "type": "token",
+      "content": " calling"
+     }
+    },
+    {
+     "t": 22312,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 22330,
+     "event": {
+      "type": "token",
+      "content": " memory"
+     }
+    },
+    {
+     "t": 22347,
+     "event": {
+      "type": "token",
+      "content": " and"
+     }
+    },
+    {
+     "t": 22365,
+     "event": {
+      "type": "token",
+      "content": " web"
+     }
+    },
+    {
+     "t": 22382,
+     "event": {
+      "type": "token",
+      "content": " search"
+     }
+    },
+    {
+     "t": 22400,
+     "event": {
+      "type": "token",
+      "content": "\n"
+     }
+    },
+    {
+     "t": 22418,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 22436,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 22454,
+     "event": {
+      "type": "token",
+      "content": "Education"
+     }
+    },
+    {
+     "t": 22472,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 22490,
+     "event": {
+      "type": "token",
+      "content": " B"
+     }
+    },
+    {
+     "t": 22508,
+     "event": {
+      "type": "token",
+      "content": ".Sc"
+     }
+    },
+    {
+     "t": 22526,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 22544,
+     "event": {
+      "type": "token",
+      "content": " Computer"
+     }
+    },
+    {
+     "t": 22561,
+     "event": {
+      "type": "token",
+      "content": " Science"
+     }
+    },
+    {
+     "t": 22579,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 22597,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 22615,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 22632,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 22650,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 22668,
+     "event": {
+      "type": "token",
+      "content": "5"
+     }
+    },
+    {
+     "t": 22686,
+     "event": {
+      "type": "token",
+      "content": "\n\n"
+     }
+    },
+    {
+     "t": 22703,
+     "event": {
+      "type": "token",
+      "content": "Let"
+     }
+    },
+    {
+     "t": 22721,
+     "event": {
+      "type": "token",
+      "content": " me"
+     }
+    },
+    {
+     "t": 22739,
+     "event": {
+      "type": "token",
+      "content": " know"
+     }
+    },
+    {
+     "t": 22757,
+     "event": {
+      "type": "token",
+      "content": " if"
+     }
+    },
+    {
+     "t": 22774,
+     "event": {
+      "type": "token",
+      "content": " you"
+     }
+    },
+    {
+     "t": 22792,
+     "event": {
+      "type": "token",
+      "content": "'d"
+     }
+    },
+    {
+     "t": 22810,
+     "event": {
+      "type": "token",
+      "content": " like"
+     }
+    },
+    {
+     "t": 22827,
+     "event": {
+      "type": "token",
+      "content": " to"
+     }
+    },
+    {
+     "t": 22845,
+     "event": {
+      "type": "token",
+      "content": " save"
+     }
+    },
+    {
+     "t": 22863,
+     "event": {
+      "type": "token",
+      "content": " this"
+     }
+    },
+    {
+     "t": 22881,
+     "event": {
+      "type": "token",
+      "content": " as"
+     }
+    },
+    {
+     "t": 22898,
+     "event": {
+      "type": "token",
+      "content": " a"
+     }
+    },
+    {
+     "t": 22916,
+     "event": {
+      "type": "token",
+      "content": " file"
+     }
+    },
+    {
+     "t": 22934,
+     "event": {
+      "type": "token",
+      "content": " or"
+     }
+    },
+    {
+     "t": 22952,
+     "event": {
+      "type": "token",
+      "content": " edit"
+     }
+    },
+    {
+     "t": 22970,
+     "event": {
+      "type": "token",
+      "content": " it"
+     }
+    },
+    {
+     "t": 22988,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 23008,
+     "event": {
+      "type": "done",
+      "latency_ms": 23004.0,
+      "stopped": false,
+      "model": "qwen3:8b",
+      "request_id": "32f2351d7297"
+     }
+    }
+   ]
+  },
+  {
+   "question": "Summarize my technical skills.",
+   "events": [
+    {
+     "t": 1,
+     "event": {
+      "type": "status",
+      "state": "thinking",
+      "request_id": "d4445f70cf1f"
+     }
+    },
+    {
+     "t": 188,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 207,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 227,
+     "event": {
+      "type": "token",
+      "content": "Programming"
+     }
+    },
+    {
+     "t": 245,
+     "event": {
+      "type": "token",
+      "content": " Languages"
+     }
+    },
+    {
+     "t": 264,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 278,
+     "event": {
+      "type": "token",
+      "content": " Python"
+     }
+    },
+    {
+     "t": 295,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 313,
+     "event": {
+      "type": "token",
+      "content": " Fast"
+     }
+    },
+    {
+     "t": 331,
+     "event": {
+      "type": "token",
+      "content": "API"
+     }
+    },
+    {
+     "t": 348,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 365,
+     "event": {
+      "type": "token",
+      "content": " Py"
+     }
+    },
+    {
+     "t": 383,
+     "event": {
+      "type": "token",
+      "content": "T"
+     }
+    },
+    {
+     "t": 401,
+     "event": {
+      "type": "token",
+      "content": "orch"
+     }
+    },
+    {
+     "t": 420,
+     "event": {
+      "type": "token",
+      "content": "\n"
+     }
+    },
+    {
+     "t": 437,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 453,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 471,
+     "event": {
+      "type": "token",
+      "content": "Tools"
+     }
+    },
+    {
+     "t": 488,
+     "event": {
+      "type": "token",
+      "content": " and"
+     }
+    },
+    {
+     "t": 506,
+     "event": {
+      "type": "token",
+      "content": " Framework"
+     }
+    },
+    {
+     "t": 523,
+     "event": {
+      "type": "token",
+      "content": "s"
+     }
+    },
+    {
+     "t": 541,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 558,
+     "event": {
+      "type": "token",
+      "content": " L"
+     }
+    },
+    {
+     "t": 576,
+     "event": {
+      "type": "token",
+      "content": "LM"
+     }
+    },
+    {
+     "t": 593,
+     "event": {
+      "type": "token",
+      "content": " agents"
+     }
+    },
+    {
+     "t": 610,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 628,
+     "event": {
+      "type": "token",
+      "content": " R"
+     }
+    },
+    {
+     "t": 646,
+     "event": {
+      "type": "token",
+      "content": "AG"
+     }
+    },
+    {
+     "t": 663,
+     "event": {
+      "type": "token",
+      "content": " with"
+     }
+    },
+    {
+     "t": 680,
+     "event": {
+      "type": "token",
+      "content": " Chrom"
+     }
+    },
+    {
+     "t": 698,
+     "event": {
+      "type": "token",
+      "content": "a"
+     }
+    },
+    {
+     "t": 718,
+     "event": {
+      "type": "token",
+      "content": "DB"
+     }
+    },
+    {
+     "t": 733,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 751,
+     "event": {
+      "type": "token",
+      "content": " Whisper"
+     }
+    },
+    {
+     "t": 769,
+     "event": {
+      "type": "token",
+      "content": " speech"
+     }
+    },
+    {
+     "t": 786,
+     "event": {
+      "type": "token",
+      "content": " recognition"
+     }
+    },
+    {
+     "t": 804,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 821,
+     "event": {
+      "type": "token",
+      "content": " Docker"
+     }
+    },
+    {
+     "t": 838,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 856,
+     "event": {
+      "type": "token",
+      "content": " PostgreSQL"
+     }
+    },
+    {
+     "t": 874,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 891,
+     "event": {
+      "type": "token",
+      "content": " Git"
+     }
+    },
+    {
+     "t": 910,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 926,
+     "event": {
+      "type": "token",
+      "content": " CI"
+     }
+    },
+    {
+     "t": 944,
+     "event": {
+      "type": "token",
+      "content": "/"
+     }
+    },
+    {
+     "t": 962,
+     "event": {
+      "type": "token",
+      "content": "CD"
+     }
+    },
+    {
+     "t": 979,
+     "event": {
+      "type": "token",
+      "content": " with"
+     }
+    },
+    {
+     "t": 997,
+     "event": {
+      "type": "token",
+      "content": " GitHub"
+     }
+    },
+    {
+     "t": 1014,
+     "event": {
+      "type": "token",
+      "content": " Actions"
+     }
+    },
+    {
+     "t": 1031,
+     "event": {
+      "type": "token",
+      "content": "\n"
+     }
+    },
+    {
+     "t": 1049,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 1066,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 1084,
+     "event": {
+      "type": "token",
+      "content": "Other"
+     }
+    },
+    {
+     "t": 1101,
+     "event": {
+      "type": "token",
+      "content": " Skills"
+     }
+    },
+    {
+     "t": 1119,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 1137,
+     "event": {
+      "type": "token",
+      "content": " Voice"
+     }
+    },
+    {
+     "t": 1155,
+     "event": {
+      "type": "token",
+      "content": " assistant"
+     }
+    },
+    {
+     "t": 1176,
+     "event": {
+      "type": "token",
+      "content": " development"
+     }
+    },
+    {
+     "t": 1191,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 1208,
+     "event": {
+      "type": "token",
+      "content": " internal"
+     }
+    },
+    {
+     "t": 1225,
+     "event": {
+      "type": "token",
+      "content": " tool"
+     }
+    },
+    {
+     "t": 1243,
+     "event": {
+      "type": "token",
+      "content": " creation"
+     }
+    },
+    {
+     "t": 1260,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 1277,
+     "event": {
+      "type": "token",
+      "content": " data"
+     }
+    },
+    {
+     "t": 1295,
+     "event": {
+      "type": "token",
+      "content": " processing"
+     }
+    },
+    {
+     "t": 1313,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 1331,
+     "event": {
+      "type": "token",
+      "content": " and"
+     }
+    },
+    {
+     "t": 1348,
+     "event": {
+      "type": "token",
+      "content": " integration"
+     }
+    },
+    {
+     "t": 1366,
+     "event": {
+      "type": "token",
+      "content": " with"
+     }
+    },
+    {
+     "t": 1383,
+     "event": {
+      "type": "token",
+      "content": " various"
+     }
+    },
+    {
+     "t": 1401,
+     "event": {
+      "type": "token",
+      "content": " APIs"
+     }
+    },
+    {
+     "t": 1418,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 1438,
+     "event": {
+      "type": "done",
+      "latency_ms": 1436.6,
+      "stopped": false,
+      "model": "qwen3:8b",
+      "request_id": "d4445f70cf1f"
+     }
+    }
+   ]
+  },
+  {
+   "question": "What's the weather in Singapore and in London right now, and what is 15% of 240?",
+   "events": [
+    {
+     "t": 1,
+     "event": {
+      "type": "status",
+      "state": "thinking",
+      "request_id": "780f91a04ba9"
+     }
+    },
+    {
+     "t": 6595,
+     "event": {
+      "type": "plan",
+      "goal": "Get the current weather in Singapore and London, and calculate 15% of 240.",
+      "steps": [
+       {
+        "id": 1,
+        "task": "Get the current weather in Singapore."
+       },
+       {
+        "id": 2,
+        "task": "Get the current weather in London."
+       },
+       {
+        "id": 3,
+        "task": "Calculate 15% of 240."
+       }
+      ]
+     }
+    },
+    {
+     "t": 6601,
+     "event": {
+      "type": "step",
+      "id": 1,
+      "status": "running",
+      "attempt": 1,
+      "detail": ""
+     }
+    },
+    {
+     "t": 7853,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "weather"
+     }
+    },
+    {
+     "t": 7855,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_9ebybdtw",
+      "name": "weather",
+      "arguments": {
+       "location": "Singapore"
+      }
+     }
+    },
+    {
+     "t": 9994,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_9ebybdtw",
+      "name": "weather",
+      "status": "ok",
+      "summary": "Singapore, Singapore: partly cloudy, 32.7 °C, 94% rain chance today",
+      "duration_ms": 2132.6
+     }
+    },
+    {
+     "t": 9995,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 11077,
+     "event": {
+      "type": "step",
+      "id": 1,
+      "status": "done",
+      "attempt": 1,
+      "detail": "The current weather in Singapore is partly cloudy with a temperature of 32.7°C, and it feels like 36.1°C. There is no precipitation, and the wind speed is 14.1 "
+     }
+    },
+    {
+     "t": 11082,
+     "event": {
+      "type": "step",
+      "id": 2,
+      "status": "running",
+      "attempt": 1,
+      "detail": ""
+     }
+    },
+    {
+     "t": 12395,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "weather"
+     }
+    },
+    {
+     "t": 12396,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_zttgzhs3",
+      "name": "weather",
+      "arguments": {
+       "location": "London"
+      }
+     }
+    },
+    {
+     "t": 12734,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_zttgzhs3",
+      "name": "weather",
+      "status": "ok",
+      "summary": "London, England, United Kingdom: clear sky, 14.1 °C, 0% rain chance today",
+      "duration_ms": 332.4
+     }
+    },
+    {
+     "t": 12736,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 13789,
+     "event": {
+      "type": "step",
+      "id": 2,
+      "status": "done",
+      "attempt": 1,
+      "detail": "The current weather in London is clear sky with a temperature of 14.1°C, and it feels like 13.6°C. There is no precipitation, and the wind speed is 8.6 km/h. Th"
+     }
+    },
+    {
+     "t": 13793,
+     "event": {
+      "type": "step",
+      "id": 3,
+      "status": "running",
+      "attempt": 1,
+      "detail": ""
+     }
+    },
+    {
+     "t": 15286,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "calculator"
+     }
+    },
+    {
+     "t": 15293,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_l0ujy0i6",
+      "name": "calculator",
+      "arguments": {
+       "expression": "15% of 240"
+      }
+     }
+    },
+    {
+     "t": 15295,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_l0ujy0i6",
+      "name": "calculator",
+      "status": "ok",
+      "summary": "15% of 240 = 36.0",
+      "duration_ms": 5.9
+     }
+    },
+    {
+     "t": 15296,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 15634,
+     "event": {
+      "type": "step",
+      "id": 3,
+      "status": "done",
+      "attempt": 1,
+      "detail": "15% of 240 is 36.0."
+     }
+    },
+    {
+     "t": 16146,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 16165,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 16182,
+     "event": {
+      "type": "token",
+      "content": "Singapore"
+     }
+    },
+    {
+     "t": 16199,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 16215,
+     "event": {
+      "type": "token",
+      "content": " Part"
+     }
+    },
+    {
+     "t": 16232,
+     "event": {
+      "type": "token",
+      "content": "ly"
+     }
+    },
+    {
+     "t": 16248,
+     "event": {
+      "type": "token",
+      "content": " cloudy"
+     }
+    },
+    {
+     "t": 16264,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 16281,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 16297,
+     "event": {
+      "type": "token",
+      "content": "3"
+     }
+    },
+    {
+     "t": 16314,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 16331,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 16347,
+     "event": {
+      "type": "token",
+      "content": "7"
+     }
+    },
+    {
+     "t": 16363,
+     "event": {
+      "type": "token",
+      "content": "°C"
+     }
+    },
+    {
+     "t": 16379,
+     "event": {
+      "type": "token",
+      "content": " ("
+     }
+    },
+    {
+     "t": 16395,
+     "event": {
+      "type": "token",
+      "content": "fe"
+     }
+    },
+    {
+     "t": 16412,
+     "event": {
+      "type": "token",
+      "content": "els"
+     }
+    },
+    {
+     "t": 16428,
+     "event": {
+      "type": "token",
+      "content": " like"
+     }
+    },
+    {
+     "t": 16445,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 16461,
+     "event": {
+      "type": "token",
+      "content": "3"
+     }
+    },
+    {
+     "t": 16477,
+     "event": {
+      "type": "token",
+      "content": "6"
+     }
+    },
+    {
+     "t": 16494,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 16511,
+     "event": {
+      "type": "token",
+      "content": "1"
+     }
+    },
+    {
+     "t": 16527,
+     "event": {
+      "type": "token",
+      "content": "°C"
+     }
+    },
+    {
+     "t": 16544,
+     "event": {
+      "type": "token",
+      "content": "),"
+     }
+    },
+    {
+     "t": 16560,
+     "event": {
+      "type": "token",
+      "content": " no"
+     }
+    },
+    {
+     "t": 16577,
+     "event": {
+      "type": "token",
+      "content": " rain"
+     }
+    },
+    {
+     "t": 16593,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 16610,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 16626,
+     "event": {
+      "type": "token",
+      "content": "9"
+     }
+    },
+    {
+     "t": 16642,
+     "event": {
+      "type": "token",
+      "content": "4"
+     }
+    },
+    {
+     "t": 16659,
+     "event": {
+      "type": "token",
+      "content": "%"
+     }
+    },
+    {
+     "t": 16676,
+     "event": {
+      "type": "token",
+      "content": " chance"
+     }
+    },
+    {
+     "t": 16692,
+     "event": {
+      "type": "token",
+      "content": " of"
+     }
+    },
+    {
+     "t": 16708,
+     "event": {
+      "type": "token",
+      "content": " rain"
+     }
+    },
+    {
+     "t": 16725,
+     "event": {
+      "type": "token",
+      "content": " today"
+     }
+    },
+    {
+     "t": 16742,
+     "event": {
+      "type": "token",
+      "content": ".\n"
+     }
+    },
+    {
+     "t": 16760,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 16775,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 16791,
+     "event": {
+      "type": "token",
+      "content": "London"
+     }
+    },
+    {
+     "t": 16809,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 16825,
+     "event": {
+      "type": "token",
+      "content": " Clear"
+     }
+    },
+    {
+     "t": 16841,
+     "event": {
+      "type": "token",
+      "content": " sky"
+     }
+    },
+    {
+     "t": 16857,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 16874,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 16890,
+     "event": {
+      "type": "token",
+      "content": "1"
+     }
+    },
+    {
+     "t": 16907,
+     "event": {
+      "type": "token",
+      "content": "4"
+     }
+    },
+    {
+     "t": 16923,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 16940,
+     "event": {
+      "type": "token",
+      "content": "1"
+     }
+    },
+    {
+     "t": 16956,
+     "event": {
+      "type": "token",
+      "content": "°C"
+     }
+    },
+    {
+     "t": 16973,
+     "event": {
+      "type": "token",
+      "content": " ("
+     }
+    },
+    {
+     "t": 16989,
+     "event": {
+      "type": "token",
+      "content": "fe"
+     }
+    },
+    {
+     "t": 17006,
+     "event": {
+      "type": "token",
+      "content": "els"
+     }
+    },
+    {
+     "t": 17022,
+     "event": {
+      "type": "token",
+      "content": " like"
+     }
+    },
+    {
+     "t": 17039,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 17055,
+     "event": {
+      "type": "token",
+      "content": "1"
+     }
+    },
+    {
+     "t": 17071,
+     "event": {
+      "type": "token",
+      "content": "3"
+     }
+    },
+    {
+     "t": 17087,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 17103,
+     "event": {
+      "type": "token",
+      "content": "6"
+     }
+    },
+    {
+     "t": 17120,
+     "event": {
+      "type": "token",
+      "content": "°C"
+     }
+    },
+    {
+     "t": 17137,
+     "event": {
+      "type": "token",
+      "content": "),"
+     }
+    },
+    {
+     "t": 17153,
+     "event": {
+      "type": "token",
+      "content": " no"
+     }
+    },
+    {
+     "t": 17170,
+     "event": {
+      "type": "token",
+      "content": " rain"
+     }
+    },
+    {
+     "t": 17186,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 17202,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 17219,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 17235,
+     "event": {
+      "type": "token",
+      "content": "%"
+     }
+    },
+    {
+     "t": 17252,
+     "event": {
+      "type": "token",
+      "content": " chance"
+     }
+    },
+    {
+     "t": 17268,
+     "event": {
+      "type": "token",
+      "content": " of"
+     }
+    },
+    {
+     "t": 17285,
+     "event": {
+      "type": "token",
+      "content": " rain"
+     }
+    },
+    {
+     "t": 17301,
+     "event": {
+      "type": "token",
+      "content": " today"
+     }
+    },
+    {
+     "t": 17317,
+     "event": {
+      "type": "token",
+      "content": ".\n"
+     }
+    },
+    {
+     "t": 17334,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 17350,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 17367,
+     "event": {
+      "type": "token",
+      "content": "1"
+     }
+    },
+    {
+     "t": 17384,
+     "event": {
+      "type": "token",
+      "content": "5"
+     }
+    },
+    {
+     "t": 17399,
+     "event": {
+      "type": "token",
+      "content": "%"
+     }
+    },
+    {
+     "t": 17416,
+     "event": {
+      "type": "token",
+      "content": " of"
+     }
+    },
+    {
+     "t": 17432,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 17448,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 17465,
+     "event": {
+      "type": "token",
+      "content": "4"
+     }
+    },
+    {
+     "t": 17481,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 17498,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 17514,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 17530,
+     "event": {
+      "type": "token",
+      "content": "3"
+     }
+    },
+    {
+     "t": 17547,
+     "event": {
+      "type": "token",
+      "content": "6"
+     }
+    },
+    {
+     "t": 17563,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 17580,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 17596,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 17615,
+     "event": {
+      "type": "done",
+      "latency_ms": 17613.2,
+      "stopped": false,
+      "model": "qwen3:8b",
+      "request_id": "780f91a04ba9"
+     }
+    }
+   ]
+  },
+  {
+   "question": "Now search the web for AI engineering roles that match my skills and prepare a comparison.",
+   "events": [
+    {
+     "t": 1,
+     "event": {
+      "type": "status",
+      "state": "thinking",
+      "request_id": "d7959bf2ba29"
+     }
+    },
+    {
+     "t": 3922,
+     "event": {
+      "type": "plan",
+      "goal": "Search the web for AI engineering roles that match my skills and prepare a comparison.",
+      "steps": [
+       {
+        "id": 1,
+        "task": "Use web_search to find current AI engineering job postings that match the user's skills."
+       },
+       {
+        "id": 2,
+        "task": "Use web_search to find detailed descriptions of AI engineering roles and their requirements."
+       },
+       {
+        "id": 3,
+        "task": "Use web_search to find salary ranges and benefits for AI engineering roles."
+       },
+       {
+        "id": 4,
+        "task": "Use web_search to find company reviews and work culture for AI engineering teams."
+       },
+       {
+        "id": 5,
+        "task": "Use web_search to find remote work options and location flexibility for AI engineering roles."
+       },
+       {
+        "id": 6,
+        "task": "Prepare a comparison of the found AI engineering roles based on salary, requirements, company culture, and remote options."
+       }
+      ]
+     }
+    },
+    {
+     "t": 3927,
+     "event": {
+      "type": "step",
+      "id": 1,
+      "status": "running",
+      "attempt": 1,
+      "detail": ""
+     }
+    },
+    {
+     "t": 5372,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "web_search"
+     }
+    },
+    {
+     "t": 5372,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_tjp1pukq",
+      "name": "web_search",
+      "arguments": {
+       "query": "AI engineering job postings",
+       "max_results": 5
+      }
+     }
+    },
+    {
+     "t": 10679,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_tjp1pukq",
+      "name": "web_search",
+      "status": "ok",
+      "summary": "5 results: sg.jobstreet.com, indeed.com, linkedin.com, aijobsignal.com",
+      "duration_ms": 5304.3
+     }
+    },
+    {
+     "t": 10681,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 12590,
+     "event": {
+      "type": "step",
+      "id": 1,
+      "status": "done",
+      "attempt": 1,
+      "detail": "I found several current AI engineering job postings across various platforms. For example, there are 7467 AI Engineer jobs listed on Jobstreet in Singapore [sg."
+     }
+    },
+    {
+     "t": 12595,
+     "event": {
+      "type": "step",
+      "id": 2,
+      "status": "running",
+      "attempt": 1,
+      "detail": ""
+     }
+    },
+    {
+     "t": 14227,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "web_search"
+     }
+    },
+    {
+     "t": 14227,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_6luuqcix",
+      "name": "web_search",
+      "arguments": {
+       "query": "AI engineering roles detailed descriptions and requirements",
+       "max_results": 5
+      }
+     }
+    },
+    {
+     "t": 20975,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_6luuqcix",
+      "name": "web_search",
+      "status": "error",
+      "summary": "Web search failed (DDGSException). Are you online?",
+      "duration_ms": 6745.5
+     }
+    },
+    {
+     "t": 20978,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 21720,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "web_search"
+     }
+    },
+    {
+     "t": 21720,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_yed7pfja",
+      "name": "web_search",
+      "arguments": {
+       "max_results": 5,
+       "query": "AI engineering job descriptions and requirements"
+      }
+     }
+    },
+    {
+     "t": 25491,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_yed7pfja",
+      "name": "web_search",
+      "status": "ok",
+      "summary": "5 results: indeed.com, resources.rework.com, foundit.in, interviewguy.com",
+      "duration_ms": 3768.9
+     }
+    },
+    {
+     "t": 25492,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 27795,
+     "event": {
+      "type": "step",
+      "id": 2,
+      "status": "done",
+      "attempt": 1,
+      "detail": "Web search results show that AI engineering roles typically require skills in machine learning, deep learning, and natural language processing, along with exper"
+     }
+    },
+    {
+     "t": 27800,
+     "event": {
+      "type": "step",
+      "id": 3,
+      "status": "running",
+      "attempt": 1,
+      "detail": ""
+     }
+    },
+    {
+     "t": 29405,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "web_search"
+     }
+    },
+    {
+     "t": 29405,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_2pb2g3wv",
+      "name": "web_search",
+      "arguments": {
+       "query": "AI engineering salary ranges and benefits",
+       "max_results": 5
+      }
+     }
+    },
+    {
+     "t": 33627,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_2pb2g3wv",
+      "name": "web_search",
+      "status": "ok",
+      "summary": "5 results: interviewgrid.com, ayautomate.com, coursera.org, futureproofing.dev",
+      "duration_ms": 4214.5
+     }
+    },
+    {
+     "t": 33629,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 36568,
+     "event": {
+      "type": "step",
+      "id": 3,
+      "status": "done",
+      "attempt": 1,
+      "detail": "AI engineering roles typically offer base salaries ranging from $99,578 to $134,188 in the US, with total compensation reaching up to $242,507 in 2026, accordin"
+     }
+    },
+    {
+     "t": 36572,
+     "event": {
+      "type": "step",
+      "id": 4,
+      "status": "running",
+      "attempt": 1,
+      "detail": ""
+     }
+    },
+    {
+     "t": 38286,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "web_search"
+     }
+    },
+    {
+     "t": 38286,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_tt1j81br",
+      "name": "web_search",
+      "arguments": {
+       "query": "company reviews and work culture for AI engineering teams",
+       "max_results": 5
+      }
+     }
+    },
+    {
+     "t": 42193,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_tt1j81br",
+      "name": "web_search",
+      "status": "ok",
+      "summary": "5 results: jobsbyculture.com, coursera.org, builtin.com, newsletter.eng-leadership.com",
+      "duration_ms": 3899.3
+     }
+    },
+    {
+     "t": 42195,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 44625,
+     "event": {
+      "type": "step",
+      "id": 4,
+      "status": "done",
+      "attempt": 1,
+      "detail": "Several sources highlight company reviews and work culture for AI engineering teams. For instance, JobsByCulture ranks companies based on technical culture, aut"
+     }
+    },
+    {
+     "t": 44630,
+     "event": {
+      "type": "step",
+      "id": 5,
+      "status": "running",
+      "attempt": 1,
+      "detail": ""
+     }
+    },
+    {
+     "t": 46246,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "web_search"
+     }
+    },
+    {
+     "t": 46247,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_ghhjl038",
+      "name": "web_search",
+      "arguments": {
+       "query": "remote AI engineering roles location flexibility",
+       "max_results": 5
+      }
+     }
+    },
+    {
+     "t": 49296,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_ghhjl038",
+      "name": "web_search",
+      "status": "error",
+      "summary": "Web search failed (DDGSException). Are you online?",
+      "duration_ms": 3044.6
+     }
+    },
+    {
+     "t": 49298,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 49935,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "web_search"
+     }
+    },
+    {
+     "t": 49935,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_agw5d1r9",
+      "name": "web_search",
+      "arguments": {
+       "max_results": 5,
+       "query": "remote AI engineering jobs flexible work location"
+      }
+     }
+    },
+    {
+     "t": 53827,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_agw5d1r9",
+      "name": "web_search",
+      "status": "error",
+      "summary": "Web search failed (DDGSException). Are you online?",
+      "duration_ms": 3882.8
+     }
+    },
+    {
+     "t": 53829,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 54426,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "web_search"
+     }
+    },
+    {
+     "t": 54426,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_6zrtrxcc",
+      "name": "web_search",
+      "arguments": {
+       "max_results": 5,
+       "query": "AI engineering remote work options location flexibility"
+      }
+     }
+    },
+    {
+     "t": 62763,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_6zrtrxcc",
+      "name": "web_search",
+      "status": "error",
+      "summary": "Web search failed (DDGSException). Are you online?",
+      "duration_ms": 8329.6
+     }
+    },
+    {
+     "t": 62765,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 63525,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "web_search"
+     }
+    },
+    {
+     "t": 63525,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_g849yspz",
+      "name": "web_search",
+      "arguments": {
+       "query": "AI engineering remote jobs location flexibility",
+       "max_results": 5
+      }
+     }
+    },
+    {
+     "t": 65818,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_g849yspz",
+      "name": "web_search",
+      "status": "ok",
+      "summary": "5 results: bing.com, indeed.com, remoterocketship.com",
+      "duration_ms": 2285.5
+     }
+    },
+    {
+     "t": 65823,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 65823,
+     "event": {
+      "type": "step",
+      "id": 5,
+      "status": "running",
+      "attempt": 2,
+      "detail": ""
+     }
+    },
+    {
+     "t": 70557,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "web_search"
+     }
+    },
+    {
+     "t": 70557,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_ks2uhyla",
+      "name": "web_search",
+      "arguments": {
+       "query": "remote AI engineering roles location flexibility",
+       "max_results": 5
+      }
+     }
+    },
+    {
+     "t": 72206,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_ks2uhyla",
+      "name": "web_search",
+      "status": "ok",
+      "summary": "5 results: indeed.com, aihiringboard.com, remoterocketship.com, remoteai.io",
+      "duration_ms": 1641.8
+     }
+    },
+    {
+     "t": 72208,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 74265,
+     "event": {
+      "type": "step",
+      "id": 5,
+      "status": "done",
+      "attempt": 2,
+      "detail": "Several remote AI engineering roles are available, offering location flexibility. For instance, Indeed lists 8,594 AI Engineer job openings from Anywhere Fully "
+     }
+    },
+    {
+     "t": 74271,
+     "event": {
+      "type": "step",
+      "id": 6,
+      "status": "running",
+      "attempt": 1,
+      "detail": ""
+     }
+    },
+    {
+     "t": 76208,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "calculator"
+     }
+    },
+    {
+     "t": 76208,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_b3seerfv",
+      "name": "calculator",
+      "arguments": {
+       "expression": "((134188 - 99578) / 99578) * 100"
+      }
+     }
+    },
+    {
+     "t": 76213,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_b3seerfv",
+      "name": "calculator",
+      "status": "ok",
+      "summary": "((134188 - 99578) / 99578) * 100 = 34.7566731607",
+      "duration_ms": 0.1
+     }
+    },
+    {
+     "t": 76215,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 78144,
+     "event": {
+      "type": "step",
+      "id": 6,
+      "status": "done",
+      "attempt": 1,
+      "detail": "The salary range for AI engineering roles in the US varies from $99,578 to $134,188, representing a potential increase of approximately 34.76%. Requirements typ"
+     }
+    },
+    {
+     "t": 78801,
+     "event": {
+      "type": "token",
+      "content": "Here"
+     }
+    },
+    {
+     "t": 78820,
+     "event": {
+      "type": "token",
+      "content": "'s"
+     }
+    },
+    {
+     "t": 78839,
+     "event": {
+      "type": "token",
+      "content": " a"
+     }
+    },
+    {
+     "t": 78855,
+     "event": {
+      "type": "token",
+      "content": " comparison"
+     }
+    },
+    {
+     "t": 78872,
+     "event": {
+      "type": "token",
+      "content": " of"
+     }
+    },
+    {
+     "t": 78889,
+     "event": {
+      "type": "token",
+      "content": " AI"
+     }
+    },
+    {
+     "t": 78906,
+     "event": {
+      "type": "token",
+      "content": " engineering"
+     }
+    },
+    {
+     "t": 78923,
+     "event": {
+      "type": "token",
+      "content": " roles"
+     }
+    },
+    {
+     "t": 78940,
+     "event": {
+      "type": "token",
+      "content": " based"
+     }
+    },
+    {
+     "t": 78957,
+     "event": {
+      "type": "token",
+      "content": " on"
+     }
+    },
+    {
+     "t": 78973,
+     "event": {
+      "type": "token",
+      "content": " your"
+     }
+    },
+    {
+     "t": 78990,
+     "event": {
+      "type": "token",
+      "content": " skills"
+     }
+    },
+    {
+     "t": 79007,
+     "event": {
+      "type": "token",
+      "content": ":\n\n"
+     }
+    },
+    {
+     "t": 79024,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 79040,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 79057,
+     "event": {
+      "type": "token",
+      "content": "Job"
+     }
+    },
+    {
+     "t": 79074,
+     "event": {
+      "type": "token",
+      "content": " Availability"
+     }
+    },
+    {
+     "t": 79091,
+     "event": {
+      "type": "token",
+      "content": "**"
+     }
+    },
+    {
+     "t": 79108,
+     "event": {
+      "type": "token",
+      "content": ":\n"
+     }
+    },
+    {
+     "t": 79125,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 79141,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 79158,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 79175,
+     "event": {
+      "type": "token",
+      "content": "Singapore"
+     }
+    },
+    {
+     "t": 79192,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 79209,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 79225,
+     "event": {
+      "type": "token",
+      "content": "7"
+     }
+    },
+    {
+     "t": 79242,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 79259,
+     "event": {
+      "type": "token",
+      "content": "4"
+     }
+    },
+    {
+     "t": 79276,
+     "event": {
+      "type": "token",
+      "content": "6"
+     }
+    },
+    {
+     "t": 79293,
+     "event": {
+      "type": "token",
+      "content": "7"
+     }
+    },
+    {
+     "t": 79310,
+     "event": {
+      "type": "token",
+      "content": " AI"
+     }
+    },
+    {
+     "t": 79327,
+     "event": {
+      "type": "token",
+      "content": " Engineer"
+     }
+    },
+    {
+     "t": 79343,
+     "event": {
+      "type": "token",
+      "content": " jobs"
+     }
+    },
+    {
+     "t": 79361,
+     "event": {
+      "type": "token",
+      "content": " available"
+     }
+    },
+    {
+     "t": 79378,
+     "event": {
+      "type": "token",
+      "content": " on"
+     }
+    },
+    {
+     "t": 79394,
+     "event": {
+      "type": "token",
+      "content": " Job"
+     }
+    },
+    {
+     "t": 79411,
+     "event": {
+      "type": "token",
+      "content": "street"
+     }
+    },
+    {
+     "t": 79428,
+     "event": {
+      "type": "token",
+      "content": " ["
+     }
+    },
+    {
+     "t": 79445,
+     "event": {
+      "type": "token",
+      "content": "sg"
+     }
+    },
+    {
+     "t": 79462,
+     "event": {
+      "type": "token",
+      "content": ".job"
+     }
+    },
+    {
+     "t": 79479,
+     "event": {
+      "type": "token",
+      "content": "street"
+     }
+    },
+    {
+     "t": 79495,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 79512,
+     "event": {
+      "type": "token",
+      "content": "]("
+     }
+    },
+    {
+     "t": 79529,
+     "event": {
+      "type": "token",
+      "content": "https"
+     }
+    },
+    {
+     "t": 79546,
+     "event": {
+      "type": "token",
+      "content": "://"
+     }
+    },
+    {
+     "t": 79563,
+     "event": {
+      "type": "token",
+      "content": "sg"
+     }
+    },
+    {
+     "t": 79579,
+     "event": {
+      "type": "token",
+      "content": ".job"
+     }
+    },
+    {
+     "t": 79596,
+     "event": {
+      "type": "token",
+      "content": "street"
+     }
+    },
+    {
+     "t": 79613,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 79630,
+     "event": {
+      "type": "token",
+      "content": "/"
+     }
+    },
+    {
+     "t": 79647,
+     "event": {
+      "type": "token",
+      "content": "ai"
+     }
+    },
+    {
+     "t": 79664,
+     "event": {
+      "type": "token",
+      "content": "-engine"
+     }
+    },
+    {
+     "t": 79681,
+     "event": {
+      "type": "token",
+      "content": "er"
+     }
+    },
+    {
+     "t": 79697,
+     "event": {
+      "type": "token",
+      "content": "-j"
+     }
+    },
+    {
+     "t": 79714,
+     "event": {
+      "type": "token",
+      "content": "obs"
+     }
+    },
+    {
+     "t": 79731,
+     "event": {
+      "type": "token",
+      "content": ").\n"
+     }
+    },
+    {
+     "t": 79748,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 79765,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 79782,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 79798,
+     "event": {
+      "type": "token",
+      "content": "Global"
+     }
+    },
+    {
+     "t": 79815,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 79832,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 79849,
+     "event": {
+      "type": "token",
+      "content": "1"
+     }
+    },
+    {
+     "t": 79866,
+     "event": {
+      "type": "token",
+      "content": "3"
+     }
+    },
+    {
+     "t": 79882,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 79899,
+     "event": {
+      "type": "token",
+      "content": "6"
+     }
+    },
+    {
+     "t": 79916,
+     "event": {
+      "type": "token",
+      "content": "6"
+     }
+    },
+    {
+     "t": 79933,
+     "event": {
+      "type": "token",
+      "content": "7"
+     }
+    },
+    {
+     "t": 79950,
+     "event": {
+      "type": "token",
+      "content": " Artificial"
+     }
+    },
+    {
+     "t": 79967,
+     "event": {
+      "type": "token",
+      "content": " Intelligence"
+     }
+    },
+    {
+     "t": 79984,
+     "event": {
+      "type": "token",
+      "content": " Engineer"
+     }
+    },
+    {
+     "t": 80000,
+     "event": {
+      "type": "token",
+      "content": " jobs"
+     }
+    },
+    {
+     "t": 80017,
+     "event": {
+      "type": "token",
+      "content": " on"
+     }
+    },
+    {
+     "t": 80034,
+     "event": {
+      "type": "token",
+      "content": " Indeed"
+     }
+    },
+    {
+     "t": 80051,
+     "event": {
+      "type": "token",
+      "content": " ["
+     }
+    },
+    {
+     "t": 80067,
+     "event": {
+      "type": "token",
+      "content": "inde"
+     }
+    },
+    {
+     "t": 80084,
+     "event": {
+      "type": "token",
+      "content": "ed"
+     }
+    },
+    {
+     "t": 80101,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 80118,
+     "event": {
+      "type": "token",
+      "content": "]("
+     }
+    },
+    {
+     "t": 80135,
+     "event": {
+      "type": "token",
+      "content": "https"
+     }
+    },
+    {
+     "t": 80152,
+     "event": {
+      "type": "token",
+      "content": "://"
+     }
+    },
+    {
+     "t": 80169,
+     "event": {
+      "type": "token",
+      "content": "www"
+     }
+    },
+    {
+     "t": 80185,
+     "event": {
+      "type": "token",
+      "content": ".in"
+     }
+    },
+    {
+     "t": 80202,
+     "event": {
+      "type": "token",
+      "content": "de"
+     }
+    },
+    {
+     "t": 80219,
+     "event": {
+      "type": "token",
+      "content": "ed"
+     }
+    },
+    {
+     "t": 80236,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 80252,
+     "event": {
+      "type": "token",
+      "content": "/q"
+     }
+    },
+    {
+     "t": 80269,
+     "event": {
+      "type": "token",
+      "content": "-A"
+     }
+    },
+    {
+     "t": 80286,
+     "event": {
+      "type": "token",
+      "content": "rt"
+     }
+    },
+    {
+     "t": 80303,
+     "event": {
+      "type": "token",
+      "content": "ificial"
+     }
+    },
+    {
+     "t": 80320,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 80336,
+     "event": {
+      "type": "token",
+      "content": "Int"
+     }
+    },
+    {
+     "t": 80353,
+     "event": {
+      "type": "token",
+      "content": "elligence"
+     }
+    },
+    {
+     "t": 80370,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 80387,
+     "event": {
+      "type": "token",
+      "content": "Engine"
+     }
+    },
+    {
+     "t": 80403,
+     "event": {
+      "type": "token",
+      "content": "er"
+     }
+    },
+    {
+     "t": 80420,
+     "event": {
+      "type": "token",
+      "content": "-j"
+     }
+    },
+    {
+     "t": 80437,
+     "event": {
+      "type": "token",
+      "content": "obs"
+     }
+    },
+    {
+     "t": 80453,
+     "event": {
+      "type": "token",
+      "content": ".html"
+     }
+    },
+    {
+     "t": 80470,
+     "event": {
+      "type": "token",
+      "content": ").\n"
+     }
+    },
+    {
+     "t": 80489,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 80504,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 80521,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 80538,
+     "event": {
+      "type": "token",
+      "content": "Remote"
+     }
+    },
+    {
+     "t": 80554,
+     "event": {
+      "type": "token",
+      "content": " Options"
+     }
+    },
+    {
+     "t": 80571,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 80588,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 80604,
+     "event": {
+      "type": "token",
+      "content": "8"
+     }
+    },
+    {
+     "t": 80621,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 80638,
+     "event": {
+      "type": "token",
+      "content": "5"
+     }
+    },
+    {
+     "t": 80655,
+     "event": {
+      "type": "token",
+      "content": "9"
+     }
+    },
+    {
+     "t": 80672,
+     "event": {
+      "type": "token",
+      "content": "4"
+     }
+    },
+    {
+     "t": 80688,
+     "event": {
+      "type": "token",
+      "content": " fully"
+     }
+    },
+    {
+     "t": 80705,
+     "event": {
+      "type": "token",
+      "content": " remote"
+     }
+    },
+    {
+     "t": 80721,
+     "event": {
+      "type": "token",
+      "content": " AI"
+     }
+    },
+    {
+     "t": 80738,
+     "event": {
+      "type": "token",
+      "content": " Engineer"
+     }
+    },
+    {
+     "t": 80755,
+     "event": {
+      "type": "token",
+      "content": " roles"
+     }
+    },
+    {
+     "t": 80772,
+     "event": {
+      "type": "token",
+      "content": " on"
+     }
+    },
+    {
+     "t": 80789,
+     "event": {
+      "type": "token",
+      "content": " Indeed"
+     }
+    },
+    {
+     "t": 80806,
+     "event": {
+      "type": "token",
+      "content": " ["
+     }
+    },
+    {
+     "t": 80823,
+     "event": {
+      "type": "token",
+      "content": "inde"
+     }
+    },
+    {
+     "t": 80839,
+     "event": {
+      "type": "token",
+      "content": "ed"
+     }
+    },
+    {
+     "t": 80857,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 80873,
+     "event": {
+      "type": "token",
+      "content": "]("
+     }
+    },
+    {
+     "t": 80890,
+     "event": {
+      "type": "token",
+      "content": "https"
+     }
+    },
+    {
+     "t": 80908,
+     "event": {
+      "type": "token",
+      "content": "://"
+     }
+    },
+    {
+     "t": 80925,
+     "event": {
+      "type": "token",
+      "content": "www"
+     }
+    },
+    {
+     "t": 80940,
+     "event": {
+      "type": "token",
+      "content": ".in"
+     }
+    },
+    {
+     "t": 80957,
+     "event": {
+      "type": "token",
+      "content": "de"
+     }
+    },
+    {
+     "t": 80973,
+     "event": {
+      "type": "token",
+      "content": "ed"
+     }
+    },
+    {
+     "t": 80989,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 81006,
+     "event": {
+      "type": "token",
+      "content": "/q"
+     }
+    },
+    {
+     "t": 81023,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 81040,
+     "event": {
+      "type": "token",
+      "content": "ai"
+     }
+    },
+    {
+     "t": 81057,
+     "event": {
+      "type": "token",
+      "content": "-engine"
+     }
+    },
+    {
+     "t": 81074,
+     "event": {
+      "type": "token",
+      "content": "er"
+     }
+    },
+    {
+     "t": 81090,
+     "event": {
+      "type": "token",
+      "content": "-l"
+     }
+    },
+    {
+     "t": 81107,
+     "event": {
+      "type": "token",
+      "content": "-any"
+     }
+    },
+    {
+     "t": 81124,
+     "event": {
+      "type": "token",
+      "content": "where"
+     }
+    },
+    {
+     "t": 81141,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 81158,
+     "event": {
+      "type": "token",
+      "content": "fully"
+     }
+    },
+    {
+     "t": 81175,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 81191,
+     "event": {
+      "type": "token",
+      "content": "remote"
+     }
+    },
+    {
+     "t": 81208,
+     "event": {
+      "type": "token",
+      "content": "-j"
+     }
+    },
+    {
+     "t": 81225,
+     "event": {
+      "type": "token",
+      "content": "obs"
+     }
+    },
+    {
+     "t": 81242,
+     "event": {
+      "type": "token",
+      "content": ".html"
+     }
+    },
+    {
+     "t": 81259,
+     "event": {
+      "type": "token",
+      "content": ").\n\n"
+     }
+    },
+    {
+     "t": 81275,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 81292,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 81309,
+     "event": {
+      "type": "token",
+      "content": "Salary"
+     }
+    },
+    {
+     "t": 81326,
+     "event": {
+      "type": "token",
+      "content": " Range"
+     }
+    },
+    {
+     "t": 81343,
+     "event": {
+      "type": "token",
+      "content": " ("
+     }
+    },
+    {
+     "t": 81359,
+     "event": {
+      "type": "token",
+      "content": "US"
+     }
+    },
+    {
+     "t": 81376,
+     "event": {
+      "type": "token",
+      "content": ")**"
+     }
+    },
+    {
+     "t": 81393,
+     "event": {
+      "type": "token",
+      "content": ":\n"
+     }
+    },
+    {
+     "t": 81410,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 81427,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 81444,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 81461,
+     "event": {
+      "type": "token",
+      "content": "Base"
+     }
+    },
+    {
+     "t": 81477,
+     "event": {
+      "type": "token",
+      "content": " Salary"
+     }
+    },
+    {
+     "t": 81494,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 81511,
+     "event": {
+      "type": "token",
+      "content": " $"
+     }
+    },
+    {
+     "t": 81529,
+     "event": {
+      "type": "token",
+      "content": "9"
+     }
+    },
+    {
+     "t": 81545,
+     "event": {
+      "type": "token",
+      "content": "9"
+     }
+    },
+    {
+     "t": 81562,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 81579,
+     "event": {
+      "type": "token",
+      "content": "5"
+     }
+    },
+    {
+     "t": 81596,
+     "event": {
+      "type": "token",
+      "content": "7"
+     }
+    },
+    {
+     "t": 81613,
+     "event": {
+      "type": "token",
+      "content": "8"
+     }
+    },
+    {
+     "t": 81629,
+     "event": {
+      "type": "token",
+      "content": " to"
+     }
+    },
+    {
+     "t": 81646,
+     "event": {
+      "type": "token",
+      "content": " $"
+     }
+    },
+    {
+     "t": 81663,
+     "event": {
+      "type": "token",
+      "content": "1"
+     }
+    },
+    {
+     "t": 81680,
+     "event": {
+      "type": "token",
+      "content": "3"
+     }
+    },
+    {
+     "t": 81697,
+     "event": {
+      "type": "token",
+      "content": "4"
+     }
+    },
+    {
+     "t": 81713,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 81730,
+     "event": {
+      "type": "token",
+      "content": "1"
+     }
+    },
+    {
+     "t": 81747,
+     "event": {
+      "type": "token",
+      "content": "8"
+     }
+    },
+    {
+     "t": 81765,
+     "event": {
+      "type": "token",
+      "content": "8"
+     }
+    },
+    {
+     "t": 81781,
+     "event": {
+      "type": "token",
+      "content": ".\n"
+     }
+    },
+    {
+     "t": 81798,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 81815,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 81832,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 81849,
+     "event": {
+      "type": "token",
+      "content": "Total"
+     }
+    },
+    {
+     "t": 81868,
+     "event": {
+      "type": "token",
+      "content": " Compensation"
+     }
+    },
+    {
+     "t": 81883,
+     "event": {
+      "type": "token",
+      "content": "**:"
+     }
+    },
+    {
+     "t": 81899,
+     "event": {
+      "type": "token",
+      "content": " Up"
+     }
+    },
+    {
+     "t": 81917,
+     "event": {
+      "type": "token",
+      "content": " to"
+     }
+    },
+    {
+     "t": 81933,
+     "event": {
+      "type": "token",
+      "content": " $"
+     }
+    },
+    {
+     "t": 81950,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 81967,
+     "event": {
+      "type": "token",
+      "content": "4"
+     }
+    },
+    {
+     "t": 81984,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 82001,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 82017,
+     "event": {
+      "type": "token",
+      "content": "5"
+     }
+    },
+    {
+     "t": 82034,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 82051,
+     "event": {
+      "type": "token",
+      "content": "7"
+     }
+    },
+    {
+     "t": 82070,
+     "event": {
+      "type": "token",
+      "content": " in"
+     }
+    },
+    {
+     "t": 82088,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 82105,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 82122,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 82139,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 82156,
+     "event": {
+      "type": "token",
+      "content": "6"
+     }
+    },
+    {
+     "t": 82173,
+     "event": {
+      "type": "token",
+      "content": " ["
+     }
+    },
+    {
+     "t": 82190,
+     "event": {
+      "type": "token",
+      "content": "cour"
+     }
+    },
+    {
+     "t": 82207,
+     "event": {
+      "type": "token",
+      "content": "ser"
+     }
+    },
+    {
+     "t": 82224,
+     "event": {
+      "type": "token",
+      "content": "a"
+     }
+    },
+    {
+     "t": 82241,
+     "event": {
+      "type": "token",
+      "content": ".org"
+     }
+    },
+    {
+     "t": 82258,
+     "event": {
+      "type": "token",
+      "content": "]("
+     }
+    },
+    {
+     "t": 82275,
+     "event": {
+      "type": "token",
+      "content": "https"
+     }
+    },
+    {
+     "t": 82292,
+     "event": {
+      "type": "token",
+      "content": "://"
+     }
+    },
+    {
+     "t": 82309,
+     "event": {
+      "type": "token",
+      "content": "www"
+     }
+    },
+    {
+     "t": 82326,
+     "event": {
+      "type": "token",
+      "content": ".c"
+     }
+    },
+    {
+     "t": 82343,
+     "event": {
+      "type": "token",
+      "content": "our"
+     }
+    },
+    {
+     "t": 82360,
+     "event": {
+      "type": "token",
+      "content": "ser"
+     }
+    },
+    {
+     "t": 82377,
+     "event": {
+      "type": "token",
+      "content": "a"
+     }
+    },
+    {
+     "t": 82394,
+     "event": {
+      "type": "token",
+      "content": ".org"
+     }
+    },
+    {
+     "t": 82411,
+     "event": {
+      "type": "token",
+      "content": "/articles"
+     }
+    },
+    {
+     "t": 82428,
+     "event": {
+      "type": "token",
+      "content": "/art"
+     }
+    },
+    {
+     "t": 82445,
+     "event": {
+      "type": "token",
+      "content": "ificial"
+     }
+    },
+    {
+     "t": 82462,
+     "event": {
+      "type": "token",
+      "content": "-int"
+     }
+    },
+    {
+     "t": 82479,
+     "event": {
+      "type": "token",
+      "content": "elligence"
+     }
+    },
+    {
+     "t": 82496,
+     "event": {
+      "type": "token",
+      "content": "-s"
+     }
+    },
+    {
+     "t": 82513,
+     "event": {
+      "type": "token",
+      "content": "alary"
+     }
+    },
+    {
+     "t": 82530,
+     "event": {
+      "type": "token",
+      "content": "),"
+     }
+    },
+    {
+     "t": 82547,
+     "event": {
+      "type": "token",
+      "content": " ["
+     }
+    },
+    {
+     "t": 82564,
+     "event": {
+      "type": "token",
+      "content": "future"
+     }
+    },
+    {
+     "t": 82581,
+     "event": {
+      "type": "token",
+      "content": "proof"
+     }
+    },
+    {
+     "t": 82597,
+     "event": {
+      "type": "token",
+      "content": "ing"
+     }
+    },
+    {
+     "t": 82614,
+     "event": {
+      "type": "token",
+      "content": ".dev"
+     }
+    },
+    {
+     "t": 82631,
+     "event": {
+      "type": "token",
+      "content": "]("
+     }
+    },
+    {
+     "t": 82648,
+     "event": {
+      "type": "token",
+      "content": "https"
+     }
+    },
+    {
+     "t": 82665,
+     "event": {
+      "type": "token",
+      "content": "://"
+     }
+    },
+    {
+     "t": 82682,
+     "event": {
+      "type": "token",
+      "content": "www"
+     }
+    },
+    {
+     "t": 82699,
+     "event": {
+      "type": "token",
+      "content": ".future"
+     }
+    },
+    {
+     "t": 82716,
+     "event": {
+      "type": "token",
+      "content": "proof"
+     }
+    },
+    {
+     "t": 82733,
+     "event": {
+      "type": "token",
+      "content": "ing"
+     }
+    },
+    {
+     "t": 82749,
+     "event": {
+      "type": "token",
+      "content": ".dev"
+     }
+    },
+    {
+     "t": 82766,
+     "event": {
+      "type": "token",
+      "content": "/resources"
+     }
+    },
+    {
+     "t": 82783,
+     "event": {
+      "type": "token",
+      "content": "/"
+     }
+    },
+    {
+     "t": 82800,
+     "event": {
+      "type": "token",
+      "content": "ai"
+     }
+    },
+    {
+     "t": 82817,
+     "event": {
+      "type": "token",
+      "content": "-t"
+     }
+    },
+    {
+     "t": 82834,
+     "event": {
+      "type": "token",
+      "content": "alent"
+     }
+    },
+    {
+     "t": 82850,
+     "event": {
+      "type": "token",
+      "content": "-gap"
+     }
+    },
+    {
+     "t": 82868,
+     "event": {
+      "type": "token",
+      "content": "/"
+     }
+    },
+    {
+     "t": 82884,
+     "event": {
+      "type": "token",
+      "content": "ai"
+     }
+    },
+    {
+     "t": 82901,
+     "event": {
+      "type": "token",
+      "content": "-engine"
+     }
+    },
+    {
+     "t": 82918,
+     "event": {
+      "type": "token",
+      "content": "er"
+     }
+    },
+    {
+     "t": 82935,
+     "event": {
+      "type": "token",
+      "content": "-s"
+     }
+    },
+    {
+     "t": 82952,
+     "event": {
+      "type": "token",
+      "content": "alary"
+     }
+    },
+    {
+     "t": 82969,
+     "event": {
+      "type": "token",
+      "content": "-t"
+     }
+    },
+    {
+     "t": 82986,
+     "event": {
+      "type": "token",
+      "content": "rends"
+     }
+    },
+    {
+     "t": 83003,
+     "event": {
+      "type": "token",
+      "content": ").\n\n"
+     }
+    },
+    {
+     "t": 83020,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 83037,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 83054,
+     "event": {
+      "type": "token",
+      "content": "Requirements"
+     }
+    },
+    {
+     "t": 83071,
+     "event": {
+      "type": "token",
+      "content": "**"
+     }
+    },
+    {
+     "t": 83088,
+     "event": {
+      "type": "token",
+      "content": ":\n"
+     }
+    },
+    {
+     "t": 83105,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 83122,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 83139,
+     "event": {
+      "type": "token",
+      "content": " Skills"
+     }
+    },
+    {
+     "t": 83156,
+     "event": {
+      "type": "token",
+      "content": " in"
+     }
+    },
+    {
+     "t": 83173,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 83190,
+     "event": {
+      "type": "token",
+      "content": "machine"
+     }
+    },
+    {
+     "t": 83207,
+     "event": {
+      "type": "token",
+      "content": " learning"
+     }
+    },
+    {
+     "t": 83224,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 83241,
+     "event": {
+      "type": "token",
+      "content": " deep"
+     }
+    },
+    {
+     "t": 83257,
+     "event": {
+      "type": "token",
+      "content": " learning"
+     }
+    },
+    {
+     "t": 83274,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 83292,
+     "event": {
+      "type": "token",
+      "content": " natural"
+     }
+    },
+    {
+     "t": 83308,
+     "event": {
+      "type": "token",
+      "content": " language"
+     }
+    },
+    {
+     "t": 83325,
+     "event": {
+      "type": "token",
+      "content": " processing"
+     }
+    },
+    {
+     "t": 83342,
+     "event": {
+      "type": "token",
+      "content": "**,"
+     }
+    },
+    {
+     "t": 83359,
+     "event": {
+      "type": "token",
+      "content": " and"
+     }
+    },
+    {
+     "t": 83377,
+     "event": {
+      "type": "token",
+      "content": " proficiency"
+     }
+    },
+    {
+     "t": 83393,
+     "event": {
+      "type": "token",
+      "content": " in"
+     }
+    },
+    {
+     "t": 83410,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 83427,
+     "event": {
+      "type": "token",
+      "content": "Python"
+     }
+    },
+    {
+     "t": 83444,
+     "event": {
+      "type": "token",
+      "content": "**"
+     }
+    },
+    {
+     "t": 83461,
+     "event": {
+      "type": "token",
+      "content": " and"
+     }
+    },
+    {
+     "t": 83477,
+     "event": {
+      "type": "token",
+      "content": " frameworks"
+     }
+    },
+    {
+     "t": 83494,
+     "event": {
+      "type": "token",
+      "content": " like"
+     }
+    },
+    {
+     "t": 83511,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 83528,
+     "event": {
+      "type": "token",
+      "content": "Tensor"
+     }
+    },
+    {
+     "t": 83545,
+     "event": {
+      "type": "token",
+      "content": "Flow"
+     }
+    },
+    {
+     "t": 83562,
+     "event": {
+      "type": "token",
+      "content": " or"
+     }
+    },
+    {
+     "t": 83579,
+     "event": {
+      "type": "token",
+      "content": " Py"
+     }
+    },
+    {
+     "t": 83595,
+     "event": {
+      "type": "token",
+      "content": "T"
+     }
+    },
+    {
+     "t": 83612,
+     "event": {
+      "type": "token",
+      "content": "orch"
+     }
+    },
+    {
+     "t": 83629,
+     "event": {
+      "type": "token",
+      "content": "**"
+     }
+    },
+    {
+     "t": 83646,
+     "event": {
+      "type": "token",
+      "content": ".\n"
+     }
+    },
+    {
+     "t": 83663,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 83680,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 83697,
+     "event": {
+      "type": "token",
+      "content": " Problem"
+     }
+    },
+    {
+     "t": 83714,
+     "event": {
+      "type": "token",
+      "content": "-solving"
+     }
+    },
+    {
+     "t": 83731,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 83748,
+     "event": {
+      "type": "token",
+      "content": " data"
+     }
+    },
+    {
+     "t": 83765,
+     "event": {
+      "type": "token",
+      "content": " analysis"
+     }
+    },
+    {
+     "t": 83782,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 83799,
+     "event": {
+      "type": "token",
+      "content": " and"
+     }
+    },
+    {
+     "t": 83816,
+     "event": {
+      "type": "token",
+      "content": " cross"
+     }
+    },
+    {
+     "t": 83833,
+     "event": {
+      "type": "token",
+      "content": "-functional"
+     }
+    },
+    {
+     "t": 83849,
+     "event": {
+      "type": "token",
+      "content": " collaboration"
+     }
+    },
+    {
+     "t": 83866,
+     "event": {
+      "type": "token",
+      "content": " are"
+     }
+    },
+    {
+     "t": 83883,
+     "event": {
+      "type": "token",
+      "content": " emphasized"
+     }
+    },
+    {
+     "t": 83900,
+     "event": {
+      "type": "token",
+      "content": " ["
+     }
+    },
+    {
+     "t": 83917,
+     "event": {
+      "type": "token",
+      "content": "resources"
+     }
+    },
+    {
+     "t": 83934,
+     "event": {
+      "type": "token",
+      "content": ".re"
+     }
+    },
+    {
+     "t": 83951,
+     "event": {
+      "type": "token",
+      "content": "work"
+     }
+    },
+    {
+     "t": 83968,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 83984,
+     "event": {
+      "type": "token",
+      "content": "]("
+     }
+    },
+    {
+     "t": 84001,
+     "event": {
+      "type": "token",
+      "content": "https"
+     }
+    },
+    {
+     "t": 84018,
+     "event": {
+      "type": "token",
+      "content": "://"
+     }
+    },
+    {
+     "t": 84035,
+     "event": {
+      "type": "token",
+      "content": "resources"
+     }
+    },
+    {
+     "t": 84052,
+     "event": {
+      "type": "token",
+      "content": ".re"
+     }
+    },
+    {
+     "t": 84069,
+     "event": {
+      "type": "token",
+      "content": "work"
+     }
+    },
+    {
+     "t": 84086,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 84103,
+     "event": {
+      "type": "token",
+      "content": "/lib"
+     }
+    },
+    {
+     "t": 84120,
+     "event": {
+      "type": "token",
+      "content": "raries"
+     }
+    },
+    {
+     "t": 84137,
+     "event": {
+      "type": "token",
+      "content": "/job"
+     }
+    },
+    {
+     "t": 84154,
+     "event": {
+      "type": "token",
+      "content": "-description"
+     }
+    },
+    {
+     "t": 84171,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 84188,
+     "event": {
+      "type": "token",
+      "content": "templates"
+     }
+    },
+    {
+     "t": 84205,
+     "event": {
+      "type": "token",
+      "content": "/"
+     }
+    },
+    {
+     "t": 84223,
+     "event": {
+      "type": "token",
+      "content": "ai"
+     }
+    },
+    {
+     "t": 84240,
+     "event": {
+      "type": "token",
+      "content": "-engine"
+     }
+    },
+    {
+     "t": 84257,
+     "event": {
+      "type": "token",
+      "content": "er"
+     }
+    },
+    {
+     "t": 84274,
+     "event": {
+      "type": "token",
+      "content": "),"
+     }
+    },
+    {
+     "t": 84291,
+     "event": {
+      "type": "token",
+      "content": " ["
+     }
+    },
+    {
+     "t": 84307,
+     "event": {
+      "type": "token",
+      "content": "found"
+     }
+    },
+    {
+     "t": 84324,
+     "event": {
+      "type": "token",
+      "content": "it"
+     }
+    },
+    {
+     "t": 84341,
+     "event": {
+      "type": "token",
+      "content": ".in"
+     }
+    },
+    {
+     "t": 84358,
+     "event": {
+      "type": "token",
+      "content": "]("
+     }
+    },
+    {
+     "t": 84375,
+     "event": {
+      "type": "token",
+      "content": "https"
+     }
+    },
+    {
+     "t": 84392,
+     "event": {
+      "type": "token",
+      "content": "://"
+     }
+    },
+    {
+     "t": 84409,
+     "event": {
+      "type": "token",
+      "content": "www"
+     }
+    },
+    {
+     "t": 84426,
+     "event": {
+      "type": "token",
+      "content": ".f"
+     }
+    },
+    {
+     "t": 84443,
+     "event": {
+      "type": "token",
+      "content": "ound"
+     }
+    },
+    {
+     "t": 84460,
+     "event": {
+      "type": "token",
+      "content": "it"
+     }
+    },
+    {
+     "t": 84477,
+     "event": {
+      "type": "token",
+      "content": ".in"
+     }
+    },
+    {
+     "t": 84494,
+     "event": {
+      "type": "token",
+      "content": "/c"
+     }
+    },
+    {
+     "t": 84510,
+     "event": {
+      "type": "token",
+      "content": "are"
+     }
+    },
+    {
+     "t": 84528,
+     "event": {
+      "type": "token",
+      "content": "er"
+     }
+    },
+    {
+     "t": 84545,
+     "event": {
+      "type": "token",
+      "content": "-ad"
+     }
+    },
+    {
+     "t": 84562,
+     "event": {
+      "type": "token",
+      "content": "vice"
+     }
+    },
+    {
+     "t": 84578,
+     "event": {
+      "type": "token",
+      "content": "/art"
+     }
+    },
+    {
+     "t": 84595,
+     "event": {
+      "type": "token",
+      "content": "ificial"
+     }
+    },
+    {
+     "t": 84613,
+     "event": {
+      "type": "token",
+      "content": "-int"
+     }
+    },
+    {
+     "t": 84630,
+     "event": {
+      "type": "token",
+      "content": "elligence"
+     }
+    },
+    {
+     "t": 84646,
+     "event": {
+      "type": "token",
+      "content": "-engine"
+     }
+    },
+    {
+     "t": 84663,
+     "event": {
+      "type": "token",
+      "content": "er"
+     }
+    },
+    {
+     "t": 84680,
+     "event": {
+      "type": "token",
+      "content": "-job"
+     }
+    },
+    {
+     "t": 84697,
+     "event": {
+      "type": "token",
+      "content": "-description"
+     }
+    },
+    {
+     "t": 84714,
+     "event": {
+      "type": "token",
+      "content": "/"
+     }
+    },
+    {
+     "t": 84731,
+     "event": {
+      "type": "token",
+      "content": ").\n\n"
+     }
+    },
+    {
+     "t": 84748,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 84765,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 84782,
+     "event": {
+      "type": "token",
+      "content": "Company"
+     }
+    },
+    {
+     "t": 84799,
+     "event": {
+      "type": "token",
+      "content": " Culture"
+     }
+    },
+    {
+     "t": 84816,
+     "event": {
+      "type": "token",
+      "content": "**"
+     }
+    },
+    {
+     "t": 84833,
+     "event": {
+      "type": "token",
+      "content": ":\n"
+     }
+    },
+    {
+     "t": 84850,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 84867,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 84884,
+     "event": {
+      "type": "token",
+      "content": " Focus"
+     }
+    },
+    {
+     "t": 84901,
+     "event": {
+      "type": "token",
+      "content": " on"
+     }
+    },
+    {
+     "t": 84919,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 84935,
+     "event": {
+      "type": "token",
+      "content": "technical"
+     }
+    },
+    {
+     "t": 84952,
+     "event": {
+      "type": "token",
+      "content": " expertise"
+     }
+    },
+    {
+     "t": 84969,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 84986,
+     "event": {
+      "type": "token",
+      "content": " problem"
+     }
+    },
+    {
+     "t": 85003,
+     "event": {
+      "type": "token",
+      "content": "-solving"
+     }
+    },
+    {
+     "t": 85020,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 85037,
+     "event": {
+      "type": "token",
+      "content": " and"
+     }
+    },
+    {
+     "t": 85054,
+     "event": {
+      "type": "token",
+      "content": " collaboration"
+     }
+    },
+    {
+     "t": 85071,
+     "event": {
+      "type": "token",
+      "content": "**"
+     }
+    },
+    {
+     "t": 85088,
+     "event": {
+      "type": "token",
+      "content": ".\n"
+     }
+    },
+    {
+     "t": 85105,
+     "event": {
+      "type": "token",
+      "content": " "
+     }
+    },
+    {
+     "t": 85122,
+     "event": {
+      "type": "token",
+      "content": " -"
+     }
+    },
+    {
+     "t": 85139,
+     "event": {
+      "type": "token",
+      "content": " Remote"
+     }
+    },
+    {
+     "t": 85156,
+     "event": {
+      "type": "token",
+      "content": " work"
+     }
+    },
+    {
+     "t": 85173,
+     "event": {
+      "type": "token",
+      "content": " options"
+     }
+    },
+    {
+     "t": 85190,
+     "event": {
+      "type": "token",
+      "content": " are"
+     }
+    },
+    {
+     "t": 85207,
+     "event": {
+      "type": "token",
+      "content": " common"
+     }
+    },
+    {
+     "t": 85224,
+     "event": {
+      "type": "token",
+      "content": ","
+     }
+    },
+    {
+     "t": 85241,
+     "event": {
+      "type": "token",
+      "content": " with"
+     }
+    },
+    {
+     "t": 85258,
+     "event": {
+      "type": "token",
+      "content": " some"
+     }
+    },
+    {
+     "t": 85275,
+     "event": {
+      "type": "token",
+      "content": " companies"
+     }
+    },
+    {
+     "t": 85292,
+     "event": {
+      "type": "token",
+      "content": " offering"
+     }
+    },
+    {
+     "t": 85309,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 85326,
+     "event": {
+      "type": "token",
+      "content": "flex"
+     }
+    },
+    {
+     "t": 85342,
+     "event": {
+      "type": "token",
+      "content": "ible"
+     }
+    },
+    {
+     "t": 85360,
+     "event": {
+      "type": "token",
+      "content": " work"
+     }
+    },
+    {
+     "t": 85377,
+     "event": {
+      "type": "token",
+      "content": " environments"
+     }
+    },
+    {
+     "t": 85394,
+     "event": {
+      "type": "token",
+      "content": "**"
+     }
+    },
+    {
+     "t": 85410,
+     "event": {
+      "type": "token",
+      "content": " and"
+     }
+    },
+    {
+     "t": 85427,
+     "event": {
+      "type": "token",
+      "content": " **"
+     }
+    },
+    {
+     "t": 85444,
+     "event": {
+      "type": "token",
+      "content": "support"
+     }
+    },
+    {
+     "t": 85464,
+     "event": {
+      "type": "token",
+      "content": "ive"
+     }
+    },
+    {
+     "t": 85479,
+     "event": {
+      "type": "token",
+      "content": " leadership"
+     }
+    },
+    {
+     "t": 85496,
+     "event": {
+      "type": "token",
+      "content": "**"
+     }
+    },
+    {
+     "t": 85512,
+     "event": {
+      "type": "token",
+      "content": " ["
+     }
+    },
+    {
+     "t": 85529,
+     "event": {
+      "type": "token",
+      "content": "jobs"
+     }
+    },
+    {
+     "t": 85546,
+     "event": {
+      "type": "token",
+      "content": "by"
+     }
+    },
+    {
+     "t": 85563,
+     "event": {
+      "type": "token",
+      "content": "culture"
+     }
+    },
+    {
+     "t": 85580,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 85597,
+     "event": {
+      "type": "token",
+      "content": "]("
+     }
+    },
+    {
+     "t": 85614,
+     "event": {
+      "type": "token",
+      "content": "https"
+     }
+    },
+    {
+     "t": 85631,
+     "event": {
+      "type": "token",
+      "content": "://"
+     }
+    },
+    {
+     "t": 85648,
+     "event": {
+      "type": "token",
+      "content": "jobs"
+     }
+    },
+    {
+     "t": 85665,
+     "event": {
+      "type": "token",
+      "content": "by"
+     }
+    },
+    {
+     "t": 85682,
+     "event": {
+      "type": "token",
+      "content": "culture"
+     }
+    },
+    {
+     "t": 85699,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 85716,
+     "event": {
+      "type": "token",
+      "content": "/blog"
+     }
+    },
+    {
+     "t": 85732,
+     "event": {
+      "type": "token",
+      "content": "/b"
+     }
+    },
+    {
+     "t": 85749,
+     "event": {
+      "type": "token",
+      "content": "est"
+     }
+    },
+    {
+     "t": 85766,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 85783,
+     "event": {
+      "type": "token",
+      "content": "ai"
+     }
+    },
+    {
+     "t": 85800,
+     "event": {
+      "type": "token",
+      "content": "-com"
+     }
+    },
+    {
+     "t": 85817,
+     "event": {
+      "type": "token",
+      "content": "panies"
+     }
+    },
+    {
+     "t": 85834,
+     "event": {
+      "type": "token",
+      "content": "-for"
+     }
+    },
+    {
+     "t": 85851,
+     "event": {
+      "type": "token",
+      "content": "-engine"
+     }
+    },
+    {
+     "t": 85868,
+     "event": {
+      "type": "token",
+      "content": "ers"
+     }
+    },
+    {
+     "t": 85885,
+     "event": {
+      "type": "token",
+      "content": "-"
+     }
+    },
+    {
+     "t": 85902,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 85919,
+     "event": {
+      "type": "token",
+      "content": "0"
+     }
+    },
+    {
+     "t": 85936,
+     "event": {
+      "type": "token",
+      "content": "2"
+     }
+    },
+    {
+     "t": 85953,
+     "event": {
+      "type": "token",
+      "content": "6"
+     }
+    },
+    {
+     "t": 85970,
+     "event": {
+      "type": "token",
+      "content": "),"
+     }
+    },
+    {
+     "t": 85987,
+     "event": {
+      "type": "token",
+      "content": " ["
+     }
+    },
+    {
+     "t": 86004,
+     "event": {
+      "type": "token",
+      "content": "builtin"
+     }
+    },
+    {
+     "t": 86020,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 86037,
+     "event": {
+      "type": "token",
+      "content": "]("
+     }
+    },
+    {
+     "t": 86055,
+     "event": {
+      "type": "token",
+      "content": "https"
+     }
+    },
+    {
+     "t": 86071,
+     "event": {
+      "type": "token",
+      "content": "://"
+     }
+    },
+    {
+     "t": 86088,
+     "event": {
+      "type": "token",
+      "content": "builtin"
+     }
+    },
+    {
+     "t": 86105,
+     "event": {
+      "type": "token",
+      "content": ".com"
+     }
+    },
+    {
+     "t": 86122,
+     "event": {
+      "type": "token",
+      "content": "/com"
+     }
+    },
+    {
+     "t": 86139,
+     "event": {
+      "type": "token",
+      "content": "panies"
+     }
+    },
+    {
+     "t": 86156,
+     "event": {
+      "type": "token",
+      "content": "/type"
+     }
+    },
+    {
+     "t": 86173,
+     "event": {
+      "type": "token",
+      "content": "/art"
+     }
+    },
+    {
+     "t": 86190,
+     "event": {
+      "type": "token",
+      "content": "ificial"
+     }
+    },
+    {
+     "t": 86207,
+     "event": {
+      "type": "token",
+      "content": "-int"
+     }
+    },
+    {
+     "t": 86224,
+     "event": {
+      "type": "token",
+      "content": "elligence"
+     }
+    },
+    {
+     "t": 86241,
+     "event": {
+      "type": "token",
+      "content": "-com"
+     }
+    },
+    {
+     "t": 86258,
+     "event": {
+      "type": "token",
+      "content": "panies"
+     }
+    },
+    {
+     "t": 86275,
+     "event": {
+      "type": "token",
+      "content": "/re"
+     }
+    },
+    {
+     "t": 86292,
+     "event": {
+      "type": "token",
+      "content": "putation"
+     }
+    },
+    {
+     "t": 86309,
+     "event": {
+      "type": "token",
+      "content": "/b"
+     }
+    },
+    {
+     "t": 86326,
+     "event": {
+      "type": "token",
+      "content": "est"
+     }
+    },
+    {
+     "t": 86343,
+     "event": {
+      "type": "token",
+      "content": "-work"
+     }
+    },
+    {
+     "t": 86360,
+     "event": {
+      "type": "token",
+      "content": "place"
+     }
+    },
+    {
+     "t": 86377,
+     "event": {
+      "type": "token",
+      "content": ").\n\n"
+     }
+    },
+    {
+     "t": 86394,
+     "event": {
+      "type": "token",
+      "content": "Let"
+     }
+    },
+    {
+     "t": 86414,
+     "event": {
+      "type": "token",
+      "content": " me"
+     }
+    },
+    {
+     "t": 86432,
+     "event": {
+      "type": "token",
+      "content": " know"
+     }
+    },
+    {
+     "t": 86449,
+     "event": {
+      "type": "token",
+      "content": " if"
+     }
+    },
+    {
+     "t": 86467,
+     "event": {
+      "type": "token",
+      "content": " you"
+     }
+    },
+    {
+     "t": 86484,
+     "event": {
+      "type": "token",
+      "content": "'d"
+     }
+    },
+    {
+     "t": 86501,
+     "event": {
+      "type": "token",
+      "content": " like"
+     }
+    },
+    {
+     "t": 86517,
+     "event": {
+      "type": "token",
+      "content": " help"
+     }
+    },
+    {
+     "t": 86535,
+     "event": {
+      "type": "token",
+      "content": " applying"
+     }
+    },
+    {
+     "t": 86552,
+     "event": {
+      "type": "token",
+      "content": " or"
+     }
+    },
+    {
+     "t": 86569,
+     "event": {
+      "type": "token",
+      "content": " tail"
+     }
+    },
+    {
+     "t": 86586,
+     "event": {
+      "type": "token",
+      "content": "oring"
+     }
+    },
+    {
+     "t": 86602,
+     "event": {
+      "type": "token",
+      "content": " your"
+     }
+    },
+    {
+     "t": 86619,
+     "event": {
+      "type": "token",
+      "content": " resume"
+     }
+    },
+    {
+     "t": 86637,
+     "event": {
+      "type": "token",
+      "content": "."
+     }
+    },
+    {
+     "t": 86656,
+     "event": {
+      "type": "done",
+      "latency_ms": 86655.1,
+      "stopped": false,
+      "model": "qwen3:8b",
+      "request_id": "d7959bf2ba29"
+     }
+    }
+   ]
+  },
+  {
+   "question": "Save the report.",
+   "events": [
+    {
+     "t": 1,
+     "event": {
+      "type": "status",
+      "state": "thinking",
+      "request_id": "96b27845c7ff"
+     }
+    },
+    {
+     "t": 10786,
+     "event": {
+      "type": "status",
+      "state": "executing",
+      "tool": "save_file"
+     }
+    },
+    {
+     "t": 10787,
+     "event": {
+      "type": "tool",
+      "phase": "start",
+      "call_id": "call_8ugm1ots",
+      "name": "save_file",
+      "arguments": {
+       "filename": "ai_engineering_report.md",
+       "content": "## AI Engineering Roles Report\n\n- **Job Availability**:\n  - **Singapore**: 7,467 AI Engineer jobs available on Jobstreet [sg.jobstreet.com](https://sg.jobstreet.com/ai-engineer-jobs).\n  - **Global**: 13,667 Artificial Intelligence Engineer jobs on Indeed [indeed.com](https://www.indeed.com/q-Artificial-Intelligence-Engineer-jobs.html).\n  - **Remote Options**: 8,594 fully remote AI Engineer roles on Indeed [indeed.com](https://www.indeed.com/q-ai-engineer-l-anywhere-fully-remote-jobs.html).\n\n- **Salary Range (US)**:\n  - **Base Salary**: $99,578 to $134,188.\n  - **Total Compensation**: Up to $242,507 in 2026 [coursera.org](https://www.coursera.org/articles/artificial-intelligence-salary), [futureproofing.dev](https://www.futureproofing.dev/resources/ai-talent-gap/ai-engineer-salary-trends).\n\n- **Requirements**:\n  - Skills in **machine learning, deep learning, natural language processing**, and proficiency in **Python** and frameworks like **TensorFlow or PyTorch**.\n  - Problem-solving, data analysis, and cross-functional collaboration are emphasized [resources.rework.com](https://resources.rework.com/libraries/job-description-templates/ai-engineer), [foundit.in](https://www.foundit.in/career-advice/artificial-intelligence-engineer-job-description/).\n\n- **Company Culture**:\n  - Focus on **technical expertise, problem-solving, and collaboration**.\n  - Remote work options are common, with some companies offering **flexible work environments** and **supportive leadership** [jobsbyculture.com](https://jobsbyculture.com/blog/best-ai-companies-for-engineers-2026), [builtin.com](https://builtin.com/companies/type/artificial-intelligence-companies/reputation/best-workplace).\n\nLet me know if you'd like help applying or tailoring your resume."
+      }
+     }
+    },
+    {
+     "t": 10792,
+     "event": {
+      "type": "tool",
+      "phase": "end",
+      "call_id": "call_8ugm1ots",
+      "name": "save_file",
+      "status": "needs_confirmation",
+      "summary": "waiting for your confirmation: Save ai_engineering_report.md (1.7 KB) in C:\\Users\\User\\Documents\\ARTHUR\\demo-recording",
+      "duration_ms": 0.8
+     }
+    },
+    {
+     "t": 10792,
+     "event": {
+      "type": "status",
+      "state": "thinking"
+     }
+    },
+    {
+     "t": 10792,
+     "event": {
+      "type": "confirmation",
+      "name": "save_file",
+      "arguments": {
+       "filename": "ai_engineering_report.md",
+       "content": "## AI Engineering Roles Report\n\n- **Job Availability**:\n  - **Singapore**: 7,467 AI Engineer jobs available on Jobstreet [sg.jobstreet.com](https://sg.jobstreet.com/ai-engineer-jobs).\n  - **Global**: 13,667 Artificial Intelligence Engineer jobs on Indeed [indeed.com](https://www.indeed.com/q-Artificial-Intelligence-Engineer-jobs.html).\n  - **Remote Options**: 8,594 fully remote AI Engineer roles on Indeed [indeed.com](https://www.indeed.com/q-ai-engineer-l-anywhere-fully-remote-jobs.html).\n\n- **Salary Range (US)**:\n  - **Base Salary**: $99,578 to $134,188.\n  - **Total Compensation**: Up to $242,507 in 2026 [coursera.org](https://www.coursera.org/articles/artificial-intelligence-salary), [futureproofing.dev](https://www.futureproofing.dev/resources/ai-talent-gap/ai-engineer-salary-trends).\n\n- **Requirements**:\n  - Skills in **machine learning, deep learning, natural language processing**, and proficiency in **Python** and frameworks like **TensorFlow or PyTorch**.\n  - Problem-solving, data analysis, and cross-functional collaboration are emphasized [resources.rework.com](https://resources.rework.com/libraries/job-description-templates/ai-engineer), [foundit.in](https://www.foundit.in/career-advice/artificial-intelligence-engineer-job-description/).\n\n- **Company Culture**:\n  - Focus on **technical expertise, problem-solving, and collaboration**.\n  - Remote work options are common, with some companies offering **flexible work environments** and **supportive leadership** [jobsbyculture.com](https://jobsbyculture.com/blog/best-ai-companies-for-engineers-2026), [builtin.com](https://builtin.com/companies/type/artificial-intelligence-companies/reputation/best-workplace).\n\nLet me know if you'd like help applying or tailoring your resume."
+      },
+      "preview": "Save ai_engineering_report.md (1.7 KB) in C:\\Users\\User\\Documents\\ARTHUR\\demo-recording"
+     }
+    },
+    {
+     "t": 10792,
+     "event": {
+      "type": "token",
+      "content": "I need your permission first: **Save ai_engineering_report.md (1.7 KB) in C:\\Users\\User\\Documents\\ARTHUR\\demo-recording**\n\nReply **yes** to go ahead or **no** to cancel."
+     }
+    },
+    {
+     "t": 10792,
+     "event": {
+      "type": "done",
+      "latency_ms": 10791.2,
+      "stopped": false,
+      "model": "qwen3:8b",
+      "request_id": "96b27845c7ff"
+     }
+    }
+   ]
+  },
+  {
+   "question": "yes",
+   "events": [
+    {
+     "t": 0,
+     "event": {
+      "type": "status",
+      "state": "thinking",
+      "request_id": "89c38c8120ad"
+     }
+    },
+    {
+     "t": 4,
+     "event": {
+      "type": "token",
+      "content": "Done: Save ai_engineering_report.md (1.7 KB) in C:\\Users\\User\\Documents\\ARTHUR\\demo-recording."
+     }
+    },
+    {
+     "t": 4,
+     "event": {
+      "type": "done",
+      "latency_ms": 3.7,
+      "stopped": false,
+      "model": "qwen3:8b",
+      "request_id": "89c38c8120ad"
+     }
+    }
+   ]
+  }
+ ]
+}

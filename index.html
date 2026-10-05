@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ARTHUR – replay demo</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+ <div class="shell">
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="core" aria-hidden="true"><span></span></div>
+        <div>
+          <h1>ARTHUR</h1>
+          <p id="model" class="subtle">Personal AI agent</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div id="status" class="status" data-state="connecting" role="status" aria-live="polite">
+          <span class="dot"></span><span id="status-text">Connecting…</span>
+        </div>
+        <button id="voice-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="voice-panel" title="Voice settings">Voice</button>
+        <button id="docs-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="docs-panel">Docs</button>
+        <button id="reminders-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="reminders-panel">Reminders</button>
+        <button id="memory-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="memory-panel">Memory</button>
+        <button id="hud-toggle" class="ghost hud-toggle" type="button" aria-expanded="false" aria-controls="hud">Status</button>
+        <a class="ghost link-button" href="/dashboard.html" title="Counts and timings">Stats</a>
+        <button id="clear" class="ghost" type="button" title="Clear conversation">Clear</button>
+      </div>
+    </header>
+
+    <div class="replay-banner" role="note">
+      <strong>Replay demo:</strong> a real session recorded on the developer's laptop, played
+      back with shortened pauses (the times shown are the real ones). No AI runs on this page -
+      ARTHUR runs locally on your own PC. <a href="https://github.com/vishnuvarthant1126-bit/ARTHUR">Code and setup on GitHub</a>.
+    </div>
+
+    <aside id="voice-panel" class="memory-panel" hidden aria-label="Voice settings">
+      <div class="memory-head">
+        <div>
+          <h2>Voice</h2>
+          <p class="subtle">ARTHUR's voice is generated on your computer (Piper).</p>
+        </div>
+        <button id="voice-close" class="ghost" type="button" aria-label="Close voice panel">✕</button>
+      </div>
+      <div class="settings">
+        <label for="speak-mode">Speak replies</label>
+        <select id="speak-mode">
+          <option value="voice">When I talk to ARTHUR</option>
+          <option value="always">Always</option>
+          <option value="off">Never</option>
+        </select>
+        <label for="voice-select">Voice</label>
+        <select id="voice-select"></select>
+        <label for="voice-speed">Speed <output id="voice-speed-value">1.0×</output></label>
+        <input id="voice-speed" type="range" min="0.75" max="1.5" step="0.05" value="1">
+        <label for="voice-volume">Volume <output id="voice-volume-value">100%</output></label>
+        <input id="voice-volume" type="range" min="0" max="1" step="0.05" value="1">
+        <button id="voice-test" class="upload-button" type="button">▶ Test voice</button>
+      </div>
+    </aside>
+
+    <aside id="docs-panel" class="memory-panel" hidden aria-label="Documents">
+      <div class="memory-head">
+        <div>
+          <h2>Documents</h2>
+          <p class="subtle">PDF, Word, text or CSV (max 20 MB). Ask about them and ARTHUR cites the page.</p>
+        </div>
+        <button id="docs-close" class="ghost" type="button" aria-label="Close documents panel">✕</button>
+      </div>
+      <label class="upload">
+        <input id="docs-input" type="file" accept=".pdf,.docx,.txt,.md,.csv" multiple>
+        <span>＋ Upload documents</span>
+      </label>
+      <p id="docs-status" class="subtle docs-status" role="status" aria-live="polite"></p>
+      <ul id="docs-list" class="memory-list"></ul>
+      <p id="docs-empty" class="subtle memory-empty">No documents yet.</p>
+    </aside>
+
+    <aside id="memory-panel" class="memory-panel" hidden aria-label="Long-term memory">
+      <div class="memory-head">
+        <div>
+          <h2>Long-term memory</h2>
+          <p class="subtle">Saved only when you say “remember…”. Kept across conversations and restarts.</p>
+        </div>
+        <button id="memory-close" class="ghost" type="button" aria-label="Close memory panel">✕</button>
+      </div>
+      <ul id="memory-list" class="memory-list"></ul>
+      <p id="memory-empty" class="subtle memory-empty">Nothing yet. Try: “Remember that my main project is called ARTHUR.”</p>
+    </aside>
+
+    <aside id="reminders-panel" class="memory-panel" hidden aria-label="Reminders">
+      <div class="memory-head">
+        <div>
+          <h2>Reminders</h2>
+          <p class="subtle">Saved on this computer; they survive restarts. Or just say “remind me at 5pm to…”.</p>
+        </div>
+        <button id="reminders-close" class="ghost" type="button" aria-label="Close reminders panel">✕</button>
+      </div>
+      <form id="reminder-form" class="reminder-form" autocomplete="off">
+        <input id="reminder-text" type="text" maxlength="300" placeholder="Remind me to…" aria-label="Reminder text" required>
+        <input id="reminder-when" type="text" maxlength="100" placeholder="5pm · in 20 minutes · tomorrow 9am" aria-label="When" required>
+        <button class="upload-button" type="submit">Add reminder</button>
+      </form>
+      <p id="reminders-status" class="subtle docs-status" role="status" aria-live="polite"></p>
+      <ul id="reminders-list" class="memory-list"></ul>
+      <p id="reminders-empty" class="subtle memory-empty">No upcoming reminders.</p>
+    </aside>
+
+    <main id="log" class="log" aria-live="polite">
+      <section id="empty" class="empty">
+        <div class="core large" aria-hidden="true"><span></span></div>
+        <h2>How can I help?</h2>
+        <p class="subtle">Runs on your computer. Only web searches go online, and only when needed.</p>
+        <div class="chips">
+          <button class="chip" type="button">Explain what a vector database is</button>
+          <button class="chip" type="button">Write a Python function to reverse a string</button>
+          <button class="chip" type="button">Give me three tips for focused work</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Phase 26: files attached to the next message (uploaded at once, sent as ids) -->
+
+    <button id="replay-next" class="replay-next" type="button" hidden>
+      <b>Try</b><span></span>
+    </button>
+    <ul id="attachments" class="attachments" hidden aria-label="Attached files"></ul>
+    <form id="composer" class="composer" autocomplete="off">
+      <input id="attach-input" class="visually-hidden" type="file" multiple tabindex="-1"
+             accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,.pdf,.docx,.txt,.md,.csv">
+      <button id="attach" class="mic" type="button" aria-label="Attach a picture or document" title="Attach a picture, screenshot or document (or paste / drop it here)">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M16.5 6.5v10a4.5 4.5 0 0 1-9 0V5a3 3 0 0 1 6 0v10.5a1.5 1.5 0 0 1-3 0V6.5H9v9a3 3 0 0 0 6 0V5a4.5 4.5 0 0 0-9 0v11.5a6 6 0 0 0 12 0v-10h-1.5Z" fill="currentColor"/></svg>
+      </button>
+      <textarea id="input" rows="1" maxlength="8000" placeholder="Message ARTHUR…  (Enter to send, Shift+Enter for a new line)" aria-label="Message"></textarea>
+      <button id="wake" class="mic" type="button" aria-pressed="false" aria-label="Hands-free: listen for Hey Arthur" title="Hands-free: listen for “Hey Arthur” (mic stays on while enabled)">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M17 20c-.3 0-.6-.1-.8-.2-.7-.4-1.2-.9-1.7-2.4-.5-1.5-1.4-2.2-2.3-2.9-.8-.6-1.6-1.2-2.3-2.4A6.3 6.3 0 0 1 9 9c0-2.8 2.2-5 5-5s5 2.2 5 5h-2c0-1.7-1.3-3-3-3s-3 1.3-3 3c0 .9.3 1.8.7 2.5.5.9 1.1 1.3 1.8 1.9 1 .8 2.2 1.8 2.9 3.8.4 1.2.7 1.4 1 1.6.2.1.4.2.6.2 1.1 0 2-.9 2-2h2c0 2.2-1.8 4-4 4ZM7.6 2.6 6.2 1.2A10 10 0 0 0 3 9c0 2.8 1.2 5.3 3.2 7.1l1.4-1.4A8 8 0 0 1 5 9c0-2.5 1-4.7 2.6-6.4ZM11.5 9a2.5 2.5 0 1 0 5 0 2.5 2.5 0 0 0-5 0Z" fill="currentColor"/></svg>
+      </button>
+      <button id="mic" class="mic" type="button" aria-label="Start voice input" title="Speak (click to start, click again to stop)">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z" fill="currentColor"/></svg>
+      </button>
+      <button id="send" class="send" type="submit" aria-label="Send">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 11.5 21 3l-8.5 18-2.2-7.3L3 11.5Z" fill="currentColor"/></svg>
+      </button>
+    </form>
+  </div>
+
+  <!-- Phase 25: what ARTHUR is doing right now, the current task, and the health of every part. -->
+  <aside id="hud" class="hud" aria-label="ARTHUR status">
+    <section class="hud-card">
+      <div class="hud-head">
+        <h2>Status</h2>
+        <button id="hud-close" class="ghost hud-close" type="button" aria-label="Close status panel">✕</button>
+      </div>
+      <ul class="lamps" aria-label="Activity">
+        <li data-lamp="online"><span class="lamp"></span><span>Online</span></li>
+        <li data-lamp="listening"><span class="lamp"></span><span>Listening</span></li>
+        <li data-lamp="thinking"><span class="lamp"></span><span>Thinking</span></li>
+        <li data-lamp="executing"><span class="lamp"></span><span>Executing</span></li>
+        <li data-lamp="speaking"><span class="lamp"></span><span>Speaking</span></li>
+      </ul>
+      <p id="hud-now" class="hud-now" role="status" aria-live="polite">Connecting…</p>
+      <dl class="hud-facts">
+        <dt>Microphone</dt><dd id="hud-mic">off</dd>
+        <dt>Model</dt><dd id="hud-model">–</dd>
+      </dl>
+    </section>
+    <section class="hud-card">
+      <h2 id="hud-task-title">Task</h2>
+      <p id="hud-task-goal" class="hud-task-goal subtle">No task yet.</p>
+      <ol id="hud-task" class="hud-task"></ol>
+      <p id="hud-task-result" class="subtle hud-task-result"></p>
+    </section>
+    <section class="hud-card">
+      <div class="hud-head">
+        <h2>System</h2>
+        <span id="hud-overall" class="hud-overall" data-state="unknown">…</span>
+      </div>
+      <ul id="hud-system" class="hud-system"></ul>
+      <p id="hud-uptime" class="subtle hud-uptime"></p>
+    </section>
+  </aside>
+ </div>
+  <script src="replay.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
