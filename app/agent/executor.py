@@ -253,8 +253,15 @@ class PlanExecutor:
         self.tool_names = tool_names
         self.limits = limits or PlanLimits()
 
-    async def run(self, state: TaskState, context: ToolContext) -> AsyncIterator[AgentEvent]:
+    async def run(
+        self, state: TaskState, context: ToolContext, *, exclude: frozenset[str] = frozenset()
+    ) -> AsyncIterator[AgentEvent]:
+        """`exclude`: tools the steps may not use this time (see Orchestrator._run_plan)."""
         deadline = time.monotonic() + self.limits.max_seconds
+        names = self.tool_names
+        if exclude:
+            every = names if names is not None else {t.name for t in self.registry.all()}
+            names = set(every) - exclude
         yield PlanEvent(goal=state.goal, steps=[{"id": s.id, "task": s.task} for s in state.steps])
 
         for step in state.steps:
@@ -271,7 +278,7 @@ class PlanExecutor:
                 loop = ToolLoop(
                     self.llm,
                     self.registry,
-                    tool_names=self.tool_names,
+                    tool_names=names,
                     limits=AgentLimits(
                         max_steps=self.limits.tool_rounds_per_step,
                         max_seconds=max(deadline - time.monotonic(), 1.0),

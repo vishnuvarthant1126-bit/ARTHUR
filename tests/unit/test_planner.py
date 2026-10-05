@@ -260,3 +260,36 @@ def test_websocket_streams_plan_and_step_events(ws_client, fake_llm):
     assert (1, "done") in steps and (2, "done") in steps
     answer = "".join(e["content"] for e in events if e["type"] == "token")
     assert answer == "The results are 2 and 4."
+
+
+# ---------- Phase 29: plans don't take actions nobody asked for ----------
+
+
+async def test_a_plan_cannot_save_when_the_user_did_not_ask_to_save(tmp_path):
+    from app.files.workspace import Workspace
+    from app.tools.file_tools import SaveFileTool
+
+    tools = registry()
+    tools.register(SaveFileTool(Workspace([tmp_path], tmp_path, system_roots=[])))
+    llm = FakeLLM(
+        reply="Here is the comparison.",
+        structured_reply=plan_json("Find roles", "Prepare a comparison"),
+        script=["Roles found.", [tool_call("save_file", path="r.md", content="x")], "Compared."],
+    )
+    orchestrator = Orchestrator(llm, ConversationStore(), tools=tools)
+    events = await collect(
+        orchestrator.events("plan-no-save", "Search for AI roles and then prepare a comparison")
+    )
+    assert not any(isinstance(e, ConfirmationEvent) for e in events)
+    offered = {t["function"]["name"] for t in llm.tools_offered[-1] or []}
+    assert "save_file" not in offered and "calculator" in offered
+    assert not list(tmp_path.iterdir())  # nothing was written
+
+
+async def test_a_plan_keeps_its_actions_when_the_user_asks_for_one():
+    memory, _ = make_memory()
+    orchestrator = Orchestrator(FakeLLM(), ConversationStore(), tools=registry(memory))
+    assert orchestrator._actions_not_asked_for("Find my resume and then save a summary") == set()
+    assert "delete_memory" in orchestrator._actions_not_asked_for(
+        "Look up the weather and then compare it"
+    )

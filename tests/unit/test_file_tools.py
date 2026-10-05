@@ -233,3 +233,39 @@ def test_file_tools_are_available_to_the_agent():
     from app.agent.orchestrator import AGENT_TOOLS
 
     assert {"find_files", "list_folder", "read_file", "save_file"} <= AGENT_TOOLS
+
+
+# ---------- Phase 29: a file name without its folder ----------
+
+
+def test_a_bare_file_name_is_found_in_the_allowed_folders(ws, tree):
+    # The previous answer said "Resume_2026.txt" - the folder was only in the tool result.
+    assert (
+        ws.resolve("Resume_2026.txt") == (tree["allowed"] / "career" / "Resume_2026.txt").resolve()
+    )
+
+
+def test_a_wrong_guess_gets_a_hint_with_the_real_place(ws, tree):
+    with pytest.raises(FileAccessError) as error:
+        ws.resolve(str(tree["allowed"] / "Resume_2026.txt"))  # right name, wrong folder
+    assert "Not found" in str(error.value)
+    assert str(tree["allowed"] / "career" / "Resume_2026.txt") in str(error.value)
+    with pytest.raises(FileAccessError) as error:
+        ws.resolve(str(tree["outside"] / "Resume_2026.pdf"))  # outside: refused, with a hint
+    assert "outside the folders" in str(error.value) and "career" in str(error.value)
+
+
+def test_name_lookup_never_leaves_the_sandbox(ws, tree):
+    # private.txt exists only OUTSIDE: no hint, no access.
+    with pytest.raises(FileAccessError) as error:
+        ws.resolve("private.txt")
+    assert "outside" not in str(error.value) or "private" not in str(error.value).split(":")[-1]
+    assert str(tree["outside"]) not in str(error.value)
+    with pytest.raises(FileAccessError):
+        ws.resolve("id_rsa")  # blocked names stay blocked
+
+
+def test_two_files_with_the_same_name_must_be_chosen(ws, tree):
+    (tree["allowed"] / "reports" / "Resume_2026.txt").write_text("copy")
+    with pytest.raises(FileAccessError, match="Several files are called Resume_2026.txt"):
+        ws.resolve("Resume_2026.txt")

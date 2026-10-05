@@ -120,6 +120,13 @@ class AgentReply(BaseModel):
     tools_used: list[ToolEndEvent] = Field(default_factory=list)
 
 
+# Words that ask for an action - then a plan keeps its confirmation-level tools.
+ACTION_WORDS = re.compile(
+    r"\b(save|store|write|export|delete|remove|forget|cancel|send|type|press|click|"
+    r"open|create|make a file)\b",
+    re.IGNORECASE,
+)
+
 STORAGE_TROUBLE = (
     "Sorry, my memory store isn't working right now, so I can't do that. Everything else "
     "still works - the details are in ARTHUR's log."
@@ -465,6 +472,20 @@ class Orchestrator:
             duration_ms=round((time.perf_counter() - started) * 1000, 1),
         )
 
+    def _actions_not_asked_for(self, user_text: str) -> frozenset[str]:
+        """Tools a plan may NOT use: the ones that need confirmation, unless asked for.
+
+        Found in the Phase 29 demo: "search the web for matching roles and prepare a
+        comparison" became a plan whose last step tried to SAVE a report nobody asked to
+        save (the confirmation stopped it, but the comparison never reached the user).
+        Plans gather information; saving, deleting, typing... happen when the user asks.
+        """
+        if ACTION_WORDS.search(user_text) or self.tools is None:
+            return frozenset()
+        return frozenset(
+            t.name for t in self.tools.all() if t.permission_level >= PermissionLevel.CONFIRM
+        )
+
     async def _run_plan(
         self, plan: Plan, prepared: list[Message], user_text: str, context: ToolContext
     ) -> AsyncIterator[AgentEvent]:
@@ -472,7 +493,9 @@ class Orchestrator:
         state = TaskState(
             goal=plan.goal, steps=[StepState(id=s.id, task=s.task) for s in plan.steps]
         )
-        async for event in self.plan_executor.run(state, context):
+        async for event in self.plan_executor.run(
+            state, context, exclude=self._actions_not_asked_for(user_text)
+        ):
             yield event
             if isinstance(event, ConfirmationEvent):
                 return  # the user decides first; no summary yet

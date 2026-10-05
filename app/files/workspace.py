@@ -136,17 +136,47 @@ class Workspace:
             # A bare name or relative path: look for it inside each allowed folder.
             candidates = [root / path for root in self.roots]
             existing = [c for c in candidates if c.exists()]
-            path = existing[0] if existing else (candidates[0] if candidates else path)
+            if existing:
+                path = existing[0]
+            elif must_exist and len(path.parts) == 1:
+                # Just a file name ("resume.pdf"), e.g. from an earlier answer that showed the
+                # name but not the folder (Phase 29 demo): find it in the allowed folders.
+                matches = self._same_name(path.name)
+                if len(matches) > 1:
+                    raise FileAccessError(
+                        f"Several files are called {path.name}: "
+                        + "; ".join(str(m) for m in matches[:5])
+                        + ". Use the full path of the one you mean."
+                    )
+                path = matches[0] if matches else (candidates[0] if candidates else path)
+            else:
+                path = candidates[0] if candidates else path
         real = path.resolve()  # follows ".." and links: we check where it REALLY points
 
         if not self.is_allowed(real):
             raise FileAccessError(
                 "That location is outside the folders ARTHUR may use: "
                 + "; ".join(str(r) for r in self.roots)
+                + self._hint(real.name)
             )
         if must_exist and not real.exists():
-            raise FileAccessError(f"Not found: {real}")
+            raise FileAccessError(f"Not found: {real}" + self._hint(real.name))
         return real
+
+    def _same_name(self, name: str) -> list[Path]:
+        """Allowed files with exactly this name (searched like find_files)."""
+        found, _ = self.find(name, limit=10)
+        return [Path(f.path) for f in found if f.name.lower() == name.lower()]
+
+    def _hint(self, name: str) -> str:
+        """Point a wrong guess to the real place - inside the allowed folders only."""
+        if not name or "." not in name:
+            return ""
+        matches = self._same_name(name)
+        if not matches:
+            return ""
+        shown = "; ".join(str(m) for m in matches[:3])
+        return f". A file with that name is here: {shown} - use that full path."
 
     def is_allowed(self, real: Path) -> bool:
         if not any(_inside(real, root) for root in self.roots):

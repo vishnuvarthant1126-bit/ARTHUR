@@ -1,262 +1,390 @@
 # ARTHUR – Personal Multimodal AI Agent
 
-A modular, local-first AI assistant: voice + text, tools, memory, RAG,
-planning, browser/computer control, with a permission-based security model.
+**A local-first AI assistant that listens, sees, reads, searches, remembers and acts – and asks
+before it does anything that matters.** It runs on your own computer: the language model
+(qwen3 8B via Ollama), speech recognition, the voice, the vision model and every byte of memory
+stay on the machine. Only web searches go online, and only when needed.
 
-> Status: Phase 27 – a status rail that shows what ARTHUR is doing (Online · Listening ·
-> Thinking · Executing · Speaking) and the health of every part; attach pictures,
-> screenshots (paste) and documents to a message; parallel lookups, notes on long
-> conversations and a check of every cited source ([docs/AGENT.md](docs/AGENT.md));
-> fast answers (0.4–1.3 s for most messages, see
-> [docs/PERFORMANCE.md](docs/PERFORMANCE.md)); runs in Docker with Prometheus + Grafana
-> ([docs/DOCKER.md](docs/DOCKER.md)); measures itself (metrics, a built-in stats page), 90 % test coverage
-> with a gate, load-tested (see [docs/LOAD_TESTS.md](docs/LOAD_TESTS.md)); reminders that
-> survive restarts ("remind me at 5pm…"); a reviewed
-> security model with a test for every defence ([docs/SECURITY.md](docs/SECURITY.md));
-> uses Notepad, Calculator and File Explorer (every click/keystroke
-> confirmed by you); looks at pictures and app windows with a local vision model;
-> finds, reads and (with your OK) saves files in folders you allow; browses
-> the web in its own isolated browser, asking before risky clicks; talk to it (speech-to-text),
-> hear it (text-to-speech), call it hands-free ("Hey Arthur"); searches the web with sources and answers from your documents with page
-> citations; an agent that chooses tools itself and plans multi-step tasks, with
-> conversation + long-term semantic memory, swappable LLM providers, and a permission-checked,
-> audited tool system. Full documentation arrives as features land.
+![ARTHUR comparing AI engineering roles found on the web, with the status rail on the right](docs/images/demo-comparison.jpg)
 
-## Requirements
-- Python 3.12
-- [Ollama](https://ollama.com) with `qwen3:8b` and `nomic-embed-text` pulled
-- Git; Docker Desktop (optional, only for [docs/DOCKER.md](docs/DOCKER.md))
+> Built in 12 sessions and 30 phases as a learning and portfolio project:
+> - **Size:** 11,900 lines of Python, 2,300 lines of plain HTML/CSS/JS.
+> - **Tests:** 799 automated tests, 91 % coverage.
+> - **Measured:** every performance and safety claim below was measured on a laptop with an
+>   8 GB GPU (RTX 5060). The numbers are in `docs/`.
 
-## Quick start (Windows PowerShell)
+**Contents** ·
+[Overview](#1-overview) · [Features](#2-features) · [Architecture](#3-architecture) ·
+[Tech stack](#4-technology-stack) · [Installation](#5-installation) ·
+[Configuration](#6-configuration) · [Running locally](#7-running-locally) ·
+[Docker](#8-docker-setup) · [API](#9-api-documentation) · [Tools](#10-tool-architecture) ·
+[Memory](#11-memory-architecture) · [RAG](#12-rag-architecture) · [Security](#13-security-model) ·
+[Testing](#14-testing) · [Performance](#15-performance) · [Screenshots](#16-screenshots) ·
+[Demo video](#17-demo-video-instructions) · [Future improvements](#18-future-improvements)
+
+---
+
+## 1. Overview
+
+ARTHUR is an **agent**, not a chatbot. For every message it decides whether to answer
+directly, use one of its 27 tools, or make a plan of several steps. It then checks its own
+answer before you see it.
+
+The final demo (full script and recorded run in [docs/DEMO.md](docs/DEMO.md)):
+
+| You | ARTHUR |
+|---|---|
+| "Hey Arthur." | "Yes?" (wake word, all local) |
+| "Check my documents and find my latest resume." | `find_files` → the 2026 resume, not the 2025 one (2.5 s) |
+| "Summarize my technical skills." | `read_file` → skills, projects, experience (4.9 s) |
+| "Now search the web for AI engineering roles that match my skills and prepare a comparison." | a 6-step plan, 7 web searches, a cited comparison of jobs, requirements, salaries, culture (59 s) |
+| "Save the report." / "Save it in my ARTHUR reports folder." / "yes" | asks where and waits for your yes, then writes `Documents\ARTHUR\reports\ai_engineering_jobs_report.md` |
+| "Read the report to me." | reads it aloud with a local neural voice |
+
+What it is **not**: it never runs shell commands, never types into a window it didn't open, never
+buys, pays or logs in on its own, and never takes an action at confirmation level without your
+explicit "yes". See [Security](#13-security-model).
+
+## 2. Features
+
+**Talking to it**
+- **Text chat** with streamed answers, Markdown, a stop button and conversation history.
+- **Voice:** push-to-talk or hands-free "Hey Arthur" (19/20 detected, 0/32 false alarms).
+  Speech recognition with Whisper, spoken replies with Piper, all on the CPU.
+- **Attachments:** paste a screenshot, drop a PDF or picture, then ask *"what's wrong here?"*
+  or *"explain the important parts"*.
+- **Status rail:** five lamps (ONLINE · LISTENING · THINKING · EXECUTING · SPEAKING), the
+  current task step by step, and the health of every part of the system.
+
+**What it can do**
+| Area | Tools (permission level) |
+|---|---|
+| Everyday | `calculator` (0, no `eval`), `current_time` (0), `weather` (0, Open-Meteo) |
+| Memory | `search_memory` (0), `delete_memory` (2); "remember…" / "forget…" in plain words |
+| Your documents (RAG) | `document_search`, `list_documents` (0); answers cite `[file.pdf, p. 2]` |
+| Files on your PC | `find_files`, `list_folder`, `read_file` (0), `save_file` (2) – only folders you allow |
+| Web | `web_search`, `read_webpage` (0) – DuckDuckGo or SearXNG, cited links |
+| Browser | `browser_open`, `browser_find_text` (0), `browser_click`, `browser_type` (1→2→3 per action) |
+| Desktop (Windows) | `open_app` (1), `read_window` (0), `click_control`, `type_text`, `press_key` (2) – Notepad, Calculator, Explorer |
+| Vision | `describe_image` (0), `look_at_screen` (1 window / 2 whole screen) – qwen2.5-VL |
+| Reminders | `set_reminder` (1), `list_reminders` (0), `cancel_reminder` (2) – "remind me at 5 pm…" |
+
+**How it thinks**
+- **Planning:** a multi-part request becomes 2–6 steps; each step runs a bounded tool loop
+  and is retried once.
+- **Parallel lookups:** read-only lookups in one step run at the same time; actions never do.
+- **Long conversations:** older messages are condensed into short notes, written while you pause.
+- **Honesty checks:**
+  - a claimed action ("I deleted it") without a tool call gets a visible correction;
+  - a fake permission question written by the model is flagged;
+  - every cited page or link is checked against what was actually read.
+
+**Running it**
+- **Monitoring:** Prometheus metrics, a built-in stats page and a Grafana dashboard.
+- **Docker Compose:** ARTHUR + Prometheus + Grafana, every port on 127.0.0.1.
+- **Graceful failures:** every failure from the spec is handled and tested, from "Ollama is off"
+  to a broken database ([docs/FAILURES.md](docs/FAILURES.md)).
+
+## 3. Architecture
+
+```mermaid
+flowchart LR
+    subgraph Browser["Browser (plain HTML/CSS/JS)"]
+        UI[Chat · status rail · panels]
+        MIC[Mic + wake-word VAD]
+    end
+    subgraph Server["FastAPI (async) – 127.0.0.1:8000"]
+        MW["Front door: Host allow-list → Origin check → rate limits → CSP"]
+        WS[WebSocket /ws + REST API]
+        ORC[Orchestrator]
+        PLAN[Planner + PlanExecutor]
+        LOOP[ToolLoop]
+        REG["ToolRegistry: permission → validate → confirm → timeout → audit"]
+        VER[Verification: honesty + source check]
+        MEM[Memory: short-term window + notes · long-term facts]
+        RAG[RAG: ingest · chunk · retrieve]
+        VOICE[Whisper STT · Piper TTS · wake word]
+        SCHED[Reminder scheduler]
+        MET[Metrics]
+    end
+    subgraph Local["Local services"]
+        OLL[(Ollama: qwen3:8b · nomic-embed-text · qwen2.5vl:7b)]
+        SQL[(SQLite)]
+        CHR[(ChromaDB)]
+        PW[Chromium via Playwright + egress proxy]
+        WIN[Windows UI Automation]
+    end
+    UI <--> MW --> WS --> ORC
+    MIC --> MW
+    ORC --> PLAN --> LOOP
+    ORC --> LOOP --> REG
+    ORC --> MEM & RAG & VER
+    REG --> PW & WIN & SQL
+    MEM --> SQL & CHR
+    RAG --> CHR
+    ORC --> OLL
+    VOICE --> MW
+    SCHED --> WS
+    MET -.-> PROM[(Prometheus → Grafana)]
+```
+
+**One message, step by step:**
+1. The front door checks Host, Origin and rate limit.
+2. The orchestrator handles a pending yes/no or a "remember/forget" directly.
+3. Otherwise it recalls memories and document passages in parallel, and describes attached
+   pictures with the vision model.
+4. It builds the prompt, ordered for the prompt cache: static system text → tool descriptions
+   → history (+ notes) → newest message with a `<context>` block.
+5. The ToolLoop or the planner runs; every tool call goes through the registry.
+6. The answer is streamed, then checked (honesty, sources) and stored in the conversation.
+
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/AGENT.md](docs/AGENT.md).
+
+## 4. Technology stack
+
+| Layer | Technology | Why |
+|---|---|---|
+| Language model | **qwen3:8b** via **Ollama** (`think: false`); any OpenAI-compatible API as fallback | strong tool calling at 8B, fits 8 GB VRAM |
+| Embeddings | **nomic-embed-text** (task prefixes) | small, good retrieval quality |
+| Vision | **qwen2.5vl:7b** | reads screenshots and receipts locally |
+| API | **FastAPI**, uvicorn, Pydantic v2, pydantic-settings, async httpx | typed, async, automatic OpenAPI docs |
+| Storage | **SQLite** (SQLAlchemy 2), **ChromaDB** (embedded) | zero-setup, local |
+| Speech | **faster-whisper** (small / base.en, int8, CPU), **Piper** | GPU stays free for the LLM |
+| Browser | **Playwright** Chromium + own egress proxy | real pages, every connection checked |
+| Desktop | **pywinauto** (UI Automation), Windows messages, Shell COM | no keystrokes, no pixel guessing |
+| Frontend | plain HTML/CSS/JS, no build step, no CDN | strict Content-Security-Policy |
+| Observability | prometheus-client, Prometheus, Grafana, structlog | numbers instead of guesses |
+| Quality | pytest (+asyncio, cov), ruff, Locust, pip-audit | 799 tests, 88 % coverage gate |
+| Deployment | Docker, Docker Compose | repeatable setup |
+
+## 5. Installation
+
+Requirements: Windows 11 (desktop control is Windows-only; everything else also runs on Linux
+in Docker), **Python 3.12**, [Ollama](https://ollama.com), Git. A GPU with 8 GB is enough.
+
 ```powershell
+git clone <your fork URL> arthur
+cd arthur
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
 copy .env.example .env
+
+ollama pull qwen3:8b
+ollama pull nomic-embed-text
+ollama pull qwen2.5vl:7b                 # optional: vision (~6 GB)
+python -m playwright install chromium    # optional: browser tools
 ```
+Piper voices go into `data/voices` (`en_GB-alan-medium.onnx` + `.onnx.json`, from the Piper
+voices list); Whisper downloads its model on first use. macOS/Linux: `python3.12 -m venv .venv
+&& source .venv/bin/activate` (desktop control is then switched off automatically).
 
-macOS / Linux: `python3.12 -m venv .venv && source .venv/bin/activate`
+## 6. Configuration
 
-## Run
+Everything is in `.env` (template: [.env.example](.env.example), every line commented). The
+most important settings:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `LLM_PROVIDER` / `LLM_FALLBACK_PROVIDER` | `ollama` / – | main and backup model provider (`openai_compat` + `OPENAI_COMPAT_*`) |
+| `OLLAMA_MODEL`, `OLLAMA_KEEP_ALIVE` | `qwen3:8b`, `30m` | chat model; how long it stays in GPU memory |
+| `ALLOWED_DIRECTORIES` | `Documents\ARTHUR` | the ONLY folders the file tools may touch (`;`-separated) |
+| `TOOLS_AUTO_APPROVE_MAX_LEVEL` | `1` | levels above this always ask (level 3 is always refused) |
+| `BROWSER_ENABLED`, `COMPUTER_USE_ENABLED`, `VISION_ENABLED` | `true` | switch whole features off |
+| `COMPUTER_ALLOWED_APPS` | `notepad;calculator` | add `explorer` if you want it |
+| `MEMORY_MIN_SCORE`, `RAG_MIN_SCORE` | `0.55`, `0.58` | relevance thresholds, measured with `scripts/calibrate_*.py` |
+| `HISTORY_SUMMARY_DELAY_SECONDS` | `15` | when notes on long chats are written |
+| `ALLOWED_HOSTS`, `RATE_LIMIT_*` | – | front-door security (see SECURITY.md) |
+
+## 7. Running locally
+
 ```powershell
+.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload
 ```
-- Chat UI: http://127.0.0.1:8000
-- Interactive API docs: http://127.0.0.1:8000/docs
+- Chat: **http://127.0.0.1:8000**. Use Chrome or Edge for the microphone.
+- API docs (Swagger): http://127.0.0.1:8000/docs
+- Live stats: http://127.0.0.1:8000/dashboard.html
+
+The models load in the background at start-up, so the first answer takes ~0.6 s instead of ~12 s.
+
+## 8. Docker setup
+
+```powershell
+docker compose up -d --build     # ARTHUR :8000 · Grafana :3000 · Prometheus :9090
+docker compose down
+```
+- **Containers:** ARTHUR, Prometheus and Grafana. Every port is published on **127.0.0.1 only**.
+- **What stays outside:** Ollama keeps running on Windows (it needs the GPU), and the container
+  reaches it as `host.docker.internal`. Desktop-app control is off in the container; it needs
+  Windows.
+- **Data:** the container keeps its own memory in a Docker volume.
+- **Verified:** answers are as fast as on Windows.
+- **Monitoring only** (ARTHUR on Windows, Prometheus + Grafana in Docker):
+  `docker compose -f deploy/docker-compose.observability.yml up -d`.
+
+Results of the first real run, and the two bugs it found: [docs/DOCKER.md](docs/DOCKER.md).
+
+## 9. API documentation
+
+Interactive OpenAPI docs at `/docs`. All errors share one shape:
+`{"error": {"type": "llm_unavailable", "message": "…"}, "request_id": "…"}`.
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /` | Web chat interface (`frontend/`) |
-| `GET /health` | Service status and LLM reachability |
-| `POST /chat` | `{"message": "Hello Arthur", "session_id": "<optional>"}` → `{"response": "...", "session_id": "...", "model": "...", "latency_ms": 412.0}` |
-| `DELETE /chat/{session_id}` | Forget a conversation |
-| `GET /memories` · `POST /memories` · `DELETE /memories/{id}` | List, add, forget long-term memories |
-| `GET /memories/search?q=...` | Semantic memory search (returns similarity scores) |
-| `GET /tools` | Available tools with permission level and input schema |
-| `POST /tools/{name}/run` | `{"arguments": {...}, "confirmed": false}` → `ok` / `error` / `needs_confirmation` / `denied` |
-| `GET /audit` | Recent tool calls (audit log) |
-| `WS /ws?session_id=<optional>` | Streaming chat. Send `chat` / `stop` / `clear` / `ping`; receive `session` (with history), `status`, `token`…, `done`, `error`, `cleared`. Browser connections from other origins are rejected. |
+| `WS /ws?session_id=…` | streaming chat. In: `chat` (+ `attachments`), `stop`, `clear`, `ping`. Out: `session`, `status`, `tool`, `plan`, `step`, `token`, `confirmation`, `done`, `error`, `reminder` |
+| `POST /chat` | one message → one reply (`response`, `tools_used`, `latency_ms`) |
+| `POST /attachments` | upload a picture or document for the next message → id |
+| `GET /health` · `GET /status` | model reachable? · every part ok / off / problem |
+| `GET/POST/DELETE /memories`, `GET /memories/search?q=` | long-term memory |
+| `POST/GET/DELETE /documents`, `GET /documents/search?q=` | document store (RAG) |
+| `GET/POST/DELETE /reminders` | reminders |
+| `POST /voice/transcribe` · `POST /voice/speak` · `GET /voice/voices` · `POST /voice/wake` | speech in, speech out, wake word |
+| `POST /vision/describe` | ask about an uploaded picture |
+| `GET /tools` · `POST /tools/{name}/run` · `GET /audit` | tool catalogue, direct calls (same permission rules), audit log |
+| `GET /metrics` · `GET /metrics/summary` | Prometheus metrics, stats-page summary |
 
-Errors always look like `{"error": {"type": "llm_unavailable", "message": "..."}, "request_id": "..."}`
-(503 LLM unreachable · 504 LLM timeout · 502 bad LLM output · 422 invalid input).
+## 10. Tool architecture
 
-## LLM providers
-The app talks only to the `LLMProvider` interface (`generate`, `stream`, `generate_structured`).
-Choose providers in `.env`:
+Every tool is a class with:
+- a name and a description;
+- a **Pydantic input model**, which becomes the JSON schema the model sees;
+- a **permission level** and a timeout.
 
-| Setting | Effect |
-|---|---|
-| `LLM_PROVIDER=ollama` | Local model via Ollama (default) |
-| `LLM_PROVIDER=openai_compat` | Any OpenAI-compatible API (OpenAI, Groq, OpenRouter, LM Studio…); set `OPENAI_COMPAT_*` |
-| `LLM_FALLBACK_PROVIDER=openai_compat` | Used automatically if the main provider fails |
-| `LLM_MAX_RETRIES=2` | Retries for brief outages / rate limits (exponential backoff + jitter) |
+Some tools also mark themselves `parallel_safe`. The model can only *ask* for a tool. The
+**ToolRegistry** decides:
 
-## Conversation memory
-Each browser session keeps its conversation in server RAM. Every turn, ARTHUR sends the
-system prompt + the newest messages that fit in `LLM_CONTEXT_TOKENS` (minus a reply reserve) +
-the new message. Older messages drop out first. Idle sessions expire after
-`MEMORY_SESSION_TTL_MINUTES`; restarting the server forgets all conversations.
-
-## Long-term memory
 ```
-"Remember that ..." ─► secret filter ─► LLM extracts one clean fact ─► embedding (nomic-embed-text)
-                                                                          ├─► SQLite  (the record)
-                                                                          └─► ChromaDB (the vector)
-Every message ─► embed question ─► nearest memories with similarity ≥ MEMORY_MIN_SCORE
-             ─► added to the system prompt
-"Forget ..." ─► find best match ─► ask "yes/no?" ─► delete from both stores
+lookup ─► policy (blocked? level 3?) ─► validate arguments ─► level of THIS call
+       ─► level ≥ 2 and not confirmed? → preview + "Reply yes" (the model can never confirm)
+       ─► run with timeout ─► any exception → error result ─► audit log (secrets masked) ─► metrics
 ```
-Memory policy: only explicit "remember…" requests are stored; questions never are; passwords,
-PINs, keys and card/bank numbers are refused; forgetting needs confirmation; everything is visible
-in the **Memory** panel. `MEMORY_MIN_SCORE` (0.55) was measured with `scripts/calibrate_memory.py`.
 
-## Tools and permissions
-Each tool declares a name, description, Pydantic input schema, permission level and timeout.
-Every call goes through `ToolRegistry.execute`: lookup → permission check → argument validation →
-confirmation → run with timeout → error capture → audit log.
-
-| Level | Meaning | Behaviour | Examples |
-|---|---|---|---|
-| 0 | Read-only | Runs | `calculator`, `current_time`, `weather`, `search_memory` |
-| 1 | Low-risk, reversible | Runs | `save_memory` |
-| 2 | Needs confirmation | Returns a preview until confirmed | `delete_memory`, `save_file`, risky browser clicks |
-| 3 | Highly sensitive | Always denied | payments, password/card fields |
-
-Some tools raise their level per call (`required_level`): a browser click on "Search" runs,
-"Buy now" asks, "Pay" is denied.
-
-The calculator never uses `eval()`; it evaluates a whitelisted syntax tree with size limits.
-
-## Documents (RAG)
-```
-upload (PDF/DOCX/TXT/MD/CSV, ≤ 20 MB) ─► extract per page ─► clean ─► chunk (1000 chars, 150 overlap)
-       ─► embed ─► ChromaDB "documents" (+ file name, page)   +   SQLite record   +   file on disk
-every question ─► embed ─► passages with similarity ≥ RAG_MIN_SCORE (0.58) ─► added to the prompt
-               ─► answer with citations like [handbook.pdf, p. 2]
-```
-Endpoints: `POST /documents` (multipart), `GET /documents`, `GET /documents/search?q=`,
-`DELETE /documents/{id}`. Tools: `document_search`, `list_documents` (level 0).
-Document text is treated as data; uploads from other websites are rejected (CSRF check).
-
-## Web search
-`web_search` (DuckDuckGo via `ddgs`, no key; or self-hosted SearXNG) with a 10-minute cache,
-10 searches/minute limit and one retry. `read_webpage` reads one public page with SSRF
-protection: http(s) only, every hop resolved and checked against private/local/reserved
-addresses, 2 MB and text/HTML only. Results are untrusted data; answers cite Markdown links.
-
-## Voice (all local)
-| Part | How | Speed (CPU) |
+| Level | Meaning | Behaviour |
 |---|---|---|
-| Speech-to-text | faster-whisper `small`, VAD, confidence check – `POST /voice/transcribe` | ~1.5 s / sentence |
-| Text-to-speech | Piper voices in `data/voices` – `POST /voice/speak`, `GET /voice/voices` | ~0.3 s / sentence; first sound ~0.25 s after the first sentence |
-| Wake word | browser loudness detection → clips → Whisper `base.en` → "Hey/OK Arthur" at the start – `POST /voice/wake` | ~0.6 s / clip |
+| 0 | read-only | runs |
+| 1 | low-risk, reversible | runs (`TOOLS_AUTO_APPROVE_MAX_LEVEL`) |
+| 2 | changes something | shows exactly what will happen, waits for a short, pure "yes" (expires after 5 min) |
+| 3 | highly sensitive (pay, passwords, card fields) | always refused |
 
-Wake word, measured with `scripts/evaluate_wake_word.py`: 19/20 detected, 0/32 false alarms.
-Clips are never stored; hands-free mode is off by default. Use Chrome or Edge – embedded
-browser views (like the Claude app's) block the microphone.
+Some tools raise their level per call. A browser click on "Search" runs, "Buy now" asks,
+"Pay" is refused. Plans never get confirmation-level tools unless your message asks for an
+action.
 
-## Files (only folders you allow)
-`ALLOWED_DIRECTORIES` in `.env` (semicolon-separated; blank = `Documents\ARTHUR`). Paths are
-resolved before checking (no `..`, junction, `file://` or network-path tricks). System folders,
-AppData, hidden files and secret-looking files (`.env`, keys, `*password*`…) are always blocked.
-Tools: `find_files`, `list_folder`, `read_file` (level 0), `save_file` (level 2: asks first,
-.md/.txt/.csv only, never overwrites). `python scripts/make_sample_files.py` makes fictional samples.
+## 11. Memory architecture
 
-## Browser agent (Playwright)
-`python -m playwright install chromium` once. ARTHUR's own Chromium: fresh profile, no downloads,
-every request checked against private/local addresses. Pages come back as text plus numbered
-elements. Tools: `browser_open`, `browser_find_text` (level 0), `browser_click`,
-`browser_type` (level raised per action by `app/browser/risk.py`):
-links and search boxes run; buy/submit/send/sign in/other fields ask; pay/transfer, password
-and card fields, card numbers are refused. CAPTCHAs are never bypassed.
-`BROWSER_HEADLESS=false` shows the window.
+| | Short-term (the conversation) | Long-term (facts) |
+|---|---|---|
+| Where | server RAM, per browser session | SQLite (the record) + ChromaDB (the vector) |
+| Written when | every turn | only on an explicit "remember…" (secrets refused) |
+| Read how | a window of recent messages that fits the context. The start jumps in steps so the prompt cache survives; older messages become short notes | semantic search on every message; ranked, dated, capped; the newer fact wins a conflict |
+| Removed | Clear, or after 4 h idle | "forget…" → shows the fact → "yes" |
 
-## Computer use (Windows)
-`COMPUTER_ALLOWED_APPS=notepad;calculator;explorer`. ARTHUR reads windows through Windows UI
-Automation as numbered controls (no pixel guessing; buttons are "invoked", the mouse never moves).
-`open_app` (1) and `read_window` (0) run; `click_control`, `type_text`, `press_key` (2) **ask every
-time**; Win-key shortcuts, Ctrl+Alt+Del, Alt+F4, Shift+Delete, the clipboard, passwords and card
-numbers are refused. Notepad: only the tab ARTHUR opened itself. Explorer: only while every tab
-shows an allowed folder; items can be selected, never opened. Rules are re-checked before every
-action. **ARTHUR never sends real keystrokes** (they go to whichever window has the focus):
-Notepad gets Windows messages addressed to its own text control, Calculator's buttons are
-pressed through UI Automation, Explorer actions go through the shell. Typed text is read back
-and compared.
-`COMPUTER_USE_ENABLED=false` turns it all off.
+## 12. RAG architecture
 
-## Status rail
-On wide screens a side rail (on phones the **Status** button) shows five lamps - ONLINE,
-LISTENING, THINKING, EXECUTING (with the tool in use), SPEAKING - plus the microphone state,
-the current task (plan steps and tool calls as they run) and **System**: the language model,
-memory, documents, reminders, voice, vision, browser and desktop apps, each ok / off /
-problem (`GET /status`, every part checked separately with its own timeout).
-
-## Attachments (pictures, screenshots, documents)
-📎, paste (Ctrl+V a screenshot) or drag and drop into the chat box, then ask - typed or
-spoken: *"look at this screenshot and tell me what's wrong"*, *"read this PDF and explain
-the important parts"*. Pictures go to the local vision model together with your question;
-its description reaches the chat model as data (first picture after a pause ~30 s while the
-vision model loads). Documents are also imported into Docs, and their pages (up to ~8,000
-characters) travel with the message for page-cited answers. Pictures are never saved;
-attachments are forgotten after 30 minutes.
-
-## Vision
-`ollama pull qwen2.5vl:7b` (~6 GB). `describe_image` (0) looks at a picture in your allowed
-folders; `look_at_screen` (1) at one allowed app's window, or (2, asks first) the whole screen.
-`POST /vision/describe` takes an uploaded image. On an 8 GB GPU Ollama swaps qwen3 and the vision
-model: ~30 s per picture question. Text in images is treated as data, never instructions.
-
-## Reminders
-"Remind me at 5pm to call mum", "in 20 minutes", "every weekday at 8am". The model passes your
-time wording unchanged and `app/scheduler/when.py` (plain Python) calculates the moment.
-Reminders are stored in SQLite, checked every 5 s, and pushed to the open chat as a ⏰ message
-(with a chime, and speech if voice is on). One that was due while ARTHUR was off is delivered
-when you return. Reminders only notify – they never run tools. Tools: `set_reminder` (1),
-`list_reminders` (0), `cancel_reminder` (2). API: `GET/POST/DELETE /reminders`; Reminders panel.
-
-## Security
-Full threat → defence → test table: [docs/SECURITY.md](docs/SECURITY.md). In short:
-- **Incoming:** Host allow-list (localhost only – stops DNS rebinding), Origin check (CSRF),
-  rate limits, Content-Security-Policy and other security headers.
-- **Outgoing:** public addresses only, and the *checked* address is the one used: `read_webpage`
-  pins it; the browser sends everything through ARTHUR's own egress proxy.
-- **Agent:** tools run only through the registry (levels 0–3); a "yes" must be a short, pure
-  confirmation and expires after 5 minutes; injected text can't approve anything.
-- **Secrets:** never stored or typed; masked in the audit log by key and by value.
-- `pytest tests/security` (101 tests) and `python -m pip_audit`.
-- ARTHUR has no login and listens on 127.0.0.1 only – don't expose it to a network.
-
-## Agent loop and planner
 ```
-message ─► memory intents ("remember…", "forget…")? ─► handled directly
-        └► looks multi-part? ── yes ─► Planner (structured Plan, 2–6 steps)
-                │                        └► PlanExecutor: per step a bounded ToolLoop,
-                │                           1 retry, failures recorded, confirmation pauses
-                │                        └► final answer written only from step results
-                └─ no ─► ToolLoop: LLM ⇄ tools until it answers (≤ 8 rounds, ≤ 120 s)
-every reply ─► honesty check: claims an action no tool performed? → visible correction
-              or writes its own "Reply yes" question? → note that nothing is waiting
+upload (PDF/DOCX/TXT/MD/CSV ≤ 20 MB) ─► text per page ─► clean ─► chunks (1,000 chars, 150 overlap)
+   ─► nomic-embed-text ─► ChromaDB "documents" (+ file, page) · SQLite record · SHA-256 dedupe
+every question ─► passages with similarity ≥ 0.58 ─► in the <context> block as DATA
+               ─► answer cites [handbook.pdf, p. 2] ─► source check: was that page really read?
+attached document ─► whole pages up to 8,000 chars travel with that one message
 ```
-Level-2 tools stop the loop and ask the user; the model can never confirm on its own.
-`save_memory` is not offered to the agent (only an explicit "remember…" saves).
-Phase 27 added: read-only lookups in one step run in parallel (actions never do); long
-conversations keep short notes on what scrolled out (written during a pause); recalled
-memories are ranked and dated so newer facts win; every cited page or link is checked
-against what ARTHUR actually read, with a visible note if it can't be matched.
-[docs/AGENT.md](docs/AGENT.md) maps all twelve "advanced agent" features.
+- **Ignoring planted instructions:** the sample handbook has a planted instruction on page 4,
+  and ARTHUR ignores it. Document text is data, never instructions.
+- **No guessing:** "not in your documents" only comes after a real search.
 
-## Observability
-`GET /metrics` publishes ARTHUR's numbers in the Prometheus text format: requests and
-response times per route, model calls (time, time to first words, tokens), tool calls, safety
-refusals, reminders. Labels are route templates and tool names only - never message text.
-**http://127.0.0.1:8000/dashboard.html** ("Stats" in the header) shows them live without any
-extra software. Prometheus + Grafana come with the Docker setup below.
+## 13. Security model
 
-## Performance
-Measured, then fixed (see [docs/PERFORMANCE.md](docs/PERFORMANCE.md)): first message after
-a start 11–13 s → 0.6 s, small talk 0.4–0.8 s, tool questions ~1.2 s, long conversations
-3.6 → 1.6 s per message. The main ideas: keep the unchanging part of the prompt first so the
-model's prompt cache works, load the models at start-up, use `127.0.0.1` instead of
-`localhost`. Measure yourself with `python scripts/profile_chat.py --pause 8`.
+Full threat → defence → test table: [docs/SECURITY.md](docs/SECURITY.md).
 
-## Docker
+- **Incoming:**
+  - ARTHUR listens on 127.0.0.1 only.
+  - Host allow-list (DNS rebinding → 421).
+  - Origin check (other websites → 403).
+  - Rate limits (429).
+  - A strict Content-Security-Policy.
+- **Outgoing:**
+  - Public addresses only, and the *checked* address is the one used (DNS pinning).
+  - The browser's traffic goes through ARTHUR's own egress proxy.
+- **Agent:**
+  - Every action goes through the registry: levels, confirmation and audit.
+  - No shell; no keystrokes into other windows; file tools are sandboxed to allowed folders.
+  - Tool results, web pages, documents and image text are DATA, never instructions.
+  - Honesty and source checks run on every answer.
+- **Secrets:** never stored, typed or logged (masked by key and value); `.env` and `data/` are
+  never committed.
+- 110 attack tests in `tests/security` (including "no shell anywhere in the code"); dependencies checked with `pip-audit`.
+
+## 14. Testing
+
 ```powershell
-docker compose up -d --build     # ARTHUR :8000, Grafana :3000, Prometheus :9090
-```
-ARTHUR, Prometheus and Grafana in containers; every port on 127.0.0.1 only; Ollama stays on
-Windows for the GPU; the container has its own memory (a Docker volume). Desktop-app control
-is a Windows-only feature and is switched off there. Built and verified on 2 Oct 2026 - same
-answer times as on Windows. [docs/DOCKER.md](docs/DOCKER.md) has the results, the two bugs
-the first run found, and what is still untested (browser build, SearXNG).
-
-## Test
-```powershell
-pytest                # everything safe to run (~55 s); live tests skip if Ollama is off
-pytest --cov          # + coverage (91 %; fails under 88 %)
+pytest                # 799 tests, ~60 s; live tests skip when Ollama is off
+pytest --cov          # coverage 91 % (gate: 88 %)
 pytest tests/security # the attack tests
-ruff check .          # lint
+ruff check . ; ruff format --check .
 ```
-See [docs/TESTING.md](docs/TESTING.md) for the layers and the opt-in real-desktop tests, and
-[docs/LOAD_TESTS.md](docs/LOAD_TESTS.md) for the load tests: ARTHUR's own code handles about
-400 requests per second on this laptop; the real model answers about one question per second,
-so the GPU is the limit.
+- Fakes make the tests fast and deterministic: `FakeLLM` with scripted tool calls,
+  `FakeEmbeddings`, `FakeVision`, a fake desktop, a local test website, offline HTTP clients.
+- Load tests with Locust: ARTHUR's own code handles ~400 req/s; the GPU allows ~1 answer/s.
+
+More: [docs/TESTING.md](docs/TESTING.md), [docs/LOAD_TESTS.md](docs/LOAD_TESTS.md),
+[docs/FAILURES.md](docs/FAILURES.md).
+
+## 15. Performance
+
+Measured on an RTX 5060 Laptop (8 GB). How each number was found and fixed:
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
+| Situation | Before | After |
+|---|---|---|
+| First message after start | 11–13 s | **0.6 s** (models warmed up in the background) |
+| Small talk | 0.9–1.3 s | **0.4–0.8 s** |
+| Question with a tool | 2.7–3.4 s | **~1.2 s** |
+| Long conversation (turn 22+) | 3.6 s | **1.6 s** (prompt-cache-friendly order, history in steps) |
+| "Ollama is off", repeated | 10 s | **2 s** (circuit breaker) |
+| A picture question | – | ~10 s warm, ~30 s cold (vision and chat model share the GPU) |
+
+## 16. Screenshots
+
+| | |
+|---|---|
+| ![Web research with citations](docs/images/demo-comparison.jpg) | ![Reading the report aloud](docs/images/demo-speaking.jpg) |
+| A planned web research with cited sources; the Task card lists the plan steps | "Read the report to me": the SPEAKING lamp is on while Piper reads |
+| ![Screenshot diagnosis](docs/images/screenshot-diagnosis.jpg) | ![Grafana dashboard](docs/images/grafana.jpg) |
+| A pasted terminal screenshot: the vision model reads it, ARTHUR finds the missing module | Grafana dashboard fed by ARTHUR's `/metrics` (Docker setup) |
+
+## 17. Demo video instructions
+
+1. **Prepare:**
+   - Start ARTHUR (`uvicorn app.main:app`) and wait ~15 s for the warm-up.
+   - Open **http://127.0.0.1:8000 in Chrome**; the microphone needs a real browser.
+   - Make fictional sample files: `python scripts/make_sample_files.py`.
+   - Point `ALLOWED_DIRECTORIES` at `Documents\ARTHUR` so no real files can appear on screen.
+2. **Record:**
+   - Windows: **Win + Alt + R** (Xbox Game Bar), or OBS Studio for screen + microphone.
+   - Turn on hands-free mode (the ear button) and set the Voice panel to *Speak replies: Always*.
+3. **Follow the script** in [docs/DEMO.md](docs/DEMO.md):
+   - wake word → find resume → skills → web comparison → save (say "yes") → read aloud;
+   - optionally add a pasted screenshot and the Stats / Grafana pages.
+   - Expect ~3 minutes; the web research takes about a minute.
+4. **Before publishing:** check that no real names, files or keys are visible.
+
+## 18. Future improvements
+
+- **Better local models:** a 14B model or a dedicated function-calling model when VRAM allows,
+  and a vision model that can stay loaded next to the chat model.
+- **Real OCR** for scanned PDFs; tables and images inside documents.
+- **Accounts:** login and HTTPS before ARTHUR is ever reachable beyond 127.0.0.1.
+- **Persistence:** conversations survive a restart (they are RAM-only today).
+- **Agent:** cache-friendly tool groups instead of all 27 tools on every message; a critic
+  pass for long reports; the planner learning from failed steps.
+- **Desktop:** more allowed apps, each with its own rules (only on Windows).
+- **Deployment:** a lock file with exact package versions; CI on GitHub Actions running the test
+  suite and `pip-audit`; the optional Docker browser build and SearXNG profile (written, not run yet).
+
+---
+
+**How it was built:** one session per day, each phase explained, tested and committed
+([docs/sessions](docs/sessions)).
+**Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md).
+**Licence:** [MIT](LICENSE) © 2026 Vishnu Varthan Thiagarajan.

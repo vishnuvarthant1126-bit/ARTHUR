@@ -33,3 +33,7 @@ models/
 .DS_Store
 Thumbs.db
 .coverage
+
+# Coverage reports
+htmlcov/
+coverage.xml
