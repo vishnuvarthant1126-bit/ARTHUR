@@ -179,6 +179,10 @@ ruff check . ; ruff format --check .
   `git commit -F -` with a bash heredoc, and check `git log` afterwards.
 - qwen3 runs with `think: false`. `MEMORY_MIN_SCORE=0.55` was measured (scripts/calibrate_memory.py).
 - Port 8000 may be occupied by an unrelated Python 3.14 process on this machine; use 8001 if so.
+- **NEVER `rm -rf .git` (or any delete) after `;` in a chained shell command.** On 2026-10-05 a
+  failed build stopped an `&&` chain and the trailing `; rm -rf .git` (meant for a temp folder)
+  deleted the PROJECT's .git. Restored from GitHub (`git init`, fetch, `git reset origin/main`).
+  Publish gh-pages from a `mktemp -d` copy only, and delete things by absolute path, alone.
 
 ## Session plan
 One session per day. Dates are a guide, not a deadline – if a day is skipped, everything shifts.

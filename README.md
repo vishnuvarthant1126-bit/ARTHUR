@@ -5,7 +5,11 @@ before it does anything that matters.** It runs on your own computer: the langua
 (qwen3 8B via Ollama), speech recognition, the voice, the vision model and every byte of memory
 stay on the machine. Only web searches go online, and only when needed.
 
-![ARTHUR comparing AI engineering roles found on the web, with the status rail on the right](docs/images/demo-comparison.jpg)
+**▶ [Try the replay demo in your browser](https://vishnuvarthant1126-bit.github.io/ARTHUR/)** –
+ARTHUR's real interface playing back a real recorded session (no AI runs on that page; ARTHUR
+itself runs locally on your PC).
+
+![ARTHUR planning a three-part question: status lamps, plan steps, tool calls, then the answer](docs/images/demo.gif)
 
 > Built in 12 sessions and 30 phases as a learning and portfolio project:
 > - **Size:** 11,900 lines of Python, 2,300 lines of plain HTML/CSS/JS.

@@ -37,3 +37,6 @@ Thumbs.db
 # Coverage reports
 htmlcov/
 coverage.xml
+
+# Built replay demo (published to the gh-pages branch)
+site/
