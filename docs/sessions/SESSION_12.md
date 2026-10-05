@@ -79,7 +79,7 @@ be mistaken for consent. One extra word, on purpose.
 - "Safety rules are enforced by tests that read the code itself, e.g. no shell calls anywhere."
 
 ## The project in numbers
-- 12 sessions (+ 10b), 30 phases (0–29), 46 commits.
+- 12 sessions (+ 10b), 30 phases (0–29), 46 commits including this one.
 - 11,900 lines of Python, 8,600 lines of tests, 2,300 lines of frontend.
 - 799 tests (110 security), coverage 91 %.
 
