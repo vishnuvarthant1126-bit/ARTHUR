@@ -30,7 +30,8 @@ learning and portfolio project. The owner is a beginner/intermediate developer.
 - Docker Desktop 29.8 installed (2 Oct 2026). `docker compose up -d --build` runs ARTHUR on
   :8000 with `restart: unless-stopped` – it then BLOCKS port 8000 for uvicorn; check
   `docker ps` and `docker compose down` before starting the dev server. `.env` has TZ.
-- GitHub remote not set up yet (user must create the repo and push).
+- GitHub remote not set up yet (owner creates an EMPTY repo, then `git remote add origin
+  <url>` + `git push -u origin main`). Licence: MIT (chosen 2026-10-05).
 
 ## Commands
 ```powershell
@@ -153,6 +154,15 @@ ruff check . ; ruff format --check .
   cost +2–4 s on the next two answers); `policy.prioritize` (ranked, dated, ≤1,200 chars).
   Experiments that chat with ARTHUR must use a TEMP data dir (DATABASE_PATH,
   VECTOR_STORE_PATH, DOCUMENTS_PATH) - a test once saved junk into the real memory.
+- Failures (Phase 28, docs/FAILURES.md): `RetryingProvider` and `OllamaEmbeddings` have a
+  30 s circuit breaker (`known_down`); recall catches ANY error; `STORAGE_TROUBLE` message;
+  `/voice/speak` 503 + page `speechFailed`; page `state.modelDown`; web search retries only
+  quick failures; middleware sets `Cache-Control: no-cache` (stale app.js was found live).
+- Demo (Phase 29, docs/DEMO.md): `Workspace.resolve` finds a bare file name inside the roots
+  and hints the real place on a wrong path; `Orchestrator._actions_not_asked_for` keeps
+  confirmation-level tools out of plans unless `ACTION_WORDS` match.
+  tests/security/test_no_shell.py: subprocess only in app/computer/desktop.py (fixed paths).
+  Demo runs use ALLOWED_DIRECTORIES=Documents\ARTHUR + temp data (no personal files).
 - `app/tools/` – `Tool` base (name, description, input_model, permission_level, timeout, run),
   `ToolRegistry.execute` (lookup → permission → validate → confirm → timeout → audit),
   tools: calculator (AST, no eval), current_time, weather (Open-Meteo), memory tools.
@@ -184,7 +194,11 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance | ✅ Done (Fri 2026-10-02) |
 | 10b | Fri 2026-10-02 | first real Docker run (checklist in docs/DOCKER.md) | ✅ Done (same day, after the owner installed Docker) |
 | 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | ✅ Done |
-| 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | ⏭ Next |
+| 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | ✅ Done (Mon 2026-10-05, same day as session 11, owner's request) |
+
+**All 30 phases are done.** Open, at the owner's choice: push to GitHub (owner creates the
+repo), demo video, README §18 ideas. Any further work is outside the original plan - agree
+the scope with the owner first.
 
 ## Docs
 - `docs/ARCHITECTURE.md` – full architecture, example flow, stack, hardware, design decisions.
@@ -277,10 +291,10 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   python.org and weather answers (after the named-front-page rule); recall test 0/2 → 2/2.
   Fixed: "Note 3 about…" saved as memory; 3 junk test memories deleted (owner's memory
   untouched). Model sometimes cites "(Page 2)" instead of the exact form.
-- Phase 28–29 notes: failure handling list in the spec - LLM/internet unavailable, tool
-  failure, invalid args, timeout, bad document, unsupported file, mic unavailable, TTS
-  failure, database failure, model failure; much exists (classify_llm_error, ToolError,
-  DocumentError, micError) - make a table like docs/AGENT.md and test each with fakes
-  (Ollama off, DB locked, etc.). Final demo: a scripted walkthrough (docs/DEMO.md);
-  CONTRIBUTING, LICENSE (ask the owner which licence), README rewrite. GitHub remote
-  still not set up (owner).
+- Session 12 done (Phases 28–29, commits 117b9dd, 18436ff): 799 tests (110 security),
+  coverage 91 %. Verified live: Ollama off (clear message, MODEL OFFLINE, 10 s → 2 s on
+  repeats), internet off (weather/search explain, calculator works, search 22 → 11.6 s),
+  mic blocked (clear message), broken PDF / .exe refused. Full demo: resume 2.5 s, skills
+  4.9 s, web comparison 59 s (6 steps, 7 searches), save after yes, read aloud (29
+  sentences). Found: file name without folder, plan saving unasked, stale cached app.js.
+  README (18 sections), CONTRIBUTING, LICENSE (MIT), screenshots in docs/images.
