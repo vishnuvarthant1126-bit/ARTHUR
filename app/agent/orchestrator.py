@@ -33,7 +33,15 @@ from app.agent.attachments import (
 )
 from app.agent.executor import AgentLimits, PlanExecutor, PlanLimits, ToolLoop
 from app.agent.planner import Plan, Planner, looks_complex
-from app.agent.prompts import SYNTHESIS_PROMPT, SYSTEM_PROMPT, context_block, system_prompt
+from app.agent.prompts import (
+    MAX_SUMMARY_CHARS,
+    SUMMARY_PROMPT,
+    SYNTHESIS_PROMPT,
+    SYSTEM_PROMPT,
+    context_block,
+    summary_note,
+    system_prompt,
+)
 from app.agent.state import (
     AgentEvent,
     ConfirmationEvent,
@@ -48,6 +56,8 @@ from app.agent.verification import (
     FAKE_PERMISSION_NOTE,
     claims_action,
     fakes_permission_request,
+    source_note,
+    unverified_sources,
 )
 from app.llm.base import LLMError, LLMProvider, Message, Role
 from app.memory import policy
@@ -138,6 +148,7 @@ class Orchestrator:
         rag_min_score: float = 0.58,
         metrics: Metrics | None = None,
         vision: VisionProvider | None = None,
+        summary_delay_seconds: float = 15.0,
     ) -> None:
         self.llm = llm
         self.vision = vision
@@ -176,6 +187,9 @@ class Orchestrator:
         self.max_history_messages = max_history_messages
         self.memory_top_k = memory_top_k
         self.memory_min_score = memory_min_score
+        self._background: set[asyncio.Task] = set()  # running summaries
+        self._compressions: dict[str, asyncio.Task] = {}  # session id -> waiting summary
+        self.summary_delay_seconds = summary_delay_seconds
 
     # ---------- public API ----------
 
@@ -188,6 +202,7 @@ class Orchestrator:
     ) -> AsyncIterator[AgentEvent]:
         """Handle one user message (with any attached files), reporting progress as events."""
         conversation = self.conversations.get(session_id)
+        self._cancel_compression(session_id)  # the user is active: no summary right now
         parts: list[str] = []
         seen: dict[str, str | None] = {}  # attachment id -> what the vision model saw
         try:
@@ -204,6 +219,7 @@ class Orchestrator:
             if parts:
                 asked = user_text + history_note(attachments or [], seen)
                 conversation.add_exchange(asked, _for_history("".join(parts).strip()))
+                self._compress_later(conversation)
 
     async def respond(
         self,
@@ -246,17 +262,24 @@ class Orchestrator:
         """
         system = Message(role=Role.SYSTEM, content=self.system_prompt)
         context = context_block(
-            [m.memory.content for m in memories or []],
+            policy.prioritize(memories or []),
             # None = the user has no documents at all
             None if passages is None else [(p.citation, p.text) for p in passages],
             attachments,
         )
         user = Message(role=Role.USER, content=context + user_text)
+        # Phase 27: what scrolled out of the window, compressed into short notes.
+        notes = (
+            [Message(role=Role.SYSTEM, content=summary_note(conversation.summary))]
+            if conversation.summary
+            else []
+        )
         # Budget for history = window - room for the reply - everything else in the prompt.
         budget = (
             self.context_tokens
             - self.reply_reserve_tokens
             - estimate_message_tokens(system)
+            - sum(map(estimate_message_tokens, notes))
             - self.tools_tokens
             - estimate_message_tokens(user)
         )
@@ -264,7 +287,7 @@ class Orchestrator:
         dropped = len(conversation.messages) - len(history)
         if dropped > 0:
             log.info("history_trimmed", kept=len(history), dropped=dropped)
-        return [system, *history, user]
+        return [system, *notes, *history, user]
 
     async def warm_up(self) -> None:
         """Get the models ready before the first message (run in the background at start).
@@ -292,6 +315,66 @@ class Orchestrator:
             log.warning("model_warm_up_failed", error=str(exc)[:200])
             return
         log.info("models_warmed_up", seconds=round(time.perf_counter() - started, 1))
+
+    def _compress_later(self, conversation: Conversation) -> None:
+        """Older messages left the window: summarise them - once the user pauses.
+
+        Without this, a long conversation simply forgets its beginning (Phase 24 note).
+        Measured: writing the summary right after an answer made the NEXT two answers 2-4 s
+        slower each - the summary occupied the GPU, and its different prompt pushed the
+        chat prompt out of Ollama's cache. So it waits for a pause (`summary_delay_seconds`
+        without a new message); a new message cancels the wait and it is tried again later.
+        """
+        if conversation.window_start <= conversation.summarized_until:
+            return
+        self._cancel_compression(conversation.session_id)
+        task = asyncio.create_task(self._compress_after_pause(conversation))
+        self._compressions[conversation.session_id] = task
+        self._background.add(task)
+        task.add_done_callback(self._background.discard)
+
+    def _cancel_compression(self, session_id: str) -> None:
+        task = self._compressions.pop(session_id, None)
+        if task is not None and not task.done():
+            task.cancel()
+
+    async def _compress_after_pause(self, conversation: Conversation) -> None:
+        await asyncio.sleep(self.summary_delay_seconds)
+        until = conversation.window_start
+        dropped = conversation.messages[conversation.summarized_until : until]
+        if not dropped:
+            return
+        transcript = "\n".join(
+            f"{'User' if m.role == Role.USER else 'ARTHUR'}: {m.content[:600]}" for m in dropped
+        )
+        prompt = SUMMARY_PROMPT.format(summary=conversation.summary or "-", transcript=transcript)
+        started = time.perf_counter()
+        try:
+            reply = await self.llm.generate([Message(role=Role.USER, content=prompt)])
+            text = reply.content.strip()
+            if text:
+                conversation.summary = text[:MAX_SUMMARY_CHARS]
+                conversation.summarized_until = until
+                log.info(
+                    "history_compressed",
+                    messages=len(dropped),
+                    chars=len(conversation.summary),
+                    ms=round((time.perf_counter() - started) * 1000),
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # notes are a bonus: never break the conversation over them
+            log.warning("history_compression_failed", error=str(exc)[:200])
+
+    async def idle(self) -> None:
+        """Wait for background work (summaries) - for tests and shutdown."""
+        while self._background:
+            await asyncio.gather(*list(self._background), return_exceptions=True)
+
+    def stop_background(self) -> None:
+        """Cancel waiting summaries (at shutdown)."""
+        for task in list(self._background):
+            task.cancel()
 
     def history(self, session_id: str) -> list[Message]:
         if session_id not in self.conversations:
@@ -342,7 +425,7 @@ class Orchestrator:
                 self.metrics.chat_stage.labels("plan").observe(time.perf_counter() - started)
             if plan:
                 work = self._run_plan(plan, prepared, user_text, context)
-        async for event in self._supervise(work, conversation):
+        async for event in self._supervise(work, conversation, prepared, context):
             yield event
 
     async def _look_at(
@@ -399,7 +482,11 @@ class Orchestrator:
             yield TextEvent(text=token)
 
     async def _supervise(
-        self, work: AsyncIterator[AgentEvent], conversation: Conversation
+        self,
+        work: AsyncIterator[AgentEvent],
+        conversation: Conversation,
+        prepared: list[Message] | None = None,
+        context: ToolContext | None = None,
     ) -> AsyncIterator[AgentEvent]:
         """Pass events through, handling confirmations and checking honesty."""
         answer: list[str] = []
@@ -437,6 +524,14 @@ class Orchestrator:
         elif not acted and claims_action(text):
             log.warning("hallucinated_action_claim")
             yield TextEvent(text=CORRECTION)
+        if prepared is not None and not asked:
+            seen = "\n".join(m.content for m in prepared if m.role != Role.SYSTEM)
+            missing = unverified_sources(
+                text, seen + "\n" + "\n".join(context.sources if context else [])
+            )
+            if missing:
+                log.warning("unverified_sources", count=len(missing))
+                yield TextEvent(text=source_note(missing))
 
     async def _prepare(
         self, conversation: Conversation, user_text: str, attachments: list[str] | None = None

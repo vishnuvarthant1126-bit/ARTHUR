@@ -46,6 +46,7 @@ class FindFilesTool(Tool[FindFilesInput]):
         "Try synonyms if nothing is found (resume -> cv)."
     )
     input_model = FindFilesInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
     timeout_seconds = 30.0
 
@@ -88,6 +89,7 @@ class ListFolderTool(Tool[ListFolderInput]):
     name = "list_folder"
     description = "List the files and subfolders in one allowed folder."
     input_model = ListFolderInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
 
     def __init__(self, workspace: Workspace) -> None:
@@ -121,6 +123,7 @@ class ReadFileTool(Tool[ReadFileInput]):
         "e.g. to summarise a report or a resume. Use the full path from find_files."
     )
     input_model = ReadFileInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
     timeout_seconds = 30.0
 

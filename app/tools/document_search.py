@@ -25,6 +25,7 @@ class DocumentSearchTool(Tool[DocumentSearchInput]):
         "and read_file. If this finds nothing, try find_files."
     )
     input_model = DocumentSearchInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
     timeout_seconds = 30.0
 
@@ -61,6 +62,7 @@ class ListDocumentsTool(Tool[ListDocumentsInput]):
     name = "list_documents"
     description = "List the documents the user has uploaded (file name, pages, upload date)."
     input_model = ListDocumentsInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
 
     def __init__(self, documents: DocumentService) -> None:

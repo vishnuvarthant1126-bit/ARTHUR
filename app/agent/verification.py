@@ -7,6 +7,7 @@ lets the orchestrator add a visible correction.
 """
 
 import re
+from urllib.parse import urlsplit
 
 _ACTION_CLAIM = re.compile(
     r"\b(?:I(?:'ve| have| just| successfully)?|has been|have been|was|were|is now|are now)\s+"
@@ -43,3 +44,49 @@ def claims_action(text: str) -> bool:
 
 def fakes_permission_request(text: str) -> bool:
     return bool(_FAKE_PERMISSION.search(text))
+
+
+# ---------- Phase 27: are the cited sources real? ----------
+# A citation the model invented looks exactly like a real one. After each answer ARTHUR
+# checks every cited document page and web link against what it actually showed the model
+# in this turn (passages, attached files, tool results). Unmatched ones get a visible note.
+DOCUMENT_CITATION = re.compile(r"\[([^\[\]\n]+?\.(?:pdf|docx|txt|md|csv)),\s*([^\[\]\n]+?)\]", re.I)
+MARKDOWN_LINK = re.compile(r"\[[^\]\n]*\]\((https?://[^)\s]+)\)")
+BARE_URL = re.compile(r"https?://[^\s\"'<>)\]\\]+")
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"\s+", " ", text).lower()
+
+
+def unverified_sources(answer: str, seen: str) -> list[str]:
+    """Citations in `answer` that appear nowhere in `seen` (what the model was given)."""
+    known = _squash(seen)
+    missing: list[str] = []
+    for name, label in DOCUMENT_CITATION.findall(answer):
+        citation = f"{name.strip()}, {label.strip()}"
+        if _squash(citation) not in known and f"[{citation}]" not in missing:
+            missing.append(f"[{citation}]")
+    seen_urls = [u.rstrip(".,;") for u in BARE_URL.findall(seen)]
+    for url in MARKDOWN_LINK.findall(answer):
+        stem = url.rstrip("/")
+        # A link to a page that was read, or to the front page of a site it came from,
+        # counts as read. So does a front page whose site a result names by name
+        # ("source": "Open-Meteo (open-meteo.com)") - deeper links must match a real URL.
+        parts = urlsplit(url)
+        host = parts.netloc.lower().removeprefix("www.")
+        front_page_named = parts.path in ("", "/") and host in known
+        read = front_page_named or any(u.startswith(stem) for u in seen_urls)
+        if not read and url not in missing:
+            missing.append(url)
+    return missing
+
+
+def source_note(missing: list[str]) -> str:
+    shown = ", ".join(missing[:5]) + (" …" if len(missing) > 5 else "")
+    return (
+        "\n\n> ⚠️ **Source check:** I couldn't match "
+        + ("this source" if len(missing) == 1 else "these sources")
+        + f" to anything I actually read for this answer: {shown}. "
+        "Treat the claims attached to them with care."
+    )

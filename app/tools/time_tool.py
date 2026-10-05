@@ -21,6 +21,7 @@ class CurrentTimeTool(Tool[TimeInput]):
     name = "current_time"
     description = "Get the current date, time and weekday, optionally in a specific time zone."
     input_model = TimeInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
     timeout_seconds = 2.0
 

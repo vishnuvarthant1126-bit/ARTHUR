@@ -102,6 +102,7 @@ def build_orchestrator(
         rag_min_score=settings.rag_min_score,
         metrics=metrics,
         vision=vision,
+        summary_delay_seconds=settings.history_summary_delay_seconds,
     )
 
 
@@ -263,6 +264,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     scheduler.start()
     yield
     await scheduler.stop()
+    app.state.orchestrator.stop_background()
     warm_up.cancel()
     if model_warm_up is not None:
         model_warm_up.cancel()

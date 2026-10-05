@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     memory_max_history_messages: int = 40
     memory_max_sessions: int = 100
     memory_session_ttl_minutes: int = 240
+    # Phase 27: summarise what scrolls out of a long conversation, after this many seconds
+    # without a new message (so it never slows down an answer). 0 = right away.
+    history_summary_delay_seconds: float = 15.0
 
     # --- Storage ---
     database_path: Path = Path("data/arthur.db")

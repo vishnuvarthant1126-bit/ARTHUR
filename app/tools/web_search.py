@@ -33,6 +33,7 @@ class WebSearchTool(Tool[WebSearchInput]):
         "things in the user's memory or documents. Returns titles, links and snippets."
     )
     input_model = WebSearchInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
     timeout_seconds = 30.0
 
@@ -72,6 +73,7 @@ class ReadWebpageTool(Tool[ReadWebpageInput]):
         "snippets aren't enough. Only public http(s) pages; local/private addresses are blocked."
     )
     input_model = ReadWebpageInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
     timeout_seconds = 30.0
 

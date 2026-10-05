@@ -71,6 +71,7 @@ class ListRemindersTool(Tool[ListRemindersInput]):
         "Use it when the user asks what is scheduled."
     )
     input_model = ListRemindersInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
 
     def __init__(self, service: ReminderService) -> None:

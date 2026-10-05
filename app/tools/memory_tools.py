@@ -22,6 +22,7 @@ class SearchMemoryTool(Tool[SearchMemoryInput]):
     name = "search_memory"
     description = "Search the user's long-term memory for facts related to a query."
     input_model = SearchMemoryInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
 
     def __init__(self, memory: MemoryManager, min_score: float = 0.55) -> None:

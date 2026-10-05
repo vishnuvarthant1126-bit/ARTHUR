@@ -117,6 +117,7 @@ class CalculatorTool(Tool[CalculatorInput]):
         "calculating in your head. Supports + - * / // % ** and sqrt, log, sin, round, etc."
     )
     input_model = CalculatorInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
     timeout_seconds = 2.0
 

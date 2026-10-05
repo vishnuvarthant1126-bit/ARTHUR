@@ -39,6 +39,9 @@ class Conversation:
     last_active: float = field(default_factory=time.monotonic)
     pending: PendingAction | None = None
     window_start: int = 0  # index of the oldest message the model is still shown
+    # Phase 27: what scrolled out of the window, compressed (messages[:summarized_until]).
+    summary: str = ""
+    summarized_until: int = 0
 
     def add_exchange(self, user_text: str, assistant_text: str) -> None:
         """Save one user message and ARTHUR's reply, as a pair."""
@@ -49,6 +52,7 @@ class Conversation:
             removed = len(self.messages) - self.max_stored_messages
             del self.messages[:removed]
             self.window_start = max(self.window_start - removed, 0)
+            self.summarized_until = max(self.summarized_until - removed, 0)
         self.touch()
 
     def window(self, token_budget: int, max_messages: int, keep: float = 0.6) -> list[Message]:
@@ -103,6 +107,8 @@ class Conversation:
     def clear(self) -> None:
         self.messages.clear()
         self.window_start = 0
+        self.summary = ""
+        self.summarized_until = 0
         self.pending = None
         self.touch()
 

@@ -14,6 +14,7 @@ Safety:
 - Tool results are wrapped and labelled as data, never as instructions.
 """
 
+import asyncio
 import json
 import time
 from collections.abc import AsyncIterator
@@ -41,7 +42,7 @@ from app.llm.base import (
     ToolCallsRequested,
 )
 from app.observability.logging import get_logger
-from app.tools.base import ToolContext, ToolResult
+from app.tools.base import PermissionLevel, ToolContext, ToolResult
 from app.tools.registry import ToolRegistry
 
 log = get_logger(__name__)
@@ -104,8 +105,24 @@ class ToolLoop:
             messages.append(
                 Message(role=Role.ASSISTANT, content="".join(text_parts), tool_calls=calls)
             )
+            fresh = [c for c in calls if self._fingerprint(c) not in seen_calls]
+            if len(fresh) == len(calls) and len(calls) > 1 and all(map(self._parallel, calls)):
+                # Several lookups that only read (weather in two cities): all at once.
+                seen_calls.update(map(self._fingerprint, calls))
+                for call in calls:
+                    yield ToolStartEvent(call_id=call.id, name=call.name, arguments=call.arguments)
+                results = await asyncio.gather(
+                    *(self.registry.execute(c.name, c.arguments, context) for c in calls)
+                )
+                log.info("tools_in_parallel", tools=[c.name for c in calls])
+                for call, result in zip(calls, results, strict=True):
+                    yield self._end_event(call, result)
+                    message = self._tool_message(call, self._result_payload(result))
+                    context.sources.append(message.content)  # exactly what the model saw
+                    messages.append(message)
+                continue
             for call in calls:
-                fingerprint = f"{call.name}:{json.dumps(call.arguments, sort_keys=True)}"
+                fingerprint = self._fingerprint(call)
                 if fingerprint in seen_calls:
                     messages.append(
                         self._tool_message(
@@ -122,13 +139,7 @@ class ToolLoop:
 
                 yield ToolStartEvent(call_id=call.id, name=call.name, arguments=call.arguments)
                 result = await self.registry.execute(call.name, call.arguments, context)
-                yield ToolEndEvent(
-                    call_id=call.id,
-                    name=call.name,
-                    status=result.status,
-                    summary=self._summarize(result),
-                    duration_ms=result.duration_ms,
-                )
+                yield self._end_event(call, result)
 
                 if result.status == "needs_confirmation":
                     # Stop here: only the user can approve this. The orchestrator asks them.
@@ -137,13 +148,37 @@ class ToolLoop:
                         name=call.name, arguments=call.arguments, preview=result.preview or ""
                     )
                     return
-                messages.append(self._tool_message(call, self._result_payload(result)))
+                message = self._tool_message(call, self._result_payload(result))
+                context.sources.append(message.content)  # exactly what the model saw
+                messages.append(message)
 
         log.warning("agent_step_limit", max_steps=self.limits.max_steps)
         self.stop_reason = "step_limit"
         yield TextEvent(
             text=f"\n\n(I stopped after {self.limits.max_steps} steps without finishing. "
             "Try breaking the request into smaller parts.)"
+        )
+
+    @staticmethod
+    def _fingerprint(call: ToolCall) -> str:
+        return f"{call.name}:{json.dumps(call.arguments, sort_keys=True)}"
+
+    def _parallel(self, call: ToolCall) -> bool:
+        """May this call run at the same time as others? Only read-only, independent tools."""
+        tool = self.registry.get(call.name)
+        return bool(
+            tool is not None
+            and tool.parallel_safe
+            and tool.permission_level == PermissionLevel.READ_ONLY
+        )
+
+    def _end_event(self, call: ToolCall, result: ToolResult) -> ToolEndEvent:
+        return ToolEndEvent(
+            call_id=call.id,
+            name=call.name,
+            status=result.status,
+            summary=self._summarize(result),
+            duration_ms=result.duration_ms,
         )
 
     def _result_payload(self, result: ToolResult) -> dict:

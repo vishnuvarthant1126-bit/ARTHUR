@@ -23,8 +23,11 @@ from app.memory.manager import CATEGORIES
 _PREFIX = r"^\s*(?:(?:hey|ok|okay)\s+)?(?:arthur\s*[,!.:]?\s*)?(?:please\s+)?(?:can you\s+)?"
 
 _REMEMBER = re.compile(
-    _PREFIX + r"(?:remember|don'?t forget|do not forget|keep in mind|note|make a note)\b"
-    r"(?:\s+(?:that|this|:))?\s*(?P<rest>.*)$",
+    # "note" only as an instruction ("note that...", "note down...", "note: ..."), not the
+    # noun: "Note 3 about the garden..." was saved as a memory (found in Phase 27 testing).
+    _PREFIX + r"(?:remember|don'?t forget|do not forget|keep in mind|make a note|"
+    r"note(?=\s*(?:that\b|down\b|this\b|:)))\b"
+    r"(?:\s+down)?(?:\s+(?:that|this)|\s*:)?\s*(?P<rest>.*)$",
     re.IGNORECASE | re.DOTALL,
 )
 # "forget X", or "delete/remove/erase the memory X" ("delete this file" is NOT a memory request).
@@ -111,3 +114,26 @@ for example: "The user's favourite programming language is Python."
 Keep names, numbers and specifics exactly as given. Do not add anything that was not said.
 Choose category from: {", ".join(CATEGORIES)}.
 Respond as JSON with keys "fact" and "category"."""
+
+
+# ---------- Phase 27: which memories go into the prompt ----------
+MAX_MEMORY_CHARS = 1200  # all recalled facts together (~300 tokens)
+
+
+def prioritize(results: list, max_chars: int = MAX_MEMORY_CHARS) -> list[str]:
+    """Recalled memories, best first, dated, within a size limit.
+
+    `results` are MemorySearchResults (already above the relevance threshold). The most
+    relevant come first; when the space runs out, the least relevant are left out. Each fact
+    carries the day it was saved, so when two facts disagree ("favourite colour is blue",
+    later "...is green") the model can - and is told to - believe the newer one.
+    """
+    ranked = sorted(results, key=lambda r: (r.score, r.memory.created_at), reverse=True)
+    lines, used = [], 0
+    for result in ranked:
+        line = f"[saved {result.memory.created_at:%Y-%m-%d}] {result.memory.content}"
+        if used + len(line) > max_chars:
+            continue  # a shorter, less relevant fact may still fit
+        lines.append(line)
+        used += len(line)
+    return lines

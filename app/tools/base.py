@@ -17,7 +17,7 @@ Every tool declares:
 import json
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any, ClassVar, Literal
 
@@ -40,6 +40,9 @@ class ToolContext:
     request_id: str | None = None
     session_id: str | None = None
     confirmed: bool = False  # the user explicitly approved this exact call
+    # Every result the model was shown in this turn - checked afterwards against the
+    # sources the answer cites (agent/verification.py).
+    sources: list[str] = field(default_factory=list)
 
 
 class ToolResult(BaseModel):
@@ -60,6 +63,9 @@ class Tool[InputT: BaseModel](ABC):
     description: ClassVar[str]
     input_model: ClassVar[type[BaseModel]]
     permission_level: ClassVar[PermissionLevel] = PermissionLevel.READ_ONLY
+    # True only for tools that just READ and share no state (a browser has one page, the
+    # desktop one window): those may run at the same time as other such tools.
+    parallel_safe: ClassVar[bool] = False
     timeout_seconds: ClassVar[float | None] = None  # None = registry default
 
     @abstractmethod

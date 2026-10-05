@@ -34,6 +34,7 @@ class WeatherTool(Tool[WeatherInput]):
         "Get current weather and today's forecast (temperature, rain chance, wind) for a city."
     )
     input_model = WeatherInput
+    parallel_safe = True  # only reads, shares nothing: may run alongside other lookups
     permission_level = PermissionLevel.READ_ONLY
     timeout_seconds = 15.0
 
