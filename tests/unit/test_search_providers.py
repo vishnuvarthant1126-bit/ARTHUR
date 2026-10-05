@@ -115,7 +115,7 @@ async def test_duckduckgo_other_failures_can_be_retried():
 async def test_duckduckgo_timeout():
     with pytest.raises(SearchError, match="in time") as error:
         await duckduckgo(delay=3.0).search("python", 5)
-    assert error.value.retryable
+    assert not error.value.retryable  # waiting the whole time again only doubles the wait
 
 
 # ---------- choosing the provider ----------

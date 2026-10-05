@@ -9,10 +9,19 @@ difference - it just gets a more reliable provider.
 
 import asyncio
 import random
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, TypeVar
 
-from app.llm.base import LLMError, LLMProvider, LLMResponse, Message, StreamEvent, T
+from app.llm.base import (
+    LLMError,
+    LLMProvider,
+    LLMResponse,
+    LLMUnavailableError,
+    Message,
+    StreamEvent,
+    T,
+)
 from app.observability.logging import get_logger
 
 log = get_logger(__name__)
@@ -25,14 +34,33 @@ class RetryingProvider(LLMProvider):
 
     Jitter (a small random extra wait) stops many clients retrying in lockstep.
     Only errors marked `retryable` are retried; a bad API key fails immediately.
+
+    Circuit breaker (Phase 28): once the provider was unreachable even after the retries,
+    the next `down_seconds` get ONE attempt, no retries. Measured on Windows: a refused
+    local connection takes 2 s, so with retries "Ollama is off" took 10 s to report -
+    every time. Now that happens once; the next messages fail fast until it is back.
     """
 
-    def __init__(self, inner: LLMProvider, max_retries: int = 2, base_delay: float = 0.5):
+    def __init__(
+        self,
+        inner: LLMProvider,
+        max_retries: int = 2,
+        base_delay: float = 0.5,
+        down_seconds: float = 30.0,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         self.inner = inner
         self.name = inner.name
         self.model = inner.model
         self.max_retries = max_retries
         self.base_delay = base_delay
+        self.down_seconds = down_seconds
+        self.clock = clock
+        self._down_since: float | None = None  # when the provider was last found unreachable
+
+    @property
+    def known_down(self) -> bool:
+        return self._down_since is not None and self.clock() - self._down_since < self.down_seconds
 
     async def generate(
         self,
@@ -71,10 +99,12 @@ class RetryingProvider(LLMProvider):
                 async for item in open_stream():
                     started = True
                     yield item
+                self._down_since = None
                 return
             except LLMError as exc:
                 # Once words reached the user we can't silently restart the answer.
                 if started or not self._should_retry(exc, attempt):
+                    self._note_failure(exc)
                     raise
                 await self._wait(exc, attempt)
 
@@ -87,15 +117,24 @@ class RetryingProvider(LLMProvider):
     async def _with_retries(self, call: Callable[[], Awaitable[R]]) -> R:
         for attempt in range(self.max_retries + 1):
             try:
-                return await call()
+                result = await call()
+                self._down_since = None
+                return result
             except LLMError as exc:
                 if not self._should_retry(exc, attempt):
+                    self._note_failure(exc)
                     raise
                 await self._wait(exc, attempt)
         raise AssertionError("unreachable")
 
     def _should_retry(self, exc: LLMError, attempt: int) -> bool:
+        if isinstance(exc, LLMUnavailableError) and self.known_down:
+            return False  # it was down a moment ago: report it now instead of waiting again
         return exc.retryable and attempt < self.max_retries
+
+    def _note_failure(self, exc: LLMError) -> None:
+        if isinstance(exc, LLMUnavailableError) and not self.known_down:
+            self._down_since = self.clock()
 
     async def _wait(self, exc: LLMError, attempt: int) -> None:
         delay = self.base_delay * 2**attempt + random.uniform(0, self.base_delay)

@@ -4,7 +4,14 @@ import pytest
 from pydantic import SecretStr
 
 from app.config.settings import Settings
-from app.llm.base import LLMResponseError, LLMUnavailableError, Message, Role
+from app.llm.base import (
+    LLMProvider,
+    LLMResponse,
+    LLMResponseError,
+    LLMUnavailableError,
+    Message,
+    Role,
+)
 from app.llm.factory import create_llm_provider
 from app.llm.ollama import OllamaProvider
 from app.llm.openai_compat import OpenAICompatProvider
@@ -154,3 +161,71 @@ def test_blank_env_values_mean_not_set():
     s = settings(llm_fallback_provider="", openai_compat_api_key="")
     assert s.llm_fallback_provider is None
     assert s.openai_compat_api_key is None
+
+
+# ---------- Phase 28: circuit breaker ----------
+
+
+class CountingDown(LLMProvider):
+    name, model = "down", "m"
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.up = False
+
+    async def generate(self, messages, *, temperature=None, tools=None):
+        self.calls += 1
+        if not self.up:
+            raise LLMUnavailableError("Cannot reach Ollama.")
+        return LLMResponse(content="hi", model="m", latency_ms=1.0)
+
+    async def stream(self, messages, *, temperature=None):
+        yield "x"
+
+    async def generate_structured(self, messages, schema):
+        raise NotImplementedError
+
+
+async def test_after_a_confirmed_outage_the_next_calls_fail_fast_until_it_is_back():
+    now = [0.0]
+    inner = CountingDown()
+    provider = RetryingProvider(inner, max_retries=2, base_delay=0, clock=lambda: now[0])
+
+    with pytest.raises(LLMUnavailableError):
+        await provider.generate([])
+    assert inner.calls == 3  # the first time: normal retries (it might be restarting)
+
+    with pytest.raises(LLMUnavailableError):
+        await provider.generate([])
+    assert inner.calls == 4  # known down: one try, no waiting
+
+    now[0] = 31.0  # after the breaker's 30 s, retries are allowed again
+    inner.up = True
+    assert (await provider.generate([])).content == "hi"
+    assert not provider.known_down
+
+
+async def test_unreachable_embeddings_are_not_retried_for_every_message():
+    import httpx
+
+    from app.rag.embeddings import OllamaEmbeddings
+
+    attempts = []
+
+    def refuse(request):
+        attempts.append(request)
+        raise httpx.ConnectError("connection refused", request=request)
+
+    now = [0.0]
+    client = httpx.AsyncClient(transport=httpx.MockTransport(refuse), base_url="http://x")
+    embeddings = OllamaEmbeddings(
+        "http://x", "nomic-embed-text", client=client, clock=lambda: now[0]
+    )
+    for _ in range(3):
+        with pytest.raises(LLMUnavailableError):
+            await embeddings.embed_query("hello")
+    assert len(attempts) == 1  # the 2nd and 3rd message didn't wait for another refusal
+    now[0] = 31.0
+    with pytest.raises(LLMUnavailableError):
+        await embeddings.embed_query("hello")
+    assert len(attempts) == 2  # tried again after the pause

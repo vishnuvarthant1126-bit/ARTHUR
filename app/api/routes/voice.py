@@ -90,4 +90,10 @@ async def speak(body: SpeakRequest, request: Request) -> Response:
         )
     except SpeechError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    except Exception as exc:  # a broken voice model or audio library (Phase 28)
+        log.exception("tts_failed")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "ARTHUR's voice isn't working right now - the answer is still shown as text.",
+        ) from exc
     return Response(content=audio, media_type="audio/wav", headers={"Cache-Control": "no-store"})

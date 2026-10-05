@@ -6,7 +6,8 @@
 
 - Cache: the same query within `cache_seconds` reuses the earlier results.
 - Rate limit: at most `max_per_minute` real searches, so the engine doesn't block us.
-- Retry: one retry after a short pause for errors marked retryable.
+- Retry: one retry after a short pause for errors marked retryable - but only when the
+  failed attempt was quick (a slow failure, e.g. offline, would just double the wait).
 """
 
 import asyncio
@@ -28,8 +29,10 @@ class WebSearchService:
         cache_seconds: float = 600.0,
         cache_size: int = 200,
         retry_delay: float = 1.0,
+        quick_failure_seconds: float = 3.0,
     ) -> None:
         self.provider = provider
+        self.quick_failure_seconds = quick_failure_seconds
         self.max_per_minute = max_per_minute
         self.cache_seconds = cache_seconds
         self.cache_size = cache_size
@@ -56,7 +59,9 @@ class WebSearchService:
         try:
             results = await self.provider.search(query, max_results)
         except SearchError as exc:
-            if not exc.retryable:
+            # A retry helps after a quick hiccup. After a SLOW failure (offline: ~9 s of
+            # refused connections) it only doubles the wait - measured 22 s (Phase 28).
+            if not exc.retryable or time.perf_counter() - start > self.quick_failure_seconds:
                 raise
             log.warning("web_search_retry", error=str(exc))
             await asyncio.sleep(self.retry_delay)

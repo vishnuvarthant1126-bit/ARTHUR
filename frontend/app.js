@@ -97,7 +97,8 @@ async function loadHealth() {
     const health = await res.json();
     els.model.textContent = `${health.llm.model} · ${health.llm.provider}`;
     els.hudModel.textContent = health.llm.model;
-    if (!health.llm.reachable) setStatus("offline", "Model offline");
+    state.modelDown = !health.llm.reachable;
+    if (state.modelDown) setStatus("offline", "Model offline");
   } catch { /* the WebSocket status already tells the story */ }
 }
 
@@ -140,6 +141,8 @@ function handleEvent(event) {
       finishReply(event);
       break;
     case "error":
+      // Phase 28: the model is down - say so until an answer works again.
+      if (event.error_type === "llm_unavailable") state.modelDown = true;
       if (state.busy) failReply(event.message);
       else addError(event.message);
       break;
@@ -212,6 +215,7 @@ function startReply() {
 
 function finishReply(info) {
   const reply = state.reply;
+  state.modelDown = false; // an answer arrived: the model works
   if (!info.stopped) speakStreamed("", { final: true }); // say the last, unfinished sentence
   if (!els.memoryPanel.hidden) loadMemories(); // a reply may have saved/forgotten something
   if (!els.remindersPanel.hidden) loadReminders();
@@ -305,6 +309,7 @@ function endReply() {
 }
 
 function addError(message) {
+  els.empty.hidden = true; // the welcome screen would otherwise sit above the error
   addMessage("error", `⚠ ${message}`);
 }
 
@@ -492,7 +497,8 @@ function stopWakeMode() {
 // What the status light shows when ARTHUR isn't busy: waiting for "Hey Arthur", or Online.
 function idleStatus() {
   if (!state.connected) return;
-  if (wake.enabled) showWakeStatus();
+  if (state.modelDown) setStatus("offline", "Model offline");
+  else if (wake.enabled) showWakeStatus();
   else setStatus("online", "Online");
 }
 
@@ -668,12 +674,26 @@ function enqueueSpeech(sentence) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text: sentence, voice: voice || null, speed }),
   })
-    .then((res) => (res.status === 200 ? res.blob() : null))
+    .then(async (res) => {
+      if (res.status === 200) return res.blob();
+      if (res.status !== 204) { // 204 = nothing speakable (e.g. only a link): not an error
+        const body = await res.json().catch(() => ({}));
+        speechFailed(generation, body.detail || body.error?.message);
+      }
+      return null;
+    })
     .then((blob) => (blob && generation === speech.generation ? URL.createObjectURL(blob) : null))
-    .catch(() => null);
+    .catch(() => { speechFailed(generation); return null; });
   speech.queue.push(audioUrl);
   if (!speech.playing) playSpeechQueue();
   refreshComposer();
+}
+
+// Phase 28: a broken voice must not fail silently - say so once per reply.
+function speechFailed(generation, message) {
+  if (speech.warnedFor === generation) return;
+  speech.warnedFor = generation;
+  addError(message || "ARTHUR's voice isn't working right now - the answer is still shown as text.");
 }
 
 async function playSpeechQueue() {

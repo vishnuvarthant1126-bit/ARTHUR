@@ -136,6 +136,10 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             response.headers[name] = value
         if not path.startswith(_DOCS_PATHS):
             response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
+        if "cache-control" not in response.headers:
+            # Re-check the page's files on every load (unchanged ones answer "304 not
+            # modified"), so an updated ARTHUR never runs with old JavaScript (Phase 28).
+            response.headers["Cache-Control"] = "no-cache"
         duration = time.perf_counter() - start
         if metrics is not None and not path.startswith("/metrics"):  # don't measure measuring
             route = _route_label(request, response.status_code)

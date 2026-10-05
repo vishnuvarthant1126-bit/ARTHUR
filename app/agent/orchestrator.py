@@ -120,6 +120,11 @@ class AgentReply(BaseModel):
     tools_used: list[ToolEndEvent] = Field(default_factory=list)
 
 
+STORAGE_TROUBLE = (
+    "Sorry, my memory store isn't working right now, so I can't do that. Everything else "
+    "still works - the details are in ARTHUR's log."
+)
+
 EMPTY_ANSWER = (
     "I couldn't produce an answer to that. It may need something that isn't available "
     "in this installation - please try asking in a different way."
@@ -571,8 +576,8 @@ class Orchestrator:
             return await self.retriever.search(
                 user_text, k=self.rag_top_k, min_score=self.rag_min_score
             )
-        except LLMError as exc:
-            log.warning("document_recall_failed", error=str(exc))
+        except Exception as exc:  # embeddings down, vector store broken: answer without them
+            log.warning("document_recall_failed", error=str(exc)[:200])
             return None
 
     async def _recall(self, user_text: str) -> list[MemorySearchResult]:
@@ -582,9 +587,10 @@ class Orchestrator:
             return await self.memory.search_memory(
                 user_text, k=self.memory_top_k, min_score=self.memory_min_score
             )
-        except LLMError as exc:
-            # Memory is helpful, not essential: answer without it rather than fail.
-            log.warning("memory_recall_failed", error=str(exc))
+        except Exception as exc:
+            # Memory is helpful, not essential: answer without it rather than fail - also
+            # when the database itself is broken (Phase 28).
+            log.warning("memory_recall_failed", error=str(exc)[:200])
             return []
 
     async def _remember(self, user_text: str) -> str:
@@ -616,6 +622,9 @@ class Orchestrator:
         except (LLMError, ValueError) as exc:
             log.warning("memory_save_failed", error=str(exc))
             return f"Sorry, I couldn't save that right now ({exc})."
+        except Exception as exc:  # database trouble: say so, without internals
+            log.warning("memory_save_failed", error=str(exc)[:200])
+            return STORAGE_TROUBLE
 
         if created:
             return f"Got it. I'll remember that: *{memory.content}*"
@@ -628,6 +637,9 @@ class Orchestrator:
             )
         except LLMError as exc:
             return f"Sorry, I can't search my memory right now ({exc})."
+        except Exception as exc:
+            log.warning("memory_forget_failed", error=str(exc)[:200])
+            return STORAGE_TROUBLE
         if not matches:
             return (
                 "I couldn't find a memory matching that. "
@@ -650,7 +662,11 @@ class Orchestrator:
             return "That request has expired (I asked a while ago). Please ask me again."
         if policy.is_yes(user_text):
             if pending.kind == "delete_memory" and self.memory:
-                await self.memory.delete_memory(pending.target_id)
+                try:
+                    await self.memory.delete_memory(pending.target_id)
+                except Exception as exc:
+                    log.warning("memory_delete_failed", error=str(exc)[:200])
+                    return STORAGE_TROUBLE
                 return f"Done. I've forgotten: *{pending.description}*"
             if pending.kind == "tool_call" and self.tools:
                 result = await self.tools.execute(

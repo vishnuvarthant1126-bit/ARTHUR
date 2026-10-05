@@ -246,3 +246,20 @@ def test_web_tools_are_available_to_the_agent():
 async def test_tools_api_lists_web_tools(client):
     names = {t["name"] for t in (await client.get("/tools")).json()}
     assert {"web_search", "read_webpage"} <= names
+
+
+async def test_a_slow_failure_is_not_retried():
+    """Offline, one attempt already takes ~9 s; a retry would double the wait (Phase 28)."""
+    import asyncio
+
+    class SlowFailure(FakeSearchProvider):
+        async def search(self, query, max_results):
+            self.queries.append(query)
+            await asyncio.sleep(0.05)
+            raise SearchError("Web search failed. Are you online?", retryable=True)
+
+    provider = SlowFailure()
+    service = WebSearchService(provider, retry_delay=0, quick_failure_seconds=0.01)
+    with pytest.raises(SearchError):
+        await service.search("python")
+    assert len(provider.queries) == 1

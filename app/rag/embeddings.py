@@ -13,12 +13,16 @@ So we can find memories by *meaning*, even when no words match exactly.
 
 import hashlib
 import re
+import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 import httpx
 
 from app.llm._http import KEEP_ALIVE, status_error, translate_http_errors
-from app.llm.base import LLMResponseError
+from app.llm.base import LLMResponseError, LLMUnavailableError
+
+DOWN_SECONDS = 30.0  # after "unreachable", skip further tries for this long
 
 
 class EmbeddingProvider(ABC):
@@ -48,6 +52,7 @@ class OllamaEmbeddings(EmbeddingProvider):
         model: str,
         client: httpx.AsyncClient | None = None,
         keep_alive: str | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.model = model
         self._base_url = base_url
@@ -58,6 +63,8 @@ class OllamaEmbeddings(EmbeddingProvider):
             base_url=base_url, timeout=httpx.Timeout(60.0, connect=5.0), limits=KEEP_ALIVE
         )
         self._use_prefixes = model.startswith("nomic-embed")
+        self._clock = clock
+        self._down_since: float | None = None
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         prefix = self.DOCUMENT_PREFIX if self._use_prefixes else ""
@@ -71,11 +78,20 @@ class OllamaEmbeddings(EmbeddingProvider):
         await self._client.aclose()
 
     async def _embed(self, inputs: list[str]) -> list[list[float]]:
+        # Phase 28: unreachable a moment ago? Say so at once. On Windows a refused local
+        # connection takes 2 s, and every message looks up memories first.
+        if self._down_since is not None and self._clock() - self._down_since < DOWN_SECONDS:
+            raise LLMUnavailableError(f"Ollama embeddings at {self._base_url} are unreachable.")
         payload: dict = {"model": self.model, "input": inputs}
         if self._keep_alive:
             payload["keep_alive"] = self._keep_alive
-        with translate_http_errors("Ollama embeddings", self._base_url):
-            response = await self._client.post("/api/embed", json=payload)
+        try:
+            with translate_http_errors("Ollama embeddings", self._base_url):
+                response = await self._client.post("/api/embed", json=payload)
+        except LLMUnavailableError:
+            self._down_since = self._clock()
+            raise
+        self._down_since = None
         if response.status_code == 404:
             raise LLMResponseError(
                 f"Embedding model '{self.model}' is not installed. Run: ollama pull {self.model}"

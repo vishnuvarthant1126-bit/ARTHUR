@@ -27,7 +27,11 @@ class DuckDuckGoProvider(SearchProvider):
                 timeout=self.timeout_seconds + 2,
             )
         except TimeoutError as exc:
-            raise SearchError("The search engine didn't answer in time.", retryable=True) from exc
+            # Not retried: a timeout already waited ~12 s, a retry only doubled the wait
+            # (measured offline: 22 s before "are you online?" - Phase 28).
+            raise SearchError(
+                "The search engine didn't answer in time. Are you online?", retryable=False
+            ) from exc
         except Exception as exc:  # ddgs raises its own exception types
             name = type(exc).__name__
             if "Ratelimit" in name:
