@@ -3,7 +3,11 @@
 A modular, local-first AI assistant: voice + text, tools, memory, RAG,
 planning, browser/computer control, with a permission-based security model.
 
-> Status: Phase 24 – fast answers (0.4–1.3 s for most messages, see
+> Status: Phase 27 – a status rail that shows what ARTHUR is doing (Online · Listening ·
+> Thinking · Executing · Speaking) and the health of every part; attach pictures,
+> screenshots (paste) and documents to a message; parallel lookups, notes on long
+> conversations and a check of every cited source ([docs/AGENT.md](docs/AGENT.md));
+> fast answers (0.4–1.3 s for most messages, see
 > [docs/PERFORMANCE.md](docs/PERFORMANCE.md)); runs in Docker with Prometheus + Grafana
 > ([docs/DOCKER.md](docs/DOCKER.md)); measures itself (metrics, a built-in stats page), 90 % test coverage
 > with a gate, load-tested (see [docs/LOAD_TESTS.md](docs/LOAD_TESTS.md)); reminders that
@@ -160,6 +164,22 @@ pressed through UI Automation, Explorer actions go through the shell. Typed text
 and compared.
 `COMPUTER_USE_ENABLED=false` turns it all off.
 
+## Status rail
+On wide screens a side rail (on phones the **Status** button) shows five lamps - ONLINE,
+LISTENING, THINKING, EXECUTING (with the tool in use), SPEAKING - plus the microphone state,
+the current task (plan steps and tool calls as they run) and **System**: the language model,
+memory, documents, reminders, voice, vision, browser and desktop apps, each ok / off /
+problem (`GET /status`, every part checked separately with its own timeout).
+
+## Attachments (pictures, screenshots, documents)
+📎, paste (Ctrl+V a screenshot) or drag and drop into the chat box, then ask - typed or
+spoken: *"look at this screenshot and tell me what's wrong"*, *"read this PDF and explain
+the important parts"*. Pictures go to the local vision model together with your question;
+its description reaches the chat model as data (first picture after a pause ~30 s while the
+vision model loads). Documents are also imported into Docs, and their pages (up to ~8,000
+characters) travel with the message for page-cited answers. Pictures are never saved;
+attachments are forgotten after 30 minutes.
+
 ## Vision
 `ollama pull qwen2.5vl:7b` (~6 GB). `describe_image` (0) looks at a picture in your allowed
 folders; `look_at_screen` (1) at one allowed app's window, or (2, asks first) the whole screen.
@@ -199,6 +219,11 @@ every reply ─► honesty check: claims an action no tool performed? → visibl
 ```
 Level-2 tools stop the loop and ask the user; the model can never confirm on its own.
 `save_memory` is not offered to the agent (only an explicit "remember…" saves).
+Phase 27 added: read-only lookups in one step run in parallel (actions never do); long
+conversations keep short notes on what scrolled out (written during a pause); recalled
+memories are ranked and dated so newer facts win; every cited page or link is checked
+against what ARTHUR actually read, with a visible note if it can't be matched.
+[docs/AGENT.md](docs/AGENT.md) maps all twelve "advanced agent" features.
 
 ## Observability
 `GET /metrics` publishes ARTHUR's numbers in the Prometheus text format: requests and

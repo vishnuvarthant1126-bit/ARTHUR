@@ -137,6 +137,22 @@ ruff check . ; ruff format --check .
   REPLACED by "not available" text – appending a note did not work with qwen3. Editing those
   prompt parts means editing the matching constant (a test checks they still match).
   `EMPTY_ANSWER` replaces a silent model reply. `av<19` is pinned (faster-whisper 1.2).
+- Status rail (Phase 25): `GET /status` (`app/api/routes/system.py`, ok/off/problem per part,
+  own timeout each); frontend `renderLamps(kind, label)` is called from `setStatus` - the
+  lamps and the pill can't disagree; `hud*` functions mirror plan/tool events; `loadSystem`.
+- Attachments (Phase 26): `app/agent/attachments.py` (`AttachmentStore` on app.state, RAM,
+  30 min; `attachment_section`, `history_note`), `POST /attachments`; chat/WS take
+  `attachments: [ids]`; orchestrator `_look_at` = vision first (as a describe_image event),
+  documents = whole pages ≤ 8,000 chars, no auto-RAG then; no planner with attachments.
+  Orchestrator(vision=...). Frontend: `attached`, `addFiles`, paste/drop handlers.
+- Agent (Phase 27, docs/AGENT.md): `Tool.parallel_safe` (read-only AND no shared state;
+  never browser/desktop/vision) → `ToolLoop` gathers; `ToolContext.sources` = every tool
+  result shown → `verification.unverified_sources` + `source_note`; history notes:
+  `Conversation.summary/summarized_until`, `_compress_later` waits
+  HISTORY_SUMMARY_DELAY_SECONDS (15) and is cancelled by a new message (writing at once
+  cost +2–4 s on the next two answers); `policy.prioritize` (ranked, dated, ≤1,200 chars).
+  Experiments that chat with ARTHUR must use a TEMP data dir (DATABASE_PATH,
+  VECTOR_STORE_PATH, DOCUMENTS_PATH) - a test once saved junk into the real memory.
 - `app/tools/` – `Tool` base (name, description, input_model, permission_level, timeout, run),
   `ToolRegistry.execute` (lookup → permission → validate → confirm → timeout → audit),
   tools: calculator (AST, no eval), current_time, weather (Open-Meteo), memory tools.
@@ -167,8 +183,8 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
 | 9 | Sat 2026-10-03 | 20–22: observability (Prometheus/Grafana), test suite, Locust load tests | ✅ Done (Thu 2026-10-01, same day as session 8, owner's request) |
 | 10 | Sun 2026-10-04 | 23–24: Docker Compose, performance | ✅ Done (Fri 2026-10-02) |
 | 10b | Fri 2026-10-02 | first real Docker run (checklist in docs/DOCKER.md) | ✅ Done (same day, after the owner installed Docker) |
-| 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | ⏭ Next |
-| 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | |
+| 11 | Mon 2026-10-05 | 25–27: futuristic UI, multimodal input, advanced agent features | ✅ Done |
+| 12 | Tue 2026-10-06 | 28–29: failure handling, final demo, full README/CONTRIBUTING/LICENSE | ⏭ Next |
 
 ## Docs
 - `docs/ARCHITECTURE.md` – full architecture, example flow, stack, hardware, design decisions.
@@ -254,8 +270,17 @@ One session per day. Dates are a guide, not a deadline – if a day is skipped, 
   Found: PyAV 19 broke transcription (unpinned deps → `av<19`), blank answer for missing
   tools (prompt now built from available tools + EMPTY_ANSWER). Open: browser build,
   SearXNG, a lock file, red Uptime tile in Grafana. /chat session ids need 8+ characters.
-- Phase 25–27 notes: UI work must keep the CSP (no inline scripts/styles, no external
-  deps) and the safe Markdown renderer; verify in the browser pane, mic needs Chrome.
-  Multimodal input: /vision/describe and describe_image exist – build on them (image in
-  chat, drag and drop). New prompt text must not go into the system prompt per message
-  (cache). Advanced agent features: summarise trimmed history is a known gap.
+- Session 11 done (Phases 25–27, commits 915eda7, a023e87, a8d0814): 767 tests, coverage
+  91 %. Verified live: lamps + task + system rail, phone overlay; screenshot of a
+  ModuleNotFoundError diagnosed (34 s cold, 21 s vision load); handbook PDF explained, page-4
+  injection ignored; weather in two cities ran in parallel; source check quiet on handbook,
+  python.org and weather answers (after the named-front-page rule); recall test 0/2 → 2/2.
+  Fixed: "Note 3 about…" saved as memory; 3 junk test memories deleted (owner's memory
+  untouched). Model sometimes cites "(Page 2)" instead of the exact form.
+- Phase 28–29 notes: failure handling list in the spec - LLM/internet unavailable, tool
+  failure, invalid args, timeout, bad document, unsupported file, mic unavailable, TTS
+  failure, database failure, model failure; much exists (classify_llm_error, ToolError,
+  DocumentError, micError) - make a table like docs/AGENT.md and test each with fakes
+  (Ollama off, DB locked, etc.). Final demo: a scripted walkthrough (docs/DEMO.md);
+  CONTRIBUTING, LICENSE (ask the owner which licence), README rewrite. GitHub remote
+  still not set up (owner).
