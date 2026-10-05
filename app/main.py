@@ -18,7 +18,7 @@ from app.agent.orchestrator import Orchestrator
 from app.api import websocket
 from app.api.errors import register_exception_handlers
 from app.api.middleware import RequestContextMiddleware
-from app.api.routes import chat, health, memory, reminders, tools, vision, voice
+from app.api.routes import chat, health, memory, reminders, system, tools, vision, voice
 from app.api.routes import documents as documents_routes
 from app.api.routes import metrics as metrics_routes
 from app.browser.agent import BrowserAgent
@@ -294,6 +294,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     register_exception_handlers(app)
     app.include_router(health.router)
+    app.include_router(system.router)
     app.include_router(chat.router)
     app.include_router(memory.router)
     app.include_router(documents_routes.router)

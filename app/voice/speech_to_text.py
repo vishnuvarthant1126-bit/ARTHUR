@@ -78,6 +78,11 @@ class WhisperSTT(SpeechToText):
         async with self._run_lock:
             return await asyncio.to_thread(self._transcribe, audio, language)
 
+    @property
+    def loaded(self) -> bool:
+        """Is the model in memory yet? (The status page shows it.)"""
+        return self._model is not None
+
     def warm_up(self) -> None:
         """Load the model now instead of on the first request."""
         self._get_model()

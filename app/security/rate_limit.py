@@ -34,8 +34,8 @@ def group_for(method: str, path: str) -> str | None:
         return "voice"
     if method not in ("GET", "HEAD", "OPTIONS"):
         return "write"
-    api = ("/memories", "/documents", "/reminders", "/tools", "/audit", "/health", "/vision",
-           "/metrics")  # fmt: skip
+    api = ("/memories", "/documents", "/reminders", "/tools", "/audit", "/health", "/status",
+           "/vision", "/metrics")  # fmt: skip
     return "read" if path.startswith(api) else None
 
 

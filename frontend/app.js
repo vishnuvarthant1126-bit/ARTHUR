@@ -17,6 +17,10 @@ const els = {
   remindersToggle: $("reminders-toggle"), remindersPanel: $("reminders-panel"), remindersClose: $("reminders-close"),
   reminderForm: $("reminder-form"), reminderText: $("reminder-text"), reminderWhen: $("reminder-when"),
   remindersStatus: $("reminders-status"), remindersList: $("reminders-list"), remindersEmpty: $("reminders-empty"),
+  hud: $("hud"), hudToggle: $("hud-toggle"), hudClose: $("hud-close"), hudNow: $("hud-now"),
+  hudMic: $("hud-mic"), hudModel: $("hud-model"), hudTaskTitle: $("hud-task-title"),
+  hudTaskGoal: $("hud-task-goal"), hudTask: $("hud-task"), hudTaskResult: $("hud-task-result"),
+  hudSystem: $("hud-system"), hudOverall: $("hud-overall"), hudUptime: $("hud-uptime"),
 };
 
 const state = {
@@ -44,6 +48,7 @@ function setStatus(kind, label) {
   els.status.dataset.state = kind;
   els.statusText.textContent = label;
   document.body.dataset.state = kind;
+  renderLamps(kind, label);
 }
 
 function refreshComposer() {
@@ -67,6 +72,7 @@ function connect() {
     setStatus("online", "Online");
     refreshComposer();
     loadHealth();
+    loadSystem();
   };
 
   ws.onmessage = (event) => handleEvent(JSON.parse(event.data));
@@ -88,6 +94,7 @@ async function loadHealth() {
     const res = await fetch("/health");
     const health = await res.json();
     els.model.textContent = `${health.llm.model} · ${health.llm.provider}`;
+    els.hudModel.textContent = health.llm.model;
     if (!health.llm.reachable) setStatus("offline", "Model offline");
   } catch { /* the WebSocket status already tells the story */ }
 }
@@ -108,12 +115,15 @@ function handleEvent(event) {
       break;
     case "tool":
       if (state.reply) showTool(event);
+      hudTool(event);
       break;
     case "plan":
       if (state.reply) showPlan(event);
+      hudPlan(event);
       break;
     case "step":
       if (state.reply) updateStep(event);
+      hudStep(event);
       break;
     case "token":
       if (!state.reply) return;
@@ -144,6 +154,7 @@ function send(text, { fromVoice = false } = {}) {
   stopSpeaking(); // a new question interrupts the previous answer
   els.empty.hidden = true;
   addMessage("user", text);
+  hudStartTask(text);
   startReply();
   state.ws.send(JSON.stringify({ type: "chat", message: text }));
   els.input.value = "";
@@ -200,6 +211,8 @@ function finishReply(info) {
     const seconds = (info.latency_ms / 1000).toFixed(1);
     reply.meta.textContent = `${info.model} · ${seconds}s${info.stopped ? " · stopped" : ""}`;
   }
+  hudFinishTask(info);
+  loadSystem(); // counts (memories, reminders...) may have changed
   endReply();
 }
 
@@ -266,6 +279,7 @@ function showTool(event) {
 }
 
 function failReply(message) {
+  hudFailTask(message);
   state.reply?.bubble.closest(".msg").remove();
   addError(message);
   endReply();
@@ -461,6 +475,7 @@ function stopWakeMode() {
   wake.ctx?.close();
   Object.assign(wake, { ctx: null, stream: null, node: null, inSpeech: false, clip: [], preroll: [] });
   els.wake.setAttribute("aria-pressed", "false");
+  renderLamps(els.status.dataset.state, els.statusText.textContent);
   if (!state.busy && !isSpeaking() && state.connected) setStatus("online", "Online");
 }
 
@@ -658,6 +673,7 @@ async function playSpeechQueue() {
     const url = await speech.queue.shift();
     if (!url || generation !== speech.generation) continue;
     if (!state.busy) setStatus("speaking", "Speaking…");
+    else renderLamps(els.status.dataset.state, els.statusText.textContent);
     await new Promise((resolve) => {
       const audio = new Audio(url);
       speech.audio = audio;
@@ -672,6 +688,7 @@ async function playSpeechQueue() {
     });
   }
   speech.playing = false;
+  renderLamps(els.status.dataset.state, els.statusText.textContent);
   speech.audio = null;
   if (!state.busy) idleStatus();
   refreshComposer();
@@ -1039,6 +1056,142 @@ function renderMarkdown(text) {
   ).join("");
 }
 
+// ---------- status rail (Phase 25) ----------
+// Five lamps for what ARTHUR is doing, the task in progress, and the health of every part.
+// Everything is set with textContent / dataset - names and arguments come from the model
+// and tools and are never treated as HTML.
+const hud = { tools: {}, steps: {}, systemTimer: null };
+const SYSTEM_REFRESH_MS = 20_000;
+
+function renderLamps(kind, label) {
+  const lamps = {};
+  for (const li of els.hud.querySelectorAll(".lamps li")) {
+    li.className = "";
+    lamps[li.dataset.lamp] = li;
+  }
+  if (kind === "offline") lamps.online.className = "bad";
+  else if (kind === "connecting") lamps.online.className = "wait";
+  else lamps.online.className = "on";
+  if (kind === "listening") lamps.listening.className = "on";
+  else if (kind === "waiting") lamps.listening.className = "idle";
+  if (kind === "thinking" || kind === "streaming") lamps.thinking.className = "on";
+  if (kind === "executing") lamps.executing.className = "on";
+  if (kind === "speaking" || (typeof speech !== "undefined" && isSpeaking())) lamps.speaking.className = "on";
+  if (kind !== "executing" || !els.hudNow.dataset.tool) els.hudNow.textContent = label;
+  if (kind !== "executing") delete els.hudNow.dataset.tool;
+  els.hudMic.textContent = micState();
+}
+
+function micState() {
+  if (typeof voice === "undefined" || typeof wake === "undefined") return "off";
+  if (voice.recorder) return "recording";
+  if (wake.enabled) return wake.phase === "command" ? "listening for your request" : "hands-free · say \u201cHey Arthur\u201d";
+  return "off";
+}
+
+function hudItem(status, what, detail = "") {
+  const item = document.createElement("li");
+  item.dataset.status = status;
+  const text = document.createElement("span");
+  const name = document.createElement("span");
+  name.className = "what";
+  name.textContent = what;
+  text.append(name, detail ? ` ${detail}` : "");
+  item.append(text);
+  els.hudTask.append(item);
+  return item;
+}
+
+function hudStartTask(text) {
+  hud.tools = {};
+  hud.steps = {};
+  els.hudTaskTitle.textContent = "Task · running";
+  els.hudTaskGoal.textContent = text.length > 140 ? `${text.slice(0, 140)}…` : text;
+  els.hudTask.replaceChildren();
+  els.hudTaskResult.textContent = "";
+}
+
+function hudPlan(event) {
+  els.hudTask.replaceChildren();
+  hud.steps = {};
+  for (const step of event.steps) hud.steps[step.id] = hudItem("pending", `${step.id}.`, step.task);
+}
+
+function hudStep(event) {
+  const item = hud.steps[event.id];
+  if (item) item.dataset.status = event.status;
+}
+
+function hudTool(event) {
+  const args = Object.values(event.arguments || {}).join(", ").slice(0, 80);
+  if (event.phase === "start") {
+    hud.tools[event.call_id] = hudItem("running", event.name, args ? `· ${args}` : "");
+    els.hudNow.dataset.tool = event.name;
+    els.hudNow.textContent = `⚙ ${event.name}${args ? ` · ${args}` : ""}`;
+    return;
+  }
+  const item = hud.tools[event.call_id];
+  if (item) {
+    item.dataset.status = event.status;
+    item.title = event.summary;
+  }
+}
+
+function hudFinishTask(info) {
+  const tools = Object.keys(hud.tools).length;
+  const seconds = (info.latency_ms / 1000).toFixed(1);
+  els.hudTaskTitle.textContent = info.stopped ? "Last task · stopped" : "Last task · done";
+  els.hudTaskResult.textContent =
+    `${seconds} s · ${tools ? `${tools} tool call${tools === 1 ? "" : "s"}` : "no tools needed"}`;
+}
+
+function hudFailTask(message) {
+  els.hudTaskTitle.textContent = "Last task · failed";
+  els.hudTaskResult.textContent = message;
+}
+
+function uptimeText(seconds) {
+  if (seconds < 60) return `${seconds} s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`;
+  return `${Math.floor(seconds / 3600)} h ${Math.floor((seconds % 3600) / 60)} min`;
+}
+
+async function loadSystem() {
+  clearTimeout(hud.systemTimer);
+  hud.systemTimer = setTimeout(loadSystem, SYSTEM_REFRESH_MS);
+  try {
+    const res = await fetch("/status");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const status = await res.json();
+    els.hudSystem.replaceChildren(...status.components.map((c) => {
+      const item = document.createElement("li");
+      item.dataset.state = c.state;
+      const lamp = document.createElement("span");
+      lamp.className = "lamp";
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = c.name;
+      const detail = document.createElement("span");
+      detail.className = "detail";
+      detail.textContent = c.state === "off" ? `off · ${c.detail}` : c.detail;
+      item.append(lamp, name, detail);
+      return item;
+    }));
+    els.hudOverall.dataset.state = status.overall;
+    els.hudOverall.textContent = status.overall === "ok" ? "All good" : "Needs attention";
+    els.hudUptime.textContent = `Running for ${uptimeText(status.uptime_seconds)}`;
+  } catch {
+    els.hudOverall.dataset.state = "problem";
+    els.hudOverall.textContent = "Unreachable";
+  }
+}
+
+function toggleHud(open = !els.hud.classList.contains("open")) {
+  els.hud.classList.toggle("open", open);
+  els.hudToggle.setAttribute("aria-expanded", String(open));
+  if (open) loadSystem();
+}
+
 // ---------- input handling ----------
 function autosize() {
   els.input.style.height = "auto";
@@ -1087,6 +1240,8 @@ els.docsClose.addEventListener("click", () => toggleDocsPanel(false));
 els.docsInput.addEventListener("change", () => uploadDocuments([...els.docsInput.files]));
 els.remindersToggle.addEventListener("click", () => toggleRemindersPanel());
 els.remindersClose.addEventListener("click", () => toggleRemindersPanel(false));
+els.hudToggle.addEventListener("click", () => toggleHud());
+els.hudClose.addEventListener("click", () => toggleHud(false));
 els.reminderForm.addEventListener("submit", (e) => { e.preventDefault(); addReminder(); });
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
@@ -1094,6 +1249,7 @@ document.addEventListener("keydown", (e) => {
   toggleDocsPanel(false);
   toggleVoicePanel(false);
   toggleRemindersPanel(false);
+  toggleHud(false);
   stopSpeaking();
 });
 document.querySelectorAll(".chip").forEach((chip) =>

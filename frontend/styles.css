@@ -26,7 +26,9 @@ body {
 }
 button { font: inherit; color: inherit; cursor: pointer; }
 
-.app { display: flex; flex-direction: column; height: 100dvh; max-width: 880px; margin: 0 auto; }
+/* Chat column + status rail (Phase 25). Below 1100px the rail becomes an overlay panel. */
+.shell { display: grid; grid-template-columns: minmax(0, 880px) 300px; justify-content: center; gap: 0 20px; }
+.app { display: flex; flex-direction: column; height: 100dvh; max-width: 880px; width: 100%; margin: 0 auto; min-width: 0; }
 
 /* ---------- header ---------- */
 .topbar {
@@ -252,3 +254,103 @@ body[data-state="speaking"] .core span { animation-duration: 1s; }
   .msg.arthur .core, .msg.error .core { display: none; }
 }
 .link-button { text-decoration: none; display: inline-block; }
+
+/* ---------- status rail (Phase 25) ---------- */
+.hud {
+  display: flex; flex-direction: column; gap: 14px; padding: 14px 0 16px;
+  height: 100dvh; overflow-y: auto;
+}
+.hud-card {
+  background: color-mix(in srgb, var(--panel) 85%, transparent);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px;
+  position: relative; overflow: hidden; flex: none; /* never squashed: the rail scrolls */
+}
+/* a thin scan line along the top edge of each card */
+.hud-card::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: .55;
+}
+.hud-card h2 {
+  margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--muted);
+}
+.hud-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.hud-head h2 { margin-bottom: 8px; }
+.hud-close, .hud-toggle { display: none; }
+
+.lamps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lamps li {
+  display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 8px;
+  font: 600 11.5px/1.4 var(--mono); letter-spacing: .16em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+  border: 1px solid transparent; transition: color .2s, border-color .2s, background .2s;
+}
+.lamp { width: 9px; height: 9px; border-radius: 50%; background: #2a3546; flex: none; transition: background .2s, box-shadow .2s; }
+.lamps li.on { color: var(--text); border-color: var(--border); background: var(--bg-2); }
+.lamps li[data-lamp="online"].on .lamp { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+.lamps li[data-lamp="online"].bad .lamp { background: var(--err); box-shadow: 0 0 10px var(--err); }
+.lamps li[data-lamp="online"].wait .lamp { background: var(--warn); animation: pulse 1s infinite; }
+.lamps li[data-lamp="listening"].on .lamp { background: var(--err); box-shadow: 0 0 10px var(--err); animation: pulse .8s infinite; }
+.lamps li[data-lamp="listening"].idle .lamp { background: var(--ok); opacity: .7; animation: pulse 2.4s infinite; }
+.lamps li[data-lamp="thinking"].on .lamp { background: var(--accent-2); box-shadow: 0 0 10px var(--accent-2); animation: pulse .9s infinite; }
+.lamps li[data-lamp="executing"].on .lamp { background: var(--warn); box-shadow: 0 0 10px var(--warn); animation: pulse .7s infinite; }
+.lamps li[data-lamp="speaking"].on .lamp { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: pulse 1s infinite; }
+
+.hud-now {
+  margin: 10px 0 8px; padding: 7px 9px; border-radius: 8px; background: var(--bg);
+  border: 1px solid var(--border); font: 12px/1.45 var(--mono); color: var(--accent);
+  overflow-wrap: anywhere; min-height: 2.6em;
+}
+.hud-facts { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 12.5px; }
+.hud-facts dt { color: var(--muted); }
+.hud-facts dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+
+.hud-task-goal { font-size: 13px; color: var(--text); overflow-wrap: anywhere; }
+.hud-task { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font: 12px/1.45 var(--mono); }
+.hud-task:empty { display: none; }
+.hud-task li { display: flex; gap: 7px; color: var(--muted); overflow-wrap: anywhere; }
+.hud-task li::before { content: "·"; width: 1em; flex: none; text-align: center; }
+.hud-task li[data-status="running"]::before { content: "◐"; color: var(--warn); }
+.hud-task li[data-status="running"] { color: var(--text); }
+.hud-task li[data-status="ok"]::before, .hud-task li[data-status="done"]::before { content: "✓"; color: var(--ok); }
+.hud-task li[data-status="failed"]::before, .hud-task li[data-status="error"]::before,
+.hud-task li[data-status="denied"]::before { content: "✕"; color: var(--err); }
+.hud-task li[data-status="needs_confirmation"]::before { content: "?"; color: var(--warn); }
+.hud-task li[data-status="skipped"]::before { content: "–"; }
+.hud-task li .what { color: var(--text); }
+.hud-task-result { margin-top: 8px; font-size: 12px; }
+.hud-task-result:empty { display: none; }
+
+.hud-system { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.hud-system li { display: grid; grid-template-columns: 10px 1fr; gap: 0 9px; align-items: baseline; font-size: 12.5px; }
+.hud-system .lamp { width: 8px; height: 8px; align-self: center; }
+.hud-system li[data-state="ok"] .lamp { background: var(--ok); box-shadow: 0 0 7px var(--ok); }
+.hud-system li[data-state="off"] .lamp { background: #3a4659; }
+.hud-system li[data-state="problem"] .lamp { background: var(--err); box-shadow: 0 0 7px var(--err); animation: pulse 1.2s infinite; }
+.hud-system .name { color: var(--text); }
+.hud-system .detail { grid-column: 2; color: var(--muted); font-size: 11.5px; overflow-wrap: anywhere; }
+.hud-system li[data-state="problem"] .detail { color: #ffb4b4; }
+.hud-overall { font: 600 10.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.hud-overall[data-state="ok"] { color: var(--ok); }
+.hud-overall[data-state="problem"] { color: var(--err); }
+.hud-uptime { margin-top: 10px; font-size: 11.5px; }
+
+@media (max-width: 1099px) {
+  .shell { display: block; }
+  .hud-toggle, .hud-close { display: inline-block; }
+  #hud-toggle[aria-expanded="true"] { color: var(--text); border-color: var(--accent); }
+  .hud {
+    display: none; position: fixed; z-index: 20; top: 64px; right: 16px;
+    width: min(320px, calc(100% - 32px)); height: auto; max-height: calc(100dvh - 150px);
+    padding: 10px; gap: 10px; background: var(--bg); border: 1px solid var(--border);
+    box-shadow: 0 18px 50px rgba(0,0,0,.5); border-radius: var(--radius);
+  }
+  .hud.open { display: flex; }
+}
+@media (max-width: 560px) {
+  /* one row of buttons that scrolls sideways, instead of four wrapped rows */
+  .topbar { gap: 8px; }
+  .topbar-actions { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .topbar-actions > * { flex: none; }
+  .hud { top: 60px; }
+}

@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+ <div class="shell">
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -24,6 +25,7 @@
         <button id="docs-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="docs-panel">Docs</button>
         <button id="reminders-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="reminders-panel">Reminders</button>
         <button id="memory-toggle" class="ghost" type="button" aria-expanded="false" aria-controls="memory-panel">Memory</button>
+        <button id="hud-toggle" class="ghost hud-toggle" type="button" aria-expanded="false" aria-controls="hud">Status</button>
         <a class="ghost link-button" href="/dashboard.html" title="Counts and timings">Stats</a>
         <button id="clear" class="ghost" type="button" title="Clear conversation">Clear</button>
       </div>
@@ -127,6 +129,43 @@
       </button>
     </form>
   </div>
+
+  <!-- Phase 25: what ARTHUR is doing right now, the current task, and the health of every part. -->
+  <aside id="hud" class="hud" aria-label="ARTHUR status">
+    <section class="hud-card">
+      <div class="hud-head">
+        <h2>Status</h2>
+        <button id="hud-close" class="ghost hud-close" type="button" aria-label="Close status panel">✕</button>
+      </div>
+      <ul class="lamps" aria-label="Activity">
+        <li data-lamp="online"><span class="lamp"></span><span>Online</span></li>
+        <li data-lamp="listening"><span class="lamp"></span><span>Listening</span></li>
+        <li data-lamp="thinking"><span class="lamp"></span><span>Thinking</span></li>
+        <li data-lamp="executing"><span class="lamp"></span><span>Executing</span></li>
+        <li data-lamp="speaking"><span class="lamp"></span><span>Speaking</span></li>
+      </ul>
+      <p id="hud-now" class="hud-now" role="status" aria-live="polite">Connecting…</p>
+      <dl class="hud-facts">
+        <dt>Microphone</dt><dd id="hud-mic">off</dd>
+        <dt>Model</dt><dd id="hud-model">–</dd>
+      </dl>
+    </section>
+    <section class="hud-card">
+      <h2 id="hud-task-title">Task</h2>
+      <p id="hud-task-goal" class="hud-task-goal subtle">No task yet.</p>
+      <ol id="hud-task" class="hud-task"></ol>
+      <p id="hud-task-result" class="subtle hud-task-result"></p>
+    </section>
+    <section class="hud-card">
+      <div class="hud-head">
+        <h2>System</h2>
+        <span id="hud-overall" class="hud-overall" data-state="unknown">…</span>
+      </div>
+      <ul id="hud-system" class="hud-system"></ul>
+      <p id="hud-uptime" class="subtle hud-uptime"></p>
+    </section>
+  </aside>
+ </div>
   <script src="app.js"></script>
 </body>
 </html>
