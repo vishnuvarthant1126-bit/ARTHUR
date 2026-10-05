@@ -24,6 +24,13 @@ from collections.abc import AsyncIterator
 
 from pydantic import BaseModel, Field
 
+from app.agent.attachments import (
+    MAX_DOCUMENT_CHARS,
+    VISION_QUESTION,
+    Attachment,
+    attachment_section,
+    history_note,
+)
 from app.agent.executor import AgentLimits, PlanExecutor, PlanLimits, ToolLoop
 from app.agent.planner import Plan, Planner, looks_complex
 from app.agent.prompts import SYNTHESIS_PROMPT, SYSTEM_PROMPT, context_block, system_prompt
@@ -34,6 +41,7 @@ from app.agent.state import (
     TaskState,
     TextEvent,
     ToolEndEvent,
+    ToolStartEvent,
 )
 from app.agent.verification import (
     CORRECTION,
@@ -51,6 +59,7 @@ from app.rag.retrieval import DocumentHit, DocumentRetriever
 from app.tools.base import PermissionLevel, ToolContext
 from app.tools.registry import ToolRegistry
 from app.utils.tokens import estimate_message_tokens, estimate_tokens
+from app.vision.provider import VisionProvider
 
 log = get_logger(__name__)
 
@@ -128,8 +137,10 @@ class Orchestrator:
         rag_top_k: int = 5,
         rag_min_score: float = 0.58,
         metrics: Metrics | None = None,
+        vision: VisionProvider | None = None,
     ) -> None:
         self.llm = llm
+        self.vision = vision
         self.metrics = metrics
         self.conversations = conversations
         self.memory = memory
@@ -169,13 +180,20 @@ class Orchestrator:
     # ---------- public API ----------
 
     async def events(
-        self, session_id: str, user_text: str, request_id: str | None = None
+        self,
+        session_id: str,
+        user_text: str,
+        request_id: str | None = None,
+        attachments: list[Attachment] | None = None,
     ) -> AsyncIterator[AgentEvent]:
-        """Handle one user message, reporting progress as events."""
+        """Handle one user message (with any attached files), reporting progress as events."""
         conversation = self.conversations.get(session_id)
         parts: list[str] = []
+        seen: dict[str, str | None] = {}  # attachment id -> what the vision model saw
         try:
-            async for event in self._turn(conversation, user_text, request_id):
+            async for event in self._turn(
+                conversation, user_text, request_id, attachments or [], seen
+            ):
                 if isinstance(event, TextEvent):
                     parts.append(event.text)
                 yield event
@@ -184,16 +202,21 @@ class Orchestrator:
             # so the next turn ("continue") has the context. Nothing is saved if
             # the model failed before producing any text.
             if parts:
-                conversation.add_exchange(user_text, _for_history("".join(parts).strip()))
+                asked = user_text + history_note(attachments or [], seen)
+                conversation.add_exchange(asked, _for_history("".join(parts).strip()))
 
     async def respond(
-        self, session_id: str, user_text: str, request_id: str | None = None
+        self,
+        session_id: str,
+        user_text: str,
+        request_id: str | None = None,
+        attachments: list[Attachment] | None = None,
     ) -> AgentReply:
         """Handle one user message and return the complete reply."""
         start = time.perf_counter()
         parts: list[str] = []
         tools_used: list[ToolEndEvent] = []
-        async for event in self.events(session_id, user_text, request_id):
+        async for event in self.events(session_id, user_text, request_id, attachments):
             if isinstance(event, TextEvent):
                 parts.append(event.text)
             elif isinstance(event, ToolEndEvent):
@@ -211,6 +234,7 @@ class Orchestrator:
         user_text: str,
         memories: list[MemorySearchResult] | None = None,
         passages: list[DocumentHit] | None = None,
+        attachments: list[str] | None = None,
     ) -> list[Message]:
         """The prompt, ordered so that as much as possible stays identical between turns:
 
@@ -225,6 +249,7 @@ class Orchestrator:
             [m.memory.content for m in memories or []],
             # None = the user has no documents at all
             None if passages is None else [(p.citation, p.text) for p in passages],
+            attachments,
         )
         user = Message(role=Role.USER, content=context + user_text)
         # Budget for history = window - room for the reply - everything else in the prompt.
@@ -279,9 +304,25 @@ class Orchestrator:
     # ---------- decision making ----------
 
     async def _turn(
-        self, conversation: Conversation, user_text: str, request_id: str | None
+        self,
+        conversation: Conversation,
+        user_text: str,
+        request_id: str | None,
+        attachments: list[Attachment],
+        seen: dict[str, str | None],
     ) -> AsyncIterator[AgentEvent]:
-        prepared = await self._prepare(conversation, user_text)
+        sections: list[str] = []
+        budget = MAX_DOCUMENT_CHARS
+        for attachment in attachments:
+            if attachment.kind == "image":
+                async for event in self._look_at(attachment, user_text, seen):
+                    yield event
+            section = attachment_section(attachment, seen.get(attachment.id), budget)
+            if attachment.kind == "document":
+                budget = max(budget - len(section), 600)
+            sections.append(section)
+
+        prepared = await self._prepare(conversation, user_text, sections)
         if isinstance(prepared, str):  # ARTHUR answers directly (memory action, yes/no)
             yield TextEvent(text=prepared)
             return
@@ -293,7 +334,8 @@ class Orchestrator:
 
         context = ToolContext(request_id=request_id, session_id=conversation.session_id)
         work = self.loop.run(prepared, context)
-        if self.planner and looks_complex(user_text):
+        # A plan's steps would not see the attached files: answer them in one go.
+        if self.planner and not attachments and looks_complex(user_text):
             started = time.perf_counter()
             plan = await self.planner.make_plan(user_text)
             if self.metrics is not None:  # an extra model call before the answer starts
@@ -302,6 +344,38 @@ class Orchestrator:
                 work = self._run_plan(plan, prepared, user_text, context)
         async for event in self._supervise(work, conversation):
             yield event
+
+    async def _look_at(
+        self, attachment: Attachment, user_text: str, seen: dict[str, str | None]
+    ) -> AsyncIterator[AgentEvent]:
+        """Show an attached picture to the vision model, with the user's question.
+
+        Reported like a tool call, so the page shows "describe_image" while it works
+        (the first time ~10-30 s: the two models take turns in the GPU).
+        """
+        call_id = f"attachment-{attachment.id[:8]}"
+        yield ToolStartEvent(
+            call_id=call_id, name="describe_image", arguments={"picture": attachment.name}
+        )
+        started = time.perf_counter()
+        description, status, summary = None, "error", "vision is switched off"
+        if self.vision is not None and attachment.image is not None:
+            try:
+                description = await self.vision.describe(
+                    attachment.image, VISION_QUESTION.format(question=user_text[:500])
+                )
+                status, summary = "ok", description[:120]
+            except Exception as exc:  # a broken picture must not end the conversation
+                log.warning("attachment_vision_failed", error=str(exc)[:200])
+                summary = "the vision model could not look at it"
+        seen[attachment.id] = description
+        yield ToolEndEvent(
+            call_id=call_id,
+            name="describe_image",
+            status=status,
+            summary=summary,
+            duration_ms=round((time.perf_counter() - started) * 1000, 1),
+        )
 
     async def _run_plan(
         self, plan: Plan, prepared: list[Message], user_text: str, context: ToolContext
@@ -364,14 +438,16 @@ class Orchestrator:
             log.warning("hallucinated_action_claim")
             yield TextEvent(text=CORRECTION)
 
-    async def _prepare(self, conversation: Conversation, user_text: str) -> str | list[Message]:
+    async def _prepare(
+        self, conversation: Conversation, user_text: str, attachments: list[str] | None = None
+    ) -> str | list[Message]:
         """Return either a direct reply (str) or the messages to send to the LLM."""
         if conversation.pending:
             reply = await self._resolve_pending(conversation, user_text)
             if reply is not None:
                 return reply
 
-        if self.memory is not None:
+        if self.memory is not None and not attachments:
             match policy.detect_intent(user_text):
                 case policy.MemoryIntent.REMEMBER:
                     return await self._remember(user_text)
@@ -379,12 +455,18 @@ class Orchestrator:
                     return await self._forget(conversation, user_text)
 
         started = time.perf_counter()
+        # An attached document is already in the message: no automatic passages on top.
+        with_document = any("Attached document" in s for s in attachments or [])
         memories, passages = await asyncio.gather(
-            self._recall(user_text), self._recall_documents(user_text)
+            self._recall(user_text),
+            self._no_passages() if with_document else self._recall_documents(user_text),
         )
         if self.metrics is not None:
             self.metrics.chat_stage.labels("recall").observe(time.perf_counter() - started)
-        return self.build_messages(conversation, user_text, memories, passages)
+        return self.build_messages(conversation, user_text, memories, passages, attachments)
+
+    async def _no_passages(self) -> None:
+        return None
 
     async def _recall_documents(self, user_text: str) -> list[DocumentHit] | None:
         """Automatic RAG: relevant passages from the user's documents (None = no documents)."""

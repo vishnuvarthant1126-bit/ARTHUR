@@ -11,6 +11,8 @@ Protocol (every frame is one JSON object with a "type"):
 
   browser -> server
     {"type": "chat", "message": "Hello Arthur"}
+    {"type": "chat", "message": "What is wrong here?", "attachments": ["<id>"]}
+                                         ids from POST /attachments
     {"type": "stop"}                     cancel the answer in progress
     {"type": "clear"}                    forget this conversation
     {"type": "ping"}                     keep-alive / latency check
@@ -48,6 +50,7 @@ import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
+from app.agent.attachments import Attachment, AttachmentError
 from app.agent.orchestrator import Orchestrator
 from app.agent.state import (
     ConfirmationEvent,
@@ -190,8 +193,13 @@ class ChatSession:
                         "rate_limited", f"Too many messages - try again in {round(wait)} seconds."
                     )
                     return
+                try:
+                    files = self.ws.app.state.attachments.resolve(message.attachments)
+                except AttachmentError as exc:
+                    await self._send_error("attachment_expired", str(exc))
+                    return
                 # Run the reply as a background task so we keep listening for "stop".
-                self.reply_task = asyncio.create_task(self._reply(message.message))
+                self.reply_task = asyncio.create_task(self._reply(message.message, files))
             case StopIn():
                 await self._cancel_reply()
             case ClearIn():
@@ -209,7 +217,7 @@ class ChatSession:
             with contextlib.suppress(asyncio.CancelledError):
                 await self.reply_task
 
-    async def _reply(self, user_message: str) -> None:
+    async def _reply(self, user_message: str, files: list[Attachment] | None = None) -> None:
         request_id = uuid4().hex[:12]
         structlog.contextvars.bind_contextvars(request_id=request_id, path="/ws")
         await self._send({"type": "status", "state": "thinking", "request_id": request_id})
@@ -223,7 +231,7 @@ class ChatSession:
             # aclosing() guarantees the stream's cleanup (saving the answer) runs
             # immediately, even when we're cancelled between two events.
             async with contextlib.aclosing(
-                self.orchestrator.events(self.session_id, user_message, request_id)
+                self.orchestrator.events(self.session_id, user_message, request_id, files)
             ) as events:
                 async for event in events:
                     if isinstance(event, TextEvent):

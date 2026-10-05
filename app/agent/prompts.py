@@ -187,7 +187,11 @@ def memory_section(facts: list[str]) -> str:
     return f"\nLong-term memory (things the user asked you to remember):\n{lines}\n"
 
 
-def context_block(facts: list[str], passages: list[tuple[str, str]] | None) -> str:
+def context_block(
+    facts: list[str],
+    passages: list[tuple[str, str]] | None,
+    attachments: list[str] | None = None,
+) -> str:
     """Memories and document passages for ONE message, placed in front of that message.
 
     Why not in the system prompt (where they used to be)? The model reads the prompt from
@@ -197,12 +201,13 @@ def context_block(facts: list[str], passages: list[tuple[str, str]] | None) -> s
     and the model re-reads everything (measured: +1.3 s per message). At the END of the
     prompt, only this small block is new.
 
-    `passages=None` means the user has no documents at all. Returns "" if there is
-    nothing to add.
+    `passages=None` means the user has no documents at all. `attachments` are files sent
+    with this message (app/agent/attachments.py). Returns "" if there is nothing to add.
     """
     body = memory_section(facts)
     if passages is not None:
         body += document_section(passages)
+    body += "".join(attachments or [])
     if not body:
         return ""
     # A document must not be able to "close" the block and pose as the user.

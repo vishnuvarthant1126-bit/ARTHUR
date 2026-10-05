@@ -21,6 +21,7 @@ const els = {
   hudMic: $("hud-mic"), hudModel: $("hud-model"), hudTaskTitle: $("hud-task-title"),
   hudTaskGoal: $("hud-task-goal"), hudTask: $("hud-task"), hudTaskResult: $("hud-task-result"),
   hudSystem: $("hud-system"), hudOverall: $("hud-overall"), hudUptime: $("hud-uptime"),
+  attach: $("attach"), attachInput: $("attach-input"), attachments: $("attachments"),
 };
 
 const state = {
@@ -53,7 +54,8 @@ function setStatus(kind, label) {
 
 function refreshComposer() {
   const stoppable = state.busy || isSpeaking();
-  els.send.disabled = !stoppable && (!state.connected || !els.input.value.trim());
+  const hasFiles = typeof attached !== "undefined" && attached.items.some((a) => a.status === "ready");
+  els.send.disabled = !stoppable && (!state.connected || (!els.input.value.trim() && !hasFiles));
   els.send.classList.toggle("stop", stoppable);
   els.send.setAttribute("aria-label", stoppable ? "Stop" : "Send");
 }
@@ -149,14 +151,22 @@ function handleEvent(event) {
 
 // ---------- conversation ----------
 function send(text, { fromVoice = false } = {}) {
-  if (!state.connected || state.busy || !text) return;
+  const files = attached.items.filter((a) => a.status === "ready");
+  if (!state.connected || state.busy || (!text && !files.length)) return;
+  if (attached.items.some((a) => a.status === "uploading")) {
+    addError("Still uploading the attached file - send again in a moment.");
+    return;
+  }
+  if (!text) text = files.some((f) => f.kind === "image") ? "What can you tell me about this picture?" : "Please summarise this document.";
   state.lastInputWasVoice = fromVoice; // decides whether the reply is spoken ("When I talk")
   stopSpeaking(); // a new question interrupts the previous answer
   els.empty.hidden = true;
-  addMessage("user", text);
+  const { body } = addMessage("user", text);
+  if (files.length) body.append(sentFiles(files));
   hudStartTask(text);
   startReply();
-  state.ws.send(JSON.stringify({ type: "chat", message: text }));
+  state.ws.send(JSON.stringify({ type: "chat", message: text, attachments: files.map((f) => f.id) }));
+  clearAttachments({ keepPreviews: true });
   els.input.value = "";
   autosize();
 }
@@ -1056,6 +1066,115 @@ function renderMarkdown(text) {
   ).join("");
 }
 
+// ---------- attachments (Phase 26) ----------
+// Pictures, screenshots (paste with Ctrl+V) and documents. Each file is uploaded at once
+// (POST /attachments) so sending is instant; the chat message carries only the ids.
+const attached = { items: [] };
+const MAX_ATTACHMENTS = 4;
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|webp|gif|bmp)$/i;
+
+function isImageFile(file) {
+  return file.type.startsWith("image/") || IMAGE_EXTENSIONS.test(file.name);
+}
+
+async function addFiles(files) {
+  for (const file of files) {
+    if (attached.items.length >= MAX_ATTACHMENTS) {
+      addError(`At most ${MAX_ATTACHMENTS} files per message.`);
+      break;
+    }
+    const image = isImageFile(file);
+    const item = {
+      id: null, status: "uploading", kind: image ? "image" : "document",
+      name: file.name || "screenshot.png", detail: "uploading…",
+      preview: image ? URL.createObjectURL(file) : null,
+    };
+    attached.items.push(item);
+    renderAttachments();
+    uploadAttachment(item, file);
+  }
+}
+
+async function uploadAttachment(item, file) {
+  const form = new FormData();
+  form.append("file", file, item.name);
+  try {
+    const res = await fetch("/attachments", { method: "POST", body: form });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || body.error?.message || `upload failed (${res.status})`);
+    Object.assign(item, { id: body.id, name: body.name, detail: body.detail, status: "ready" });
+  } catch (error) {
+    Object.assign(item, { status: "failed", detail: error.message || "upload failed" });
+  }
+  renderAttachments();
+  refreshComposer();
+}
+
+function attachmentChip(item, { removable }) {
+  const chip = document.createElement("li");
+  chip.className = "attachment";
+  chip.dataset.status = item.status;
+  if (item.preview) {
+    const img = document.createElement("img");
+    img.src = item.preview; // a blob: URL of the user's own file
+    img.alt = "";
+    chip.append(img);
+  } else {
+    const icon = document.createElement("span");
+    icon.className = "doc-icon";
+    icon.textContent = (item.name.split(".").pop() || "DOC").slice(0, 4).toUpperCase();
+    chip.append(icon);
+  }
+  const text = document.createElement("span");
+  text.className = "text";
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = item.name;
+  name.title = item.name;
+  const detail = document.createElement("span");
+  detail.className = "detail";
+  detail.textContent = item.detail;
+  text.append(name, detail);
+  chip.append(text);
+  if (removable) {
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "✕";
+    remove.setAttribute("aria-label", `Remove ${item.name}`);
+    remove.addEventListener("click", () => removeAttachment(item));
+    chip.append(remove);
+  }
+  return chip;
+}
+
+function renderAttachments() {
+  els.attachments.replaceChildren(...attached.items.map((item) => attachmentChip(item, { removable: true })));
+  els.attachments.hidden = attached.items.length === 0;
+}
+
+function sentFiles(files) {
+  const list = document.createElement("ul");
+  list.className = "sent-files";
+  list.append(...files.map((item) => attachmentChip(item, { removable: false })));
+  return list;
+}
+
+function removeAttachment(item) {
+  if (item.preview) URL.revokeObjectURL(item.preview);
+  attached.items = attached.items.filter((a) => a !== item);
+  renderAttachments();
+  refreshComposer();
+}
+
+function clearAttachments({ keepPreviews = false } = {}) {
+  // Sent pictures keep their preview: the user's message still shows it.
+  for (const a of attached.items) {
+    if (a.preview && (!keepPreviews || a.status !== "ready")) URL.revokeObjectURL(a.preview);
+  }
+  attached.items = [];
+  renderAttachments();
+}
+
 // ---------- status rail (Phase 25) ----------
 // Five lamps for what ARTHUR is doing, the task in progress, and the health of every part.
 // Everything is set with textContent / dataset - names and arguments come from the model
@@ -1241,6 +1360,31 @@ els.docsInput.addEventListener("change", () => uploadDocuments([...els.docsInput
 els.remindersToggle.addEventListener("click", () => toggleRemindersPanel());
 els.remindersClose.addEventListener("click", () => toggleRemindersPanel(false));
 els.hudToggle.addEventListener("click", () => toggleHud());
+els.attach.addEventListener("click", () => els.attachInput.click());
+els.attachInput.addEventListener("change", () => {
+  addFiles([...els.attachInput.files]);
+  els.attachInput.value = ""; // the same file can be attached again later
+});
+// Ctrl+V of a screenshot (or a copied file) attaches it; ordinary text pastes as usual.
+document.addEventListener("paste", (e) => {
+  const files = [...(e.clipboardData?.files || [])];
+  if (!files.length) return;
+  e.preventDefault();
+  addFiles(files);
+});
+// Drag and drop anywhere on the page.
+document.addEventListener("dragover", (e) => {
+  if (![...e.dataTransfer.types].includes("Files")) return;
+  e.preventDefault();
+  document.body.classList.add("dropping");
+});
+document.addEventListener("dragleave", (e) => { if (!e.relatedTarget) document.body.classList.remove("dropping"); });
+document.addEventListener("drop", (e) => {
+  document.body.classList.remove("dropping");
+  if (!e.dataTransfer.files.length) return;
+  e.preventDefault();
+  addFiles([...e.dataTransfer.files]);
+});
 els.hudClose.addEventListener("click", () => toggleHud(false));
 els.reminderForm.addEventListener("submit", (e) => { e.preventDefault(); addReminder(); });
 document.addEventListener("keydown", (e) => {

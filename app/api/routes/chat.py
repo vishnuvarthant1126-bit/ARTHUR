@@ -4,10 +4,13 @@ Pass the returned `session_id` back on the next request and ARTHUR
 remembers the conversation. Omit it to start a new one.
 """
 
+from typing import Annotated
+
 import structlog
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 
+from app.agent.attachments import ATTACHMENT_ID, MAX_PER_MESSAGE, AttachmentError
 from app.api.dependencies import SESSION_ID_PATTERN, OrchestratorDep, new_session_id
 from app.observability.logging import get_logger
 
@@ -19,6 +22,10 @@ MAX_MESSAGE_CHARS = 8000
 
 class MessageIn(BaseModel):
     message: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS, examples=["Hello Arthur"])
+    # ids from POST /attachments (pictures, screenshots, documents for THIS message)
+    attachments: list[Annotated[str, Field(pattern=ATTACHMENT_ID)]] = Field(
+        default_factory=list, max_length=MAX_PER_MESSAGE
+    )
 
     @field_validator("message")
     @classmethod
@@ -53,7 +60,11 @@ async def chat(body: ChatRequest, orchestrator: OrchestratorDep, request: Reques
     request_id = structlog.contextvars.get_contextvars().get("request_id")
     metrics = getattr(request.app.state, "metrics", None)
     try:
-        result = await orchestrator.respond(session_id, body.message, request_id)
+        files = request.app.state.attachments.resolve(body.attachments)
+    except AttachmentError as exc:
+        raise HTTPException(status.HTTP_410_GONE, str(exc)) from exc
+    try:
+        result = await orchestrator.respond(session_id, body.message, request_id, files)
     except Exception:
         if metrics is not None:
             metrics.chat_turns.labels("http", "error").inc()

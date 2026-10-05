@@ -354,3 +354,30 @@ body[data-state="speaking"] .core span { animation-duration: 1s; }
   .topbar-actions > * { flex: none; }
   .hud { top: 60px; }
 }
+
+/* ---------- attachments (Phase 26) ---------- */
+.visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.attachments {
+  list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 16px 8px; padding: 0;
+}
+.attachment {
+  display: flex; align-items: center; gap: 8px; max-width: 260px; padding: 5px 6px 5px 5px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px; font-size: 12.5px;
+}
+.attachment img, .attachment .doc-icon {
+  width: 34px; height: 34px; flex: none; border-radius: 6px; object-fit: cover; background: var(--bg-2);
+}
+.attachment .doc-icon { display: grid; place-items: center; color: var(--accent); font: 600 10px var(--mono); }
+.attachment .text { min-width: 0; display: flex; flex-direction: column; }
+.attachment .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.attachment .detail { color: var(--muted); font-size: 11px; }
+.attachment[data-status="uploading"] .detail { color: var(--warn); }
+.attachment[data-status="failed"] { border-color: rgba(255,107,107,.5); }
+.attachment[data-status="failed"] .detail { color: var(--err); }
+.attachment button { background: none; border: 0; color: var(--muted); padding: 2px 4px; flex: none; }
+.attachment button:hover { color: var(--err); }
+/* the same chips, read-only, under the user's message */
+.msg.user .sent-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 6px; padding: 0; list-style: none; }
+.msg.user .sent-files .attachment { background: var(--user); border-color: transparent; }
+.msg.user .sent-files img { width: 120px; height: auto; max-height: 120px; object-fit: contain; }
+body.dropping .composer { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }

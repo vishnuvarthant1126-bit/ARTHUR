@@ -28,7 +28,7 @@ def group_for(method: str, path: str) -> str | None:
     """Which limit applies to this request (None = not limited: the web page's own files)."""
     if method == "POST" and path == "/chat":
         return "chat"
-    if method == "POST" and path.startswith(("/documents", "/vision")):
+    if method == "POST" and path.startswith(("/documents", "/vision", "/attachments")):
         return "upload"
     if path.startswith("/voice"):
         return "voice"

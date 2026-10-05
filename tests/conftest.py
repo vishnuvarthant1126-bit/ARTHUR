@@ -333,7 +333,13 @@ def _app_with(llm: LLMProvider):
         document_min_score=0.2,
     )
     app.state.orchestrator = build_orchestrator(
-        llm, TEST_SETTINGS, memory_manager, app.state.tools, retriever, app.state.metrics
+        llm,
+        TEST_SETTINGS,
+        memory_manager,
+        app.state.tools,
+        retriever,
+        app.state.metrics,
+        app.state.vision,
     )
     return app
 

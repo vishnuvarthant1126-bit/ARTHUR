@@ -13,12 +13,23 @@ import httpx
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.agent.attachments import AttachmentStore
 from app.agent.executor import AgentLimits, PlanLimits
 from app.agent.orchestrator import Orchestrator
 from app.api import websocket
 from app.api.errors import register_exception_handlers
 from app.api.middleware import RequestContextMiddleware
-from app.api.routes import chat, health, memory, reminders, system, tools, vision, voice
+from app.api.routes import (
+    attachments,
+    chat,
+    health,
+    memory,
+    reminders,
+    system,
+    tools,
+    vision,
+    voice,
+)
 from app.api.routes import documents as documents_routes
 from app.api.routes import metrics as metrics_routes
 from app.browser.agent import BrowserAgent
@@ -49,7 +60,7 @@ from app.security.permissions import PermissionPolicy
 from app.security.rate_limit import RateLimiter
 from app.tools.defaults import create_tool_registry
 from app.tools.registry import ToolRegistry
-from app.vision.provider import OllamaVision
+from app.vision.provider import OllamaVision, VisionProvider
 from app.voice.speech_to_text import WhisperSTT
 from app.voice.text_to_speech import PiperTTS
 
@@ -65,6 +76,7 @@ def build_orchestrator(
     tools: ToolRegistry | None = None,
     retriever: DocumentRetriever | None = None,
     metrics: Metrics | None = None,
+    vision: VisionProvider | None = None,
 ) -> Orchestrator:
     conversations = ConversationStore(
         max_sessions=settings.memory_max_sessions,
@@ -89,6 +101,7 @@ def build_orchestrator(
         rag_top_k=settings.rag_top_k,
         rag_min_score=settings.rag_min_score,
         metrics=metrics,
+        vision=vision,
     )
 
 
@@ -200,7 +213,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         document_min_score=settings.rag_min_score,
     )
     app.state.orchestrator = build_orchestrator(
-        llm, settings, memory_manager, app.state.tools, retriever, metrics
+        llm, settings, memory_manager, app.state.tools, retriever, metrics, vision
     )
     app.state.stt = WhisperSTT(
         settings.whisper_model,
@@ -288,6 +301,7 @@ def create_app() -> FastAPI:
     # Front-door checks (see app/api/middleware.py); set here so they also apply in tests.
     app.state.allowed_hosts = settings.extra_hosts
     app.state.metrics = Metrics()
+    app.state.attachments = AttachmentStore()  # files attached to chat messages (RAM)
     app.state.rate_limiter = RateLimiter(
         {"chat": settings.rate_limit_chat_per_minute}, enabled=settings.rate_limit_enabled
     )
@@ -301,6 +315,7 @@ def create_app() -> FastAPI:
     app.include_router(tools.router)
     app.include_router(voice.router)
     app.include_router(vision.router)
+    app.include_router(attachments.router)
     app.include_router(reminders.router)
     app.include_router(metrics_routes.router)
     app.include_router(websocket.router)
