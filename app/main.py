@@ -4,6 +4,7 @@ Run with:  uvicorn app.main:app --reload
 """
 
 import asyncio
+import contextlib
 import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -266,6 +267,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await scheduler.stop()
     app.state.orchestrator.stop_background()
     warm_up.cancel()
+    # Collect the result, or Python prints "exception was never retrieved" at shutdown.
+    with contextlib.suppress(asyncio.CancelledError, Exception):
+        await warm_up
     if model_warm_up is not None:
         model_warm_up.cancel()
     if browser is not None:
