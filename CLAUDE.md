@@ -30,8 +30,11 @@ learning and portfolio project. The owner is a beginner/intermediate developer.
 - Docker Desktop 29.8 installed (2 Oct 2026). `docker compose up -d --build` runs ARTHUR on
   :8000 with `restart: unless-stopped` – it then BLOCKS port 8000 for uvicorn; check
   `docker ps` and `docker compose down` before starting the dev server. `.env` has TZ.
-- GitHub remote not set up yet (owner creates an EMPTY repo, then `git remote add origin
-  <url>` + `git push -u origin main`). Licence: MIT (chosen 2026-10-05).
+- GitHub: https://github.com/vishnuvarthant1126-bit/ARTHUR (public, MIT). `git push` works
+  with the saved Windows credential. Licence: MIT (chosen 2026-10-05).
+- Tailscale (2026-10-05): PC `vishnu.taildc2b8e.ts.net` + the owner's iPhone. `tailscale serve
+  --bg 8000` (HTTPS, tailnet only) → ARTHUR; `.env` ALLOWED_HOSTS has that name; the CSP adds
+  wss://<name> automatically. Off: `tailscale serve --https=443 off`. Never expose publicly.
 
 ## Commands
 ```powershell
