@@ -208,6 +208,10 @@ uvicorn app.main:app --reload
 
 The models load in the background at start-up, so the first answer takes ~0.6 s instead of ~12 s.
 
+**Windows shortcut:** double-click `start_arthur.bat` (it does nothing if ARTHUR is already
+running). To start ARTHUR at every login, put a shortcut to it in the Startup folder
+(Win + R → `shell:startup`); remove it there or in Task Manager → Startup apps.
+
 ### From your phone – privately, with Tailscale
 ARTHUR has no login, so it must **never** be opened to the internet. To use it from your
 own phone or laptop, put your devices in a private Tailscale network instead:
