@@ -46,6 +46,24 @@ CONTENT_SECURITY_POLICY = "; ".join(
         "frame-ancestors 'none'",  # no other site may show ARTHUR inside a frame
     ]
 )
+
+
+def content_security_policy(extra_hosts: frozenset[str]) -> str:
+    """The policy, plus the live connection for every extra name ARTHUR is reached by.
+
+    Reached through e.g. Tailscale (https://pc.tailnet.ts.net) the page talks to
+    wss://pc.tailnet.ts.net/ws. Chrome counts that as 'self'; some Safari versions do not
+    and would block the connection - so allowed names are listed explicitly.
+    """
+    if not extra_hosts:
+        return CONTENT_SECURITY_POLICY
+    sockets = " ".join(f"wss://{h} ws://{h}:*" for h in sorted(extra_hosts))
+    return CONTENT_SECURITY_POLICY.replace(
+        "connect-src 'self' ws://localhost:* ws://127.0.0.1:*",
+        f"connect-src 'self' ws://localhost:* ws://127.0.0.1:* {sockets}",
+    )
+
+
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -135,7 +153,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         for name, value in SECURITY_HEADERS.items():
             response.headers[name] = value
         if not path.startswith(_DOCS_PATHS):
-            response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
+            extra = getattr(request.app.state, "allowed_hosts", frozenset())
+            response.headers["Content-Security-Policy"] = content_security_policy(extra)
         if "cache-control" not in response.headers:
             # Re-check the page's files on every load (unchanged ones answer "304 not
             # modified"), so an updated ARTHUR never runs with old JavaScript (Phase 28).

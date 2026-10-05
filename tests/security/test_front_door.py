@@ -132,3 +132,22 @@ async def test_the_page_has_no_inline_scripts_or_styles(client):
     assert "<style" not in html
     assert " style=" not in html
     assert "onclick=" not in html
+
+
+def test_the_policy_allows_the_live_connection_on_an_extra_name():
+    """Reached through Tailscale (https://<pc>.<tailnet>.ts.net) the page uses wss:// on that
+    name; Safari doesn't always count it as 'self', so it is listed - and only that name."""
+    from app.api.middleware import CONTENT_SECURITY_POLICY, content_security_policy
+
+    assert content_security_policy(frozenset()) == CONTENT_SECURITY_POLICY
+    policy = content_security_policy(frozenset({"pc.tail1234.ts.net"}))
+    connect = next(p for p in policy.split("; ") if p.startswith("connect-src"))
+    assert "wss://pc.tail1234.ts.net" in connect
+    assert "wss:" not in connect.replace("wss://pc.tail1234.ts.net", "")  # no wildcard
+    assert "script-src 'self' blob:" in policy  # nothing else loosened
+
+
+async def test_the_header_uses_the_configured_names(client):
+    client._transport.app.state.allowed_hosts = frozenset({"test", "testserver", "pc.ts.net"})
+    response = await client.get("/")
+    assert "wss://pc.ts.net" in response.headers["content-security-policy"]

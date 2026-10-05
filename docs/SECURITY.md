@@ -83,6 +83,13 @@ audit log.
   classified as lower risk. Passwords and payments are also blocked by field type.
 - A small local model makes mistakes. The defences assume the model can be wrong or
   manipulated, which is why none of them depend on it.
+- **Remote use only through a private network.** ARTHUR has no login, so it must never be
+  reachable from the internet (no port forwarding, no public tunnels). With Tailscale
+  (`tailscale serve`, README "From your phone") only devices signed in to your own Tailscale
+  account can reach it. Every one of those devices can then use ARTHUR with your files and
+  apps – share a tailnet only with devices you own. The Tailscale name goes into
+  `ALLOWED_HOSTS` (Host check) and, automatically, into the Content-Security-Policy's
+  `connect-src` (`wss://` for the live connection).
 
 ## Report a problem
 This is a personal learning project. If you find a hole, open an issue describing the steps.

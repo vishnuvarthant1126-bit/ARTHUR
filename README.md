@@ -208,6 +208,18 @@ uvicorn app.main:app --reload
 
 The models load in the background at start-up, so the first answer takes ~0.6 s instead of ~12 s.
 
+### From your phone – privately, with Tailscale
+ARTHUR has no login, so it must **never** be opened to the internet. To use it from your
+own phone or laptop, put your devices in a private Tailscale network instead:
+1. Install [Tailscale](https://tailscale.com/download) on the PC and on the phone, signed in
+   with the same account.
+2. On the PC: `tailscale serve --bg 8000` → `https://<pc>.<tailnet>.ts.net` (enable "Serve"
+   once when Tailscale asks).
+3. In `.env`: `ALLOWED_HOSTS=<pc>.<tailnet>.ts.net`, then restart ARTHUR.
+
+Only devices signed in to your Tailscale account can open the address, and HTTPS makes the
+phone's microphone work. To switch it off: `tailscale serve --https=443 off`.
+
 ## 8. Docker setup
 
 ```powershell
